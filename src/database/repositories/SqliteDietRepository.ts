@@ -1,0 +1,308 @@
+import { IDietRepository, ISqliteDatabase } from './interfaces';
+import {
+  DietLogEntry,
+  FoodItem,
+  WaterLogEntry,
+  DailyNutritionSummary,
+  MealType,
+} from '../../types/domain';
+
+interface DietLogRow {
+  id: string;
+  date: string;
+  meal_type: MealType;
+  food_id: string | null;
+  food_name: string;
+  serving_grams: number;
+  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  created_at: string;
+}
+
+interface FoodRow {
+  id: string;
+  name: string;
+  category: string | null;
+  serving_grams: number;
+  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  fiber: number | null;
+  barcode: string | null;
+  source: 'taco' | 'openfoodfacts' | 'custom';
+  serving_unit_name: string | null;
+  serving_unit_grams: number | null;
+  created_at: string;
+}
+
+interface WaterLogRow {
+  id: string;
+  date: string;
+  amount_ml: number;
+  created_at: string;
+}
+
+export class SqliteDietRepository implements IDietRepository {
+  constructor(private db: ISqliteDatabase) {}
+
+  private mapDietRow(row: DietLogRow): DietLogEntry {
+    return {
+      id: row.id,
+      date: row.date,
+      mealType: row.meal_type,
+      foodId: row.food_id ?? undefined,
+      foodName: row.food_name,
+      servingGrams: row.serving_grams,
+      calories: row.calories,
+      protein: row.protein,
+      carbs: row.carbs,
+      fat: row.fat,
+      createdAt: row.created_at,
+    };
+  }
+
+  private mapFoodRow(row: FoodRow): FoodItem {
+    return {
+      id: row.id,
+      name: row.name,
+      category: row.category ?? undefined,
+      servingGrams: row.serving_grams,
+      calories: row.calories,
+      protein: row.protein,
+      carbs: row.carbs,
+      fat: row.fat,
+      fiber: row.fiber ?? undefined,
+      barcode: row.barcode ?? undefined,
+      source: row.source,
+      servingUnitName: row.serving_unit_name ?? undefined,
+      servingUnitGrams: row.serving_unit_grams ?? undefined,
+      createdAt: row.created_at,
+    };
+  }
+
+  async getDailyLogs(date: string): Promise<DietLogEntry[]> {
+    const rows = await this.db.getAllAsync<DietLogRow>(
+      `SELECT id, date, meal_type, food_id, food_name, serving_grams, calories, protein, carbs, fat, created_at
+       FROM diet_logs
+       WHERE date = ?
+       ORDER BY created_at ASC;`,
+      date
+    );
+    return rows.map((r) => this.mapDietRow(r));
+  }
+
+  async addDietLog(entry: Omit<DietLogEntry, 'id' | 'createdAt'>): Promise<DietLogEntry> {
+    const id = `diet-log-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
+    const createdAt = new Date().toISOString();
+
+    await this.db.runAsync(
+      `INSERT INTO diet_logs (id, date, meal_type, food_id, food_name, serving_grams, calories, protein, carbs, fat, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
+      id,
+      entry.date,
+      entry.mealType,
+      entry.foodId ?? null,
+      entry.foodName,
+      entry.servingGrams,
+      entry.calories,
+      entry.protein,
+      entry.carbs,
+      entry.fat,
+      createdAt
+    );
+
+    return {
+      ...entry,
+      id,
+      createdAt,
+    };
+  }
+
+  async updateDietLog(id: string, entry: Partial<DietLogEntry>): Promise<void> {
+    const current = await this.db.getFirstAsync<DietLogRow>(
+      `SELECT id, date, meal_type, food_id, food_name, serving_grams, calories, protein, carbs, fat, created_at
+       FROM diet_logs
+       WHERE id = ?;`,
+      id
+    );
+    if (!current) return;
+
+    await this.db.runAsync(
+      `UPDATE diet_logs SET
+         serving_grams = ?,
+         calories = ?,
+         protein = ?,
+         carbs = ?,
+         fat = ?,
+         meal_type = ?
+       WHERE id = ?;`,
+      entry.servingGrams !== undefined ? entry.servingGrams : current.serving_grams,
+      entry.calories !== undefined ? entry.calories : current.calories,
+      entry.protein !== undefined ? entry.protein : current.protein,
+      entry.carbs !== undefined ? entry.carbs : current.carbs,
+      entry.fat !== undefined ? entry.fat : current.fat,
+      entry.mealType !== undefined ? entry.mealType : current.meal_type,
+      id
+    );
+  }
+
+  async deleteDietLog(id: string): Promise<void> {
+    await this.db.runAsync(`DELETE FROM diet_logs WHERE id = ?;`, id);
+  }
+
+  async searchFoods(query: string, limit = 50): Promise<FoodItem[]> {
+    const sanitized = query.trim();
+    if (!sanitized) return [];
+
+    const wildcard = `%${sanitized}%`;
+    const prefix = `${sanitized}%`;
+
+    const rows = await this.db.getAllAsync<FoodRow>(
+      `SELECT id, name, category, serving_grams, calories, protein, carbs, fat, fiber, barcode, source, serving_unit_name, serving_unit_grams, created_at
+       FROM foods
+       WHERE name LIKE ?
+       ORDER BY
+         CASE WHEN name LIKE ? THEN 1 ELSE 2 END,
+         name ASC
+       LIMIT ?;`,
+      wildcard,
+      prefix,
+      limit
+    );
+
+    return rows.map((r) => this.mapFoodRow(r));
+  }
+
+  async getFoodByBarcode(barcode: string): Promise<FoodItem | null> {
+    const row = await this.db.getFirstAsync<FoodRow>(
+      `SELECT id, name, category, serving_grams, calories, protein, carbs, fat, fiber, barcode, source, serving_unit_name, serving_unit_grams, created_at
+       FROM foods
+       WHERE barcode = ?
+       LIMIT 1;`,
+      barcode.trim()
+    );
+
+    return row ? this.mapFoodRow(row) : null;
+  }
+
+  async createFood(food: Omit<FoodItem, 'id' | 'createdAt'>): Promise<FoodItem> {
+    const id = `food-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
+    const createdAt = new Date().toISOString();
+
+    await this.db.runAsync(
+      `INSERT INTO foods (id, name, category, serving_grams, calories, protein, carbs, fat, fiber, barcode, source, serving_unit_name, serving_unit_grams, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
+      id,
+      food.name,
+      food.category ?? '',
+      food.servingGrams,
+      food.calories,
+      food.protein,
+      food.carbs,
+      food.fat,
+      food.fiber ?? 0,
+      food.barcode ?? null,
+      food.source,
+      food.servingUnitName ?? 'g',
+      food.servingUnitGrams ?? 1,
+      createdAt
+    );
+
+    return {
+      ...food,
+      id,
+      createdAt,
+    };
+  }
+
+  async getWaterLogs(date: string): Promise<WaterLogEntry[]> {
+    const rows = await this.db.getAllAsync<WaterLogRow>(
+      `SELECT id, date, amount_ml, created_at
+       FROM water_logs
+       WHERE date = ?
+       ORDER BY created_at ASC;`,
+      date
+    );
+
+    return rows.map((r) => ({
+      id: r.id,
+      date: r.date,
+      amountMl: r.amount_ml,
+      createdAt: r.created_at,
+    }));
+  }
+
+  async addWaterLog(date: string, amountMl: number): Promise<WaterLogEntry> {
+    const id = `water-log-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
+    const createdAt = new Date().toISOString();
+
+    await this.db.runAsync(
+      `INSERT INTO water_logs (id, date, amount_ml, created_at)
+       VALUES (?, ?, ?, ?);`,
+      id,
+      date,
+      amountMl,
+      createdAt
+    );
+
+    return { id, date, amountMl, createdAt };
+  }
+
+  async deleteWaterLog(id: string): Promise<void> {
+    await this.db.runAsync(`DELETE FROM water_logs WHERE id = ?;`, id);
+  }
+
+  async resetWaterLogs(date: string): Promise<void> {
+    await this.db.runAsync(`DELETE FROM water_logs WHERE date = ?;`, date);
+  }
+
+  async getDailyWaterTotal(date: string): Promise<number> {
+    const row = await this.db.getFirstAsync<{ total: number | null }>(
+      `SELECT SUM(amount_ml) as total FROM water_logs WHERE date = ?;`,
+      date
+    );
+    return row?.total ?? 0;
+  }
+
+  async getDailyNutritionSummary(date: string): Promise<DailyNutritionSummary> {
+    const logs = await this.getDailyLogs(date);
+    const totalWaterMl = await this.getDailyWaterTotal(date);
+
+    const meals: Record<MealType, DietLogEntry[]> = {
+      breakfast: [],
+      lunch: [],
+      snack: [],
+      dinner: [],
+      supper: [],
+    };
+
+    let totalCalories = 0;
+    let totalProtein = 0;
+    let totalCarbs = 0;
+    let totalFat = 0;
+
+    for (const log of logs) {
+      totalCalories += log.calories;
+      totalProtein += log.protein;
+      totalCarbs += log.carbs;
+      totalFat += log.fat;
+
+      if (meals[log.mealType]) {
+        meals[log.mealType].push(log);
+      }
+    }
+
+    return {
+      date,
+      totalCalories: Number(totalCalories.toFixed(1)),
+      totalProtein: Number(totalProtein.toFixed(1)),
+      totalCarbs: Number(totalCarbs.toFixed(1)),
+      totalFat: Number(totalFat.toFixed(1)),
+      totalWaterMl,
+      meals,
+    };
+  }
+}

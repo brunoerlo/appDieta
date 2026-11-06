@@ -1,0 +1,141 @@
+export type MealType = 'breakfast' | 'lunch' | 'snack' | 'dinner' | 'supper';
+
+export interface UserProfile {
+  id: string;
+  email: string;
+  name: string;
+  targetCalories: number;
+  targetProtein: number;
+  targetCarbs: number;
+  targetFat: number;
+  targetWaterMl: number;
+  theme: 'dark' | 'light';
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export interface FoodItem {
+  id: string;
+  name: string;
+  category?: string;
+  servingGrams: number;
+  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  fiber?: number;
+  barcode?: string;
+  source: 'taco' | 'openfoodfacts' | 'custom';
+  servingUnitName?: string;
+  servingUnitGrams?: number;
+  createdAt?: string;
+}
+
+export interface DietLogEntry {
+  id: string;
+  date: string; // Format: YYYY-MM-DD
+  mealType: MealType;
+  foodId?: string;
+  foodName: string;
+  servingGrams: number;
+  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  createdAt: string;
+}
+
+export interface WaterLogEntry {
+  id: string;
+  date: string; // Format: YYYY-MM-DD
+  amountMl: number;
+  createdAt: string;
+}
+
+export interface DailyNutritionSummary {
+  date: string;
+  totalCalories: number;
+  totalProtein: number;
+  totalCarbs: number;
+  totalFat: number;
+  totalWaterMl: number;
+  meals: {
+    breakfast: DietLogEntry[];
+    lunch: DietLogEntry[];
+    snack: DietLogEntry[];
+    dinner: DietLogEntry[];
+    supper: DietLogEntry[];
+  };
+}
+
+export interface RoutineExercise {
+  id: string;
+  routineId: string;
+  name: string;
+  muscleGroup?: string;
+  targetSets: number;
+  defaultRestSeconds: number;
+  sortOrder: number;
+}
+
+export interface WorkoutRoutine {
+  id: string;
+  name: string;
+  description?: string;
+  sortOrder: number;
+  exercises?: RoutineExercise[];
+  createdAt: string;
+}
+
+export interface SetLog {
+  id: string;
+  sessionId: string;
+  exerciseId?: string;
+  exerciseName: string;
+  setNumber: number;
+  weightKg: number;
+  reps: number;
+  completed: boolean;
+  createdAt: string;
+}
+
+export interface WorkoutSession {
+  id: string;
+  routineId?: string;
+  routineName: string;
+  date: string; // Format: YYYY-MM-DD
+  startTime?: string;
+  endTime?: string;
+  durationMinutes: number;
+  totalVolumeKg?: number;
+  notes?: string;
+  sets?: SetLog[];
+  createdAt: string;
+}
+
+export interface ExerciseHistoryPoint {
+  date: string;
+  maxWeightKg: number;
+  totalVolumeKg: number;
+  estimated1RM: number;
+  bestSetReps: number;
+}
+
+export interface BodyLog {
+  id: string;
+  date: string; // Format: YYYY-MM-DD
+  weightKg: number;
+  bodyFatPct?: number;
+  waistCm?: number;
+  chestCm?: number;
+  armsCm?: number;
+  legsCm?: number;
+  photoUris?: string[];
+  createdAt: string;
+}
+
+export interface WeightHistoryPoint {
+  date: string;
+  weightKg: number;
+  movingAverage?: number | null;
+}

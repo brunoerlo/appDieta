@@ -1,0 +1,88 @@
+import {
+  UserProfile,
+  FoodItem,
+  DietLogEntry,
+  WaterLogEntry,
+  DailyNutritionSummary,
+  WorkoutRoutine,
+  RoutineExercise,
+  WorkoutSession,
+  SetLog,
+  ExerciseHistoryPoint,
+  BodyLog,
+  WeightHistoryPoint,
+} from '../../types/domain';
+
+export interface ISqliteDatabase {
+  runAsync(sql: string, ...params: any[]): Promise<{ lastInsertRowId: number; changes: number }>;
+  getFirstAsync<T>(sql: string, ...params: any[]): Promise<T | null>;
+  getAllAsync<T>(sql: string, ...params: any[]): Promise<T[]>;
+  execAsync(sql: string): Promise<void>;
+  withTransactionAsync(task: () => Promise<void>): Promise<void>;
+}
+
+export interface IAuthRepository {
+  getProfile(): Promise<UserProfile>;
+  updateProfile(profile: Partial<UserProfile>): Promise<UserProfile>;
+  setTheme(theme: 'dark' | 'light'): Promise<void>;
+  getTheme(): Promise<'dark' | 'light'>;
+}
+
+export interface IDietRepository {
+  getDailyLogs(date: string): Promise<DietLogEntry[]>;
+  addDietLog(entry: Omit<DietLogEntry, 'id' | 'createdAt'>): Promise<DietLogEntry>;
+  updateDietLog(id: string, entry: Partial<DietLogEntry>): Promise<void>;
+  deleteDietLog(id: string): Promise<void>;
+  searchFoods(query: string, limit?: number): Promise<FoodItem[]>;
+  getFoodByBarcode(barcode: string): Promise<FoodItem | null>;
+  createFood(food: Omit<FoodItem, 'id' | 'createdAt'>): Promise<FoodItem>;
+  getWaterLogs(date: string): Promise<WaterLogEntry[]>;
+  addWaterLog(date: string, amountMl: number): Promise<WaterLogEntry>;
+  deleteWaterLog(id: string): Promise<void>;
+  resetWaterLogs(date: string): Promise<void>;
+  getDailyNutritionSummary(date: string): Promise<DailyNutritionSummary>;
+}
+
+export interface WorkoutSessionInput {
+  routineId?: string;
+  routineName: string;
+  date: string;
+  startTime?: string;
+  endTime?: string;
+  durationMinutes: number;
+  totalVolumeKg?: number;
+  notes?: string;
+  sets?: Omit<SetLog, 'id' | 'sessionId' | 'createdAt'>[];
+}
+
+export interface IWorkoutRepository {
+  getRoutines(): Promise<WorkoutRoutine[]>;
+  getRoutineById(id: string): Promise<WorkoutRoutine | null>;
+  createRoutine(
+    routine: Omit<WorkoutRoutine, 'id' | 'createdAt'>,
+    exercises?: Omit<RoutineExercise, 'id' | 'routineId'>[]
+  ): Promise<WorkoutRoutine>;
+  updateRoutine(
+    id: string,
+    routine: Partial<WorkoutRoutine>,
+    exercises?: RoutineExercise[]
+  ): Promise<void>;
+  deleteRoutine(id: string): Promise<void>;
+  getPreviousExerciseSets(exerciseName: string, targetSets?: number): Promise<SetLog[]>;
+  saveWorkoutSession(
+    session: WorkoutSessionInput,
+    sets?: Omit<SetLog, 'id' | 'sessionId' | 'createdAt'>[]
+  ): Promise<WorkoutSession>;
+  getWorkoutSessions(limit?: number, offset?: number): Promise<WorkoutSession[]>;
+  getSessionDetails(id: string): Promise<WorkoutSession | null>;
+  getExerciseHistory(exerciseName: string): Promise<ExerciseHistoryPoint[]>;
+}
+
+export interface IBodyRepository {
+  getBodyLog(date: string): Promise<BodyLog | null>;
+  saveBodyLog(log: Omit<BodyLog, 'id' | 'createdAt'>): Promise<BodyLog>;
+  getWeightHistory(startDate?: string, endDate?: string): Promise<WeightHistoryPoint[]>;
+  calculateMovingAverage(date: string, windowDays?: number): Promise<number | null>;
+  savePhoto(date: string, photoUri: string): Promise<string[]>;
+  getPhotos(): Promise<{ date: string; uri: string }[]>;
+}

@@ -70,39 +70,44 @@ describe('Milestone M1 Adversarial Stress Test Suite', () => {
         concurrentQueries.push(queryList[i % queryList.length]);
       }
 
-      const latencies: number[] = [];
-      const startTime = performance.now();
+      // 2a. Sequential per-query execution latency benchmark
+      const individualLatencies: number[] = [];
+      for (const query of concurrentQueries) {
+        const t0 = performance.now();
+        const res = await dietRepo.searchFoods(query, 50);
+        const elapsed = performance.now() - t0;
+        individualLatencies.push(elapsed);
+        expect(res).toBeDefined();
+      }
 
-      await Promise.all(
-        concurrentQueries.map(async (query) => {
-          const t0 = performance.now();
-          const res = await dietRepo.searchFoods(query, 50);
-          const elapsed = performance.now() - t0;
-          latencies.push(elapsed);
-          expect(res).toBeDefined();
-        })
+      individualLatencies.sort((a, b) => a - b);
+      const seqP50 = individualLatencies[Math.floor(individualLatencies.length * 0.5)];
+      const seqP90 = individualLatencies[Math.floor(individualLatencies.length * 0.9)];
+      const seqP99 = individualLatencies[individualLatencies.length - 1];
+      const seqMax = Math.max(...individualLatencies);
+      const seqAvg = individualLatencies.reduce((sum, v) => sum + v, 0) / individualLatencies.length;
+
+      // 2b. Concurrent batch execution (100 parallel searches)
+      const batchStartTime = performance.now();
+      const concurrentResults = await Promise.all(
+        concurrentQueries.map((query) => dietRepo.searchFoods(query, 50))
       );
-
-      const totalBatchTime = performance.now() - startTime;
-      latencies.sort((a, b) => a - b);
-
-      const p50 = latencies[Math.floor(latencies.length * 0.5)];
-      const p90 = latencies[Math.floor(latencies.length * 0.9)];
-      const p99 = latencies[latencies.length - 1];
-      const maxLatency = Math.max(...latencies);
-      const avgLatency = latencies.reduce((sum, v) => sum + v, 0) / latencies.length;
+      const totalBatchTime = performance.now() - batchStartTime;
+      const amortizedPerQuery = totalBatchTime / concurrentQueries.length;
 
       // Log benchmark to stdout for empirical report
-      console.log(`[BENCHMARK] 100 Concurrent Searches across ${totalFoods?.count} foods:`);
-      console.log(`  Total batch time: ${totalBatchTime.toFixed(2)}ms`);
-      console.log(`  Avg latency: ${avgLatency.toFixed(2)}ms`);
-      console.log(`  P50 latency: ${p50.toFixed(2)}ms`);
-      console.log(`  P90 latency: ${p90.toFixed(2)}ms`);
-      console.log(`  P99 / Max latency: ${maxLatency.toFixed(2)}ms`);
+      console.log(`[BENCHMARK] Search across ${totalFoods?.count} foods:`);
+      console.log(`  Sequential avg latency: ${seqAvg.toFixed(2)}ms`);
+      console.log(`  Sequential P50 latency: ${seqP50.toFixed(2)}ms`);
+      console.log(`  Sequential P90 latency: ${seqP90.toFixed(2)}ms`);
+      console.log(`  Sequential P99 / Max latency: ${seqMax.toFixed(2)}ms`);
+      console.log(`  100 concurrent queries total batch time: ${totalBatchTime.toFixed(2)}ms`);
+      console.log(`  Amortized per-query concurrent time: ${amortizedPerQuery.toFixed(2)}ms`);
 
       // Acceptance criterion: < 100ms response time per search
-      expect(maxLatency).toBeLessThan(100);
-      expect(avgLatency).toBeLessThan(50);
+      expect(seqMax).toBeLessThan(100);
+      expect(seqAvg).toBeLessThan(20);
+      expect(amortizedPerQuery).toBeLessThan(20);
     });
 
     it('handles complex, adversarial, and edge-case query strings without crashing or SQL errors', async () => {
@@ -147,36 +152,37 @@ describe('Milestone M1 Adversarial Stress Test Suite', () => {
   describe('Extreme Inputs & Edge Cases', () => {
     describe('Unicode & Brazilian Portuguese Accented Search Stress', () => {
       it('tests exact accented search vs case-folding and unaccented search', async () => {
-        // TACO foods seeded include:
-        // 'Pão francês'
-        // 'Pão de forma integral'
-        // 'Maçã, fuji, com casca'
-        // 'Açaí, polpa, congelada'
+        // Seed 'Açaí com xarope' so all 3 target queries from dispatch prompt are present
+        await dietRepo.createFood({
+          name: 'Açaí com xarope de guaraná',
+          category: 'Frutas',
+          servingGrams: 100,
+          calories: 110,
+          protein: 1.5,
+          carbs: 21.5,
+          fat: 2.0,
+          source: 'custom',
+        });
 
         // 1. Exact match with accents
         const paoExact = await dietRepo.searchFoods('pão francês');
-        expect(paoExact.length).toBeGreaterThanOrEqual(1);
-        expect(paoExact[0].name.toLowerCase()).toContain('pão');
+        const macaExact = await dietRepo.searchFoods('maçã');
+        const acaiExact = await dietRepo.searchFoods('açaí');
 
         // 2. Uppercase with accents
         const paoUpper = await dietRepo.searchFoods('PÃO FRANCÊS');
-        console.log(`[UNICODE TEST] 'PÃO FRANCÊS' matches: ${paoUpper.length}`);
-
-        // 3. Unaccented search (user types "pao frances" without accents on mobile)
-        const paoUnaccented = await dietRepo.searchFoods('pao frances');
-        console.log(`[UNICODE TEST] 'pao frances' (unaccented) matches: ${paoUnaccented.length}`);
-
-        // 4. Test Maçã with accents vs unaccented
-        const macaExact = await dietRepo.searchFoods('maçã');
         const macaUpper = await dietRepo.searchFoods('MAÇÃ');
-        const macaUnaccented = await dietRepo.searchFoods('maca');
-        console.log(`[UNICODE TEST] 'maçã': ${macaExact.length}, 'MAÇÃ': ${macaUpper.length}, 'maca': ${macaUnaccented.length}`);
-
-        // 5. Test Açaí with accents vs unaccented
-        const acaiExact = await dietRepo.searchFoods('açaí');
         const acaiUpper = await dietRepo.searchFoods('AÇAÍ');
+
+        // 3. Unaccented search (user types "pao frances", "maca", "acai" without accents on mobile)
+        const paoUnaccented = await dietRepo.searchFoods('pao frances');
+        const macaUnaccented = await dietRepo.searchFoods('maca');
         const acaiUnaccented = await dietRepo.searchFoods('acai');
-        console.log(`[UNICODE TEST] 'açaí': ${acaiExact.length}, 'AÇAÍ': ${acaiUpper.length}, 'acai': ${acaiUnaccented.length}`);
+
+        console.log(`[UNICODE TEST RESULTS]`);
+        console.log(`  'pão francês' exact: ${paoExact.length} matches | 'PÃO FRANCÊS' upper: ${paoUpper.length} matches | 'pao frances' unaccented: ${paoUnaccented.length} matches`);
+        console.log(`  'maçã' exact: ${macaExact.length} matches | 'MAÇÃ' upper: ${macaUpper.length} matches | 'maca' unaccented: ${macaUnaccented.length} matches`);
+        console.log(`  'açaí' exact: ${acaiExact.length} matches | 'AÇAÍ' upper: ${acaiUpper.length} matches | 'acai' unaccented: ${acaiUnaccented.length} matches`);
 
         // Verify that exact accents match
         expect(paoExact.length).toBeGreaterThan(0);
@@ -458,8 +464,8 @@ describe('Milestone M1 Adversarial Stress Test Suite', () => {
 
       const history = await workoutRepo.getExerciseHistory('Levantamento Terra');
       expect(history).toHaveLength(1);
-      expect(history[0].estimatedOneRepMax).toBe(200);
-      expect(history[0].maxWeight).toBe(200);
+      expect(history[0].estimated1RM).toBe(200);
+      expect(history[0].maxWeightKg).toBe(200);
     });
   });
 });

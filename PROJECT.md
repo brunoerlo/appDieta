@@ -87,7 +87,7 @@ It follows an offline-first architecture powered by local SQLite (`expo-sqlite`)
 
 | # | Name | Scope | Dependencies | Status |
 |---|------|-------|-------------|--------|
-| M1 | Database, Schemas, TACO Seed & Repositories | Initialize SQLite, create 9 tables, seed TACO & routines, implement `IDietRepository`, `IWorkoutRepository`, `IBodyRepository`, `IAuthRepository`, and setup `npm test` test suite with 100% pass | None | PLANNED |
+| M1 | Database, Schemas, TACO Seed & Repositories | Initialize SQLite, create 9 tables, seed TACO & routines, implement `IDietRepository`, `IWorkoutRepository`, `IBodyRepository`, `IAuthRepository`, and setup `npm test` test suite with 100% pass | None | DONE |
 | M2 | Nutrition & Hydration Module | Meal diary (5 meals), macro calculations, TACO indexed search, Open Food Facts API & barcode scan, custom foods, water tracker with +250/+500ml shortcuts | M1 | PLANNED |
 | M3 | Workout & Progression Module | Workout routines, Live Workout execution screen, previous session reference, set checklist, auto rest countdown timer with `expo-haptics`, workout history, 1RM & volume progression charts | M1 | PLANNED |
 | M4 | Body Evolution, Photos & UI Theme | Daily weigh-in, 7-day moving average, trend chart, body fat / lean mass / circumferences, progress photos with before/after comparison, profile settings, OLED dark theme & light mode toggle, Expo Router tabs | M1 | PLANNED |

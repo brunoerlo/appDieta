@@ -13,10 +13,12 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useBody } from '../../hooks/useBody';
 import { useTheme } from '../../hooks/useTheme';
+import { useSafeTopPadding } from '../../hooks/useSafeTopPadding';
 
 export default function BodyLogModalScreen() {
   const router = useRouter();
   const { colors } = useTheme();
+  const safeTop = useSafeTopPadding(8);
   const { selectedDate, currentBodyLog, saveWeighIn, saveMeasurements } = useBody();
 
   const [weightStr, setWeightStr] = useState('');
@@ -95,7 +97,7 @@ export default function BodyLogModalScreen() {
         style={styles.flex}
       >
         {/* Header */}
-        <View style={[styles.header, { borderBottomColor: colors.cardBorder }]}>
+        <View style={[styles.header, { borderBottomColor: colors.cardBorder, paddingTop: safeTop }]}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
             <Text style={[styles.backBtnText, { color: colors.textPrimary }]}>✕ Fechar</Text>
           </TouchableOpacity>

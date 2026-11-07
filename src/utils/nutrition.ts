@@ -167,3 +167,102 @@ export function shiftDateString(dateStr: string, days: number): string {
   const d = String(date.getDate()).padStart(2, '0');
   return `${y}-${m}-${d}`;
 }
+
+export interface SuggestedTargetsInput {
+  weightKg: number;
+  heightCm: number;
+  age?: number;
+  gender?: 'male' | 'female' | 'other';
+  trainingGoal: 'hypertrophy' | 'cutting' | 'maintenance' | string;
+  activityLevel: 'sedentary' | 'light' | 'moderate' | 'intense' | 'very_active' | string;
+}
+
+export interface SuggestedTargetsResult {
+  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  waterMl: number;
+  bmr: number;
+  tdee: number;
+}
+
+/**
+ * Calculates scientifically suggested nutritional and hydration targets based on:
+ * - BMR: Mifflin-St Jeor formula
+ * - TDEE: Activity multipliers
+ * - Goal modulation: Hypertrophy (+12%), Cutting (-18%), Maintenance (0%)
+ * - Macro distribution: High protein (1.8-2.2g/kg), healthy fat (~0.9g/kg), remainder to carbs
+ * - Water: 35-50 ml/kg based on activity level
+ */
+export function calculateSuggestedTargets(input: SuggestedTargetsInput): SuggestedTargetsResult {
+  const weight = Math.max(30, Math.min(250, input.weightKg || 70));
+  const height = Math.max(100, Math.min(230, input.heightCm || 175));
+  const age = input.age || 25;
+  const genderConst = input.gender === 'female' ? -161 : 5;
+
+  // 1. BMR (Mifflin-St Jeor)
+  const bmr = Math.round(10 * weight + 6.25 * height - 5 * age + genderConst);
+
+  // 2. Activity Multiplier
+  const activityMap: Record<string, number> = {
+    sedentary: 1.2,
+    light: 1.375,
+    moderate: 1.55,
+    intense: 1.725,
+    very_active: 1.9,
+  };
+  const multiplier = activityMap[input.activityLevel] || 1.55;
+  const tdee = Math.round(bmr * multiplier);
+
+  // 3. Goal Adjustment
+  let goalFactor = 1.0;
+  let proteinPerKg = 1.8;
+  const goal = (input.trainingGoal || '').toLowerCase();
+  if (goal === 'hypertrophy' || goal === 'hipertrofia') {
+    goalFactor = 1.12; // +12% surplus
+    proteinPerKg = 2.0;
+  } else if (goal === 'cutting' || goal === 'definição' || goal === 'definicao') {
+    goalFactor = 0.82; // -18% deficit
+    proteinPerKg = 2.2;
+  }
+  const rawCalories = Math.max(1200, Math.round(tdee * goalFactor));
+  let calories = Math.round(rawCalories / 50) * 50;
+
+  // 4. Protein & Fat
+  const protein = Math.round(weight * proteinPerKg);
+  const fat = Math.max(40, Math.min(110, Math.round(weight * 0.9)));
+
+  // Ensure calories accommodate baseline macros and minimum 50g carbs
+  const minRequiredCalories = (protein * 4) + (fat * 9) + (50 * 4);
+  if (calories < minRequiredCalories) {
+    calories = Math.ceil(minRequiredCalories / 50) * 50;
+  }
+
+  // 5. Carbs (remainder)
+  const remainingKcal = calories - (protein * 4 + fat * 9);
+  const carbs = Math.max(50, Math.round(remainingKcal / 4));
+
+  // 6. Water (ml)
+  const waterRateMap: Record<string, number> = {
+    sedentary: 35,
+    light: 38,
+    moderate: 40,
+    intense: 45,
+    very_active: 50,
+  };
+  const waterRate = waterRateMap[input.activityLevel] || 40;
+  const rawWater = weight * waterRate;
+  const waterMl = Math.max(2000, Math.min(5000, Math.round(rawWater / 250) * 250));
+
+  return {
+    calories,
+    protein,
+    carbs,
+    fat,
+    waterMl,
+    bmr,
+    tdee,
+  };
+}
+

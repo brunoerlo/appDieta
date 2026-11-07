@@ -28,6 +28,7 @@ export interface BodyContextValue {
   photos: { date: string; uri: string }[];
 
   isLoading: boolean;
+  isRefreshing: boolean;
   error: string | null;
 
   saveWeighIn: (weightKg: number, date?: string) => Promise<BodyLog>;
@@ -60,6 +61,7 @@ export class BodyStateManager {
   public chartRange: ChartRange = '1M';
   public photos: { date: string; uri: string }[] = [];
   public isLoading = false;
+  public isRefreshing = false;
   public error: string | null = null;
   private listeners: (() => void)[] = [];
 
@@ -131,10 +133,12 @@ export class BodyStateManager {
     this.weightHistory = await this.bodyRepo.getWeightHistory(startDate, undefined);
   }
 
-  public async loadData(): Promise<void> {
-    this.isLoading = true;
-    this.error = null;
-    this.notify();
+  public async loadData(options?: { silent?: boolean }): Promise<void> {
+    if (!options?.silent) {
+      this.isLoading = true;
+      this.error = null;
+      this.notify();
+    }
 
     try {
       const [log, ma, photos] = await Promise.all([
@@ -157,8 +161,12 @@ export class BodyStateManager {
     } catch (err: any) {
       this.error = err?.message || 'Falha ao carregar dados corporais';
     } finally {
-      this.isLoading = false;
-      this.notify();
+      if (!options?.silent) {
+        this.isLoading = false;
+        this.notify();
+      } else {
+        this.notify();
+      }
     }
   }
 
@@ -178,7 +186,7 @@ export class BodyStateManager {
       legsCm: existing?.legsCm,
       photoUris: existing?.photoUris ?? [],
     });
-    await this.loadData();
+    await this.loadData({ silent: true });
     return saved;
   }
 
@@ -208,22 +216,33 @@ export class BodyStateManager {
       legsCm: measurements.legsCm !== undefined ? measurements.legsCm : existing?.legsCm,
       photoUris: existing?.photoUris ?? [],
     });
-    await this.loadData();
+    await this.loadData({ silent: true });
     return saved;
   }
 
   public async savePhoto(photoUri: string, targetDate?: string): Promise<string[]> {
     const date = targetDate || this.selectedDate;
     const uris = await this.bodyRepo.savePhoto(date, photoUri);
-    await this.loadData();
+    await this.loadData({ silent: true });
     return uris;
   }
 
   public async deletePhoto(photoUri: string, targetDate?: string): Promise<string[]> {
     const date = targetDate || this.selectedDate;
     const uris = await this.bodyRepo.deletePhoto(date, photoUri);
-    await this.loadData();
+    await this.loadData({ silent: true });
     return uris;
+  }
+
+  public async refresh(): Promise<void> {
+    this.isRefreshing = true;
+    this.notify();
+    try {
+      await this.loadData({ silent: true });
+    } finally {
+      this.isRefreshing = false;
+      this.notify();
+    }
   }
 }
 
@@ -238,15 +257,14 @@ export const BodyProvider: React.FC<BodyProviderProps> = ({
   bodyRepo,
   initialDate,
 }) => {
-  const [selectedDate, setSelectedDateState] = useState<string>(
-    initialDate || getTodayDateString()
-  );
+  const [selectedDate, setSelectedDateState] = useState<string>(initialDate || getTodayDateString());
   const [currentBodyLog, setCurrentBodyLog] = useState<BodyLog | null>(null);
   const [currentMovingAverage, setCurrentMovingAverage] = useState<number | null>(null);
   const [weightHistory, setWeightHistory] = useState<WeightHistoryPoint[]>([]);
   const [chartRange, setChartRangeState] = useState<ChartRange>('1M');
   const [photos, setPhotos] = useState<{ date: string; uri: string }[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
   const getStartDateForRange = useCallback(
@@ -269,8 +287,10 @@ export const BodyProvider: React.FC<BodyProviderProps> = ({
   );
 
   const loadData = useCallback(
-    async (date: string, range: ChartRange) => {
-      setIsLoading(true);
+    async (date: string, range: ChartRange, options?: { silent?: boolean }) => {
+      if (!options?.silent) {
+        setIsLoading(true);
+      }
       setError(null);
       try {
         const startDate = getStartDateForRange(range, date);
@@ -288,7 +308,9 @@ export const BodyProvider: React.FC<BodyProviderProps> = ({
       } catch (err: any) {
         setError(err?.message || 'Falha ao carregar dados corporais');
       } finally {
-        setIsLoading(false);
+        if (!options?.silent) {
+          setIsLoading(false);
+        }
       }
     },
     [bodyRepo, getStartDateForRange]
@@ -324,7 +346,6 @@ export const BodyProvider: React.FC<BodyProviderProps> = ({
     };
   }, [bodyRepo, getStartDateForRange, selectedDate, chartRange]);
 
-
   const setSelectedDate = useCallback((date: string) => {
     setSelectedDateState(date);
   }, []);
@@ -359,7 +380,7 @@ export const BodyProvider: React.FC<BodyProviderProps> = ({
         legsCm: existing?.legsCm,
         photoUris: existing?.photoUris ?? [],
       });
-      await loadData(selectedDate, chartRange);
+      await loadData(selectedDate, chartRange, { silent: true });
       return saved;
     },
     [bodyRepo, selectedDate, chartRange, loadData]
@@ -389,7 +410,7 @@ export const BodyProvider: React.FC<BodyProviderProps> = ({
         legsCm: measurements.legsCm !== undefined ? measurements.legsCm : existing?.legsCm,
         photoUris: existing?.photoUris ?? [],
       });
-      await loadData(selectedDate, chartRange);
+      await loadData(selectedDate, chartRange, { silent: true });
       return saved;
     },
     [bodyRepo, selectedDate, chartRange, loadData]
@@ -399,7 +420,7 @@ export const BodyProvider: React.FC<BodyProviderProps> = ({
     async (photoUri: string, targetDate?: string) => {
       const date = targetDate || selectedDate;
       const uris = await bodyRepo.savePhoto(date, photoUri);
-      await loadData(selectedDate, chartRange);
+      await loadData(selectedDate, chartRange, { silent: true });
       return uris;
     },
     [bodyRepo, selectedDate, chartRange, loadData]
@@ -409,14 +430,19 @@ export const BodyProvider: React.FC<BodyProviderProps> = ({
     async (photoUri: string, targetDate?: string) => {
       const date = targetDate || selectedDate;
       const uris = await bodyRepo.deletePhoto(date, photoUri);
-      await loadData(selectedDate, chartRange);
+      await loadData(selectedDate, chartRange, { silent: true });
       return uris;
     },
     [bodyRepo, selectedDate, chartRange, loadData]
   );
 
   const refresh = useCallback(async () => {
-    await loadData(selectedDate, chartRange);
+    setIsRefreshing(true);
+    try {
+      await loadData(selectedDate, chartRange, { silent: true });
+    } finally {
+      setIsRefreshing(false);
+    }
   }, [loadData, selectedDate, chartRange]);
 
   const currentComposition = useMemo(() => {
@@ -439,6 +465,7 @@ export const BodyProvider: React.FC<BodyProviderProps> = ({
       setChartRange,
       photos,
       isLoading,
+      isRefreshing,
       error,
       saveWeighIn,
       saveMeasurements,
@@ -460,6 +487,7 @@ export const BodyProvider: React.FC<BodyProviderProps> = ({
       setChartRange,
       photos,
       isLoading,
+      isRefreshing,
       error,
       saveWeighIn,
       saveMeasurements,

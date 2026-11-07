@@ -6,6 +6,7 @@ import {
   WorkoutSession,
   SetLog,
   ExerciseHistoryPoint,
+  CustomExercise,
 } from '../types/domain';
 import { IWorkoutRepository } from '../database/repositories/interfaces';
 import { calculateWorkoutVolume, formatPreviousLoad } from '../utils/workout';
@@ -85,6 +86,7 @@ export class WorkoutStateManager {
   };
   public historySessions: WorkoutSession[] = [];
   public selectedExerciseHistory: ExerciseHistoryPoint[] = [];
+  public customExercises: CustomExercise[] = [];
   public isLoading = false;
   public error: string | null = null;
 
@@ -123,6 +125,25 @@ export class WorkoutStateManager {
       this.isLoading = false;
       this.notify();
     }
+  }
+
+  // --- Custom Exercises Actions ---
+  public async loadCustomExercises(): Promise<void> {
+    try {
+      this.customExercises = await this.workoutRepo.getCustomExercises();
+      this.notify();
+    } catch (err: any) {
+      this.error = err?.message || 'Falha ao carregar exercícios personalizados';
+      this.notify();
+    }
+  }
+
+  public async createCustomExercise(
+    data: Omit<CustomExercise, 'id' | 'createdAt'>
+  ): Promise<CustomExercise> {
+    const created = await this.workoutRepo.createCustomExercise(data);
+    await this.loadCustomExercises();
+    return created;
   }
 
   public async getRoutineById(id: string): Promise<WorkoutRoutine | null> {
@@ -531,6 +552,13 @@ export interface WorkoutContextValue {
   deleteRoutine: (id: string) => Promise<void>;
   getRoutineById: (id: string) => Promise<WorkoutRoutine | null>;
 
+  // Custom Exercises
+  customExercises: CustomExercise[];
+  loadCustomExercises: () => Promise<void>;
+  createCustomExercise: (
+    data: Omit<CustomExercise, 'id' | 'createdAt'>
+  ) => Promise<CustomExercise>;
+
   // Active Live Workout Session
   activeSession: ActiveWorkoutSession | null;
   startWorkout: (routine?: WorkoutRoutine) => Promise<void>;
@@ -591,7 +619,7 @@ export const WorkoutProvider: React.FC<WorkoutProviderProps> = ({
     [workoutRepo, hapticsService]
   );
 
-  const [, setVersion] = useState(0);
+  const [version, setVersion] = useState(0);
 
   useEffect(() => {
     const unsubscribe = manager.subscribe(() => {
@@ -599,6 +627,7 @@ export const WorkoutProvider: React.FC<WorkoutProviderProps> = ({
     });
 
     manager.loadRoutines();
+    manager.loadCustomExercises();
 
     return () => {
       unsubscribe();
@@ -607,14 +636,21 @@ export const WorkoutProvider: React.FC<WorkoutProviderProps> = ({
   }, [manager]);
 
   const value = useMemo<WorkoutContextValue>(
-    () => ({
-      routines: manager.routines,
+    () => {
+      void version;
+      return {
+        routines: manager.routines,
       isLoadingRoutines: manager.isLoading,
       refreshRoutines: () => manager.loadRoutines(),
       createRoutine: (routine, exercises) => manager.createRoutine(routine, exercises),
       updateRoutine: (id, routine, exercises) => manager.updateRoutine(id, routine, exercises),
       deleteRoutine: (id) => manager.deleteRoutine(id),
       getRoutineById: (id) => manager.getRoutineById(id),
+
+      // Custom Exercises
+      customExercises: manager.customExercises,
+      loadCustomExercises: () => manager.loadCustomExercises(),
+      createCustomExercise: (data) => manager.createCustomExercise(data),
 
       activeSession: manager.activeSession,
       startWorkout: (routine) => manager.startWorkout(routine),
@@ -643,8 +679,9 @@ export const WorkoutProvider: React.FC<WorkoutProviderProps> = ({
 
       isLoading: manager.isLoading,
       error: manager.error,
-    }),
-    [manager]
+    };
+  },
+    [manager, version]
   );
 
   return <WorkoutContext.Provider value={value}>{children}</WorkoutContext.Provider>;

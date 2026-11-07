@@ -21,9 +21,11 @@ import {
 import { ExercisePickerModal, ExercisePickerResult } from '../../components/workout/ExercisePickerModal';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
+import { useSafeTopPadding } from '../../hooks/useSafeTopPadding';
 
 export default function LiveWorkoutScreen() {
   const router = useRouter();
+  const safeTop = useSafeTopPadding(6);
   const { routineId } = useLocalSearchParams<{ routineId?: string }>();
   const {
     routines,
@@ -214,7 +216,7 @@ export default function LiveWorkoutScreen() {
   return (
     <SafeAreaView style={styles.container}>
       {/* Top Header */}
-      <View style={styles.topHeader}>
+      <View style={[styles.topHeader, { paddingTop: safeTop }]}>
         <TouchableOpacity
           onPress={handleDiscardPress}
           style={styles.headerBtn}

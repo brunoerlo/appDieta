@@ -5,7 +5,14 @@ export const SCHEMA_DDL = `
 CREATE TABLE IF NOT EXISTS users (
   id TEXT PRIMARY KEY NOT NULL,
   email TEXT,
+  password TEXT,
   name TEXT NOT NULL DEFAULT 'Atleta',
+  is_logged_in INTEGER NOT NULL DEFAULT 0,
+  onboarding_completed INTEGER NOT NULL DEFAULT 0,
+  height_cm REAL,
+  target_weight_kg REAL,
+  training_goal TEXT,
+  activity_level TEXT,
   target_calories REAL NOT NULL DEFAULT 2000,
   target_protein REAL NOT NULL DEFAULT 150,
   target_carbs REAL NOT NULL DEFAULT 200,
@@ -162,4 +169,19 @@ CREATE TABLE IF NOT EXISTS body_logs (
 );
 
 CREATE INDEX IF NOT EXISTS idx_body_logs_date ON body_logs(date DESC);
+
+-- =========================================================================
+-- 10. CUSTOM_EXERCISES (User-Created Exercises with Categories)
+-- =========================================================================
+CREATE TABLE IF NOT EXISTS custom_exercises (
+  id TEXT PRIMARY KEY NOT NULL,
+  name TEXT NOT NULL,
+  category TEXT NOT NULL,
+  default_sets INTEGER NOT NULL DEFAULT 3,
+  default_rest_seconds INTEGER NOT NULL DEFAULT 90,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_custom_exercises_category ON custom_exercises(category);
+CREATE INDEX IF NOT EXISTS idx_custom_exercises_name ON custom_exercises(name COLLATE NOCASE);
 `;

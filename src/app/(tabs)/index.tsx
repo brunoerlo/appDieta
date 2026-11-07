@@ -20,7 +20,7 @@ export default function DietScreen() {
     dailySummary,
     userProfile,
     waterTotalMl,
-    isLoading,
+    isRefreshing,
     addWater,
     decrementWater,
     resetWater,
@@ -92,7 +92,7 @@ export default function DietScreen() {
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
-            refreshing={isLoading}
+            refreshing={isRefreshing}
             onRefresh={refresh}
             tintColor={DarkTheme.colors.primary}
           />

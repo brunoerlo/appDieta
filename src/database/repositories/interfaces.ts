@@ -11,6 +11,7 @@ import {
   ExerciseHistoryPoint,
   BodyLog,
   WeightHistoryPoint,
+  CustomExercise,
 } from '../../types/domain';
 
 export interface ISqliteDatabase {
@@ -21,11 +22,42 @@ export interface ISqliteDatabase {
   withTransactionAsync(task: () => Promise<void>): Promise<void>;
 }
 
+export interface RegisterUserInput {
+  name: string;
+  email: string;
+  password?: string;
+}
+
+export interface LoginUserInput {
+  email: string;
+  password?: string;
+}
+
+export type TrainingGoal = 'hypertrophy' | 'cutting' | 'maintenance' | string;
+export type ActivityLevel = 'sedentary' | 'light' | 'moderate' | 'intense' | 'very_active' | string;
+
+export interface OnboardingData {
+  heightCm: number;
+  targetWeightKg: number;
+  currentWeightKg?: number;
+  trainingGoal: TrainingGoal;
+  activityLevel: ActivityLevel;
+  targetCalories?: number;
+  targetProtein?: number;
+  targetCarbs?: number;
+  targetFat?: number;
+  targetWaterMl?: number;
+}
+
 export interface IAuthRepository {
   getProfile(): Promise<UserProfile>;
   updateProfile(profile: Partial<UserProfile>): Promise<UserProfile>;
   setTheme(theme: 'dark' | 'light'): Promise<void>;
   getTheme(): Promise<'dark' | 'light'>;
+  registerUser(input: RegisterUserInput): Promise<UserProfile>;
+  loginUser(input: LoginUserInput): Promise<UserProfile>;
+  logoutUser(): Promise<void>;
+  completeOnboarding(data: OnboardingData): Promise<UserProfile>;
 }
 
 export interface IDietRepository {
@@ -78,6 +110,10 @@ export interface IWorkoutRepository {
   getWorkoutSessions(limit?: number, offset?: number): Promise<WorkoutSession[]>;
   getSessionDetails(id: string): Promise<WorkoutSession | null>;
   getExerciseHistory(exerciseName: string): Promise<ExerciseHistoryPoint[]>;
+  getCustomExercises(): Promise<CustomExercise[]>;
+  createCustomExercise(
+    data: Omit<CustomExercise, 'id' | 'createdAt'>
+  ): Promise<CustomExercise>;
 }
 
 export interface IBodyRepository {

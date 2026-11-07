@@ -44,6 +44,52 @@ class MockAuthRepository implements IAuthRepository {
     if (this.shouldFail) throw new Error('DB Get Theme Failed');
     return this.profile.theme;
   }
+
+  async registerUser(input: any): Promise<UserProfile> {
+    if (this.shouldFail) throw new Error('DB Register Failed');
+    this.profile = {
+      ...this.profile,
+      id: 'registered-user',
+      name: input.name,
+      email: input.email,
+      isLoggedIn: true,
+      onboardingCompleted: false,
+    };
+    return { ...this.profile };
+  }
+
+  async loginUser(input: any): Promise<UserProfile> {
+    if (this.shouldFail) throw new Error('DB Login Failed');
+    this.profile = {
+      ...this.profile,
+      email: input.email,
+      isLoggedIn: true,
+    };
+    return { ...this.profile };
+  }
+
+  async logoutUser(): Promise<void> {
+    if (this.shouldFail) throw new Error('DB Logout Failed');
+    this.profile.isLoggedIn = false;
+  }
+
+  async completeOnboarding(data: any): Promise<UserProfile> {
+    if (this.shouldFail) throw new Error('DB Onboarding Failed');
+    this.profile = {
+      ...this.profile,
+      heightCm: data.heightCm,
+      targetWeightKg: data.targetWeightKg,
+      trainingGoal: data.trainingGoal,
+      activityLevel: data.activityLevel,
+      targetCalories: data.targetCalories ?? this.profile.targetCalories,
+      targetProtein: data.targetProtein ?? this.profile.targetProtein,
+      targetCarbs: data.targetCarbs ?? this.profile.targetCarbs,
+      targetFat: data.targetFat ?? this.profile.targetFat,
+      targetWaterMl: data.targetWaterMl ?? this.profile.targetWaterMl,
+      onboardingCompleted: true,
+    };
+    return { ...this.profile };
+  }
 }
 
 describe('ThemeStateManager & ProfileStateManager Unit Tests (Milestone M4)', () => {

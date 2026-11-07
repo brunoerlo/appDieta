@@ -158,7 +158,19 @@ export class SqliteDietRepository implements IDietRepository {
 
   async searchFoods(query: string, limit = 50): Promise<FoodItem[]> {
     const sanitized = query.trim();
-    if (!sanitized) return [];
+    if (!sanitized) {
+      const topLimit = Math.min(limit, 30);
+      const rows = await this.db.getAllAsync<FoodRow>(
+        `SELECT id, name, name_normalized, category, serving_grams, calories, protein, carbs, fat, fiber, barcode, source, serving_unit_name, serving_unit_grams, created_at
+         FROM foods
+         ORDER BY
+           CASE WHEN category = 'Refeições' THEN 0 ELSE 1 END,
+           name ASC
+         LIMIT ?;`,
+        topLimit
+      );
+      return rows.map((r) => this.mapFoodRow(r));
+    }
 
     const normalized = normalizeFoodText(sanitized);
     const wildcardRaw = `%${sanitized}%`;

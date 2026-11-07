@@ -38,7 +38,7 @@ export default function BodyScreen() {
     chartRange,
     setChartRange,
     photos,
-    isLoading,
+    isRefreshing,
     saveWeighIn,
     saveMeasurements,
     savePhoto,
@@ -70,7 +70,7 @@ export default function BodyScreen() {
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
-        refreshControl={<RefreshControl refreshing={isLoading} onRefresh={refresh} tintColor={colors.primary} />}
+        refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={refresh} tintColor={colors.primary} />}
       >
         {/* Hero Weigh-in Card */}
         <View style={[styles.heroCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>

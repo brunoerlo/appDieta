@@ -13,6 +13,7 @@ import * as Haptics from 'expo-haptics';
 import { PhotoPose } from '../../types/domain';
 import { useTheme } from '../../hooks/useTheme';
 import { PhotoStorageService } from '../../services/PhotoStorageService';
+import { useSafeTopPadding } from '../../hooks/useSafeTopPadding';
 
 export interface PhotoCaptureModalProps {
   visible: boolean;
@@ -38,6 +39,7 @@ export const PhotoCaptureModal: React.FC<PhotoCaptureModalProps> = ({
   const [permission, requestPermission] = useCameraPermissions();
   const [isCapturing, setIsCapturing] = useState(false);
   const cameraRef = useRef<any>(null);
+  const safeTop = useSafeTopPadding(8);
 
   const handleCapture = async () => {
     setIsCapturing(true);
@@ -92,10 +94,10 @@ export const PhotoCaptureModal: React.FC<PhotoCaptureModalProps> = ({
   };
 
   return (
-    <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
+    <Modal visible={visible} animationType="slide" statusBarTranslucent={true} onRequestClose={onClose}>
       <View style={[styles.container, { backgroundColor: colors.background }]}>
         {/* Top Controls Header */}
-        <View style={styles.topBar}>
+        <View style={[styles.topBar, { paddingTop: safeTop }]}>
           <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
             <Text style={styles.closeBtnText}>✕ Cancelar</Text>
           </TouchableOpacity>
@@ -196,7 +198,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingTop: Platform.OS === 'ios' ? 56 : 24,
     paddingBottom: 16,
     zIndex: 10,
   },

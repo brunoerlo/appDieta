@@ -11,12 +11,17 @@ import {
   Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
 import { useProfile } from '../../hooks/useProfile';
 import { useTheme } from '../../hooks/useTheme';
+import { useSafeTopPadding } from '../../hooks/useSafeTopPadding';
 
 export default function ProfileScreen() {
+  const router = useRouter();
+  const safeTop = useSafeTopPadding(8);
   const { colors, toggleTheme, isDark } = useTheme();
-  const { profile, updateProfile, isLoading } = useProfile();
+  const { profile, updateProfile, logout, isLoading } = useProfile();
+  const [loggingOut, setLoggingOut] = useState(false);
 
   // Local state for editable fields
   const [name, setName] = useState('Atleta');
@@ -104,10 +109,37 @@ export default function ProfileScreen() {
     }
   };
 
+  const handleLogout = () => {
+    Alert.alert(
+      'Sair da Conta',
+      'Tem certeza de que deseja sair da sua conta no IronTrack? Seus dados e treinos permanecerão salvos com segurança neste dispositivo.',
+      [
+        {
+          text: 'Cancelar',
+          style: 'cancel',
+        },
+        {
+          text: 'Sair da Conta',
+          style: 'destructive',
+          onPress: async () => {
+            setLoggingOut(true);
+            try {
+              await logout();
+              router.replace('/auth');
+            } catch {
+              Alert.alert('Erro', 'Não foi possível encerrar a sessão. Tente novamente.');
+              setLoggingOut(false);
+            }
+          },
+        },
+      ]
+    );
+  };
+
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]} edges={['top']}>
       {/* Screen Title */}
-      <View style={styles.topHeader}>
+      <View style={[styles.topHeader, { paddingTop: safeTop }]}>
         <Text style={[styles.screenTitle, { color: colors.textPrimary }]}>Perfil & Metas</Text>
       </View>
 
@@ -467,6 +499,38 @@ export default function ProfileScreen() {
             {saving ? 'Salvando Configurações...' : 'Salvar Alterações'}
           </Text>
         </TouchableOpacity>
+
+        {/* Account & Session Card */}
+        <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.cardBorder, marginTop: 4 }]}>
+          <View style={styles.sessionHeaderRow}>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Conta & Sessão</Text>
+              <Text style={[styles.sessionEmailText, { color: colors.textSecondary }]}>
+                Conectado como <Text style={{ color: colors.textPrimary, fontWeight: '700' }}>{email || profile?.email || 'atleta@irontrack.app'}</Text>
+              </Text>
+            </View>
+            <View style={[styles.activeStatusPill, { backgroundColor: colors.primaryMuted }]}>
+              <Text style={[styles.activeStatusText, { color: colors.primary }]}>● Ativo</Text>
+            </View>
+          </View>
+
+          <TouchableOpacity
+            activeOpacity={0.8}
+            onPress={handleLogout}
+            disabled={loggingOut || isLoading}
+            style={[
+              styles.logoutBtn,
+              {
+                backgroundColor: colors.dangerMuted,
+                borderColor: colors.danger,
+              },
+            ]}
+          >
+            <Text style={[styles.logoutBtnText, { color: colors.danger }]}>
+              {loggingOut ? 'Encerrando sessão...' : '🚪 Sair da Conta'}
+            </Text>
+          </TouchableOpacity>
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -742,6 +806,37 @@ const styles = StyleSheet.create({
   saveBtnText: {
     color: '#FFFFFF',
     fontSize: 16,
+    fontWeight: '700',
+  },
+  sessionHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  sessionEmailText: {
+    fontSize: 13,
+    marginTop: 2,
+  },
+  activeStatusPill: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  activeStatusText: {
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  logoutBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  logoutBtnText: {
+    fontSize: 15,
     fontWeight: '700',
   },
 });

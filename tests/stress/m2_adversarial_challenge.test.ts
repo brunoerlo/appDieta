@@ -495,10 +495,20 @@ describe('Tier 5 Adversarial Stress Testing: Milestone M2 Integrity', () => {
     });
 
     it('handles whitespace-only, empty, and symbol-only queries in searchFoods', async () => {
-      expect(await repo.searchFoods('')).toEqual([]);
-      expect(await repo.searchFoods('   ')).toEqual([]);
-      expect(await repo.searchFoods('\t\n\r')).toEqual([]);
-      expect(await repo.searchFoods('   \n\t   ')).toEqual([]);
+      const emptyRes = await repo.searchFoods('');
+      expect(emptyRes.length).toBeGreaterThan(0);
+      expect(emptyRes.length).toBeLessThanOrEqual(30);
+      expect(emptyRes[0].category).toBe('Refeições');
+
+      const whitespaceRes = await repo.searchFoods('   ');
+      expect(whitespaceRes.length).toBeGreaterThan(0);
+      expect(whitespaceRes.length).toBeLessThanOrEqual(30);
+      expect(whitespaceRes[0].category).toBe('Refeições');
+
+      const tabRes = await repo.searchFoods('\t\n\r');
+      expect(tabRes.length).toBeGreaterThan(0);
+      expect(tabRes.length).toBeLessThanOrEqual(30);
+      expect(tabRes[0].category).toBe('Refeições');
     });
   });
 });

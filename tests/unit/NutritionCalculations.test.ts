@@ -6,6 +6,7 @@ import {
   summarizeDietLogs,
   getTodayDateString,
   shiftDateString,
+  calculateSuggestedTargets,
 } from '@/utils/nutrition';
 import { DietLogEntry } from '@/types/domain';
 
@@ -173,4 +174,128 @@ describe('Unit: Nutrition Calculations & Text Normalization', () => {
       expect(shiftDateString('2026-12-31', 1)).toBe('2027-01-01');
     });
   });
+
+  describe('calculateSuggestedTargets', () => {
+    it('calculates suggested targets for hypertrophy correctly', () => {
+      // 80kg, 180cm, 25 years old, male, moderate activity (1.55)
+      // BMR = 10*80 + 6.25*180 - 5*25 + 5 = 800 + 1125 - 125 + 5 = 1805
+      // TDEE = round(1805 * 1.55) = 2798
+      // Hypertrophy surplus (+12%) = 2798 * 1.12 = 3133.76 -> rounded to 50 = 3150 kcal
+      // Protein: 80 * 2.0 = 160g (640 kcal)
+      // Fat: 80 * 0.9 = 72g (648 kcal)
+      // Carbs: (3150 - (640 + 648)) / 4 = 1862 / 4 = 466g
+      // Water: 80 * 40 = 3200ml -> rounded to 250 = 3250ml
+      const result = calculateSuggestedTargets({
+        weightKg: 80,
+        heightCm: 180,
+        age: 25,
+        gender: 'male',
+        trainingGoal: 'hypertrophy',
+        activityLevel: 'moderate',
+      });
+
+      expect(result.bmr).toBe(1805);
+      expect(result.tdee).toBe(2798);
+      expect(result.calories).toBe(3150);
+      expect(result.protein).toBe(160);
+      expect(result.fat).toBe(72);
+      expect(result.carbs).toBe(466);
+      expect(result.waterMl).toBe(3250);
+      const atwater = (result.protein * 4) + (result.carbs * 4) + (result.fat * 9);
+      expect(Math.abs(result.calories - atwater)).toBeLessThanOrEqual(5);
+      expect(isAtwaterConsistent(result.calories, result.protein, result.carbs, result.fat)).toBe(true);
+    });
+
+    it('calculates suggested targets for cutting with high protein and calorie deficit', () => {
+      // 90kg, 175cm, cutting, moderate
+      // Protein = 90 * 2.2 = 198g
+      const result = calculateSuggestedTargets({
+        weightKg: 90,
+        heightCm: 175,
+        trainingGoal: 'cutting',
+        activityLevel: 'moderate',
+      });
+
+      expect(result.protein).toBe(198);
+      expect(result.calories).toBeLessThan(result.tdee);
+      const atwater = (result.protein * 4) + (result.carbs * 4) + (result.fat * 9);
+      expect(Math.abs(result.calories - atwater)).toBeLessThanOrEqual(5);
+      expect(isAtwaterConsistent(result.calories, result.protein, result.carbs, result.fat)).toBe(true);
+    });
+
+    it('calculates suggested targets for maintenance', () => {
+      const result = calculateSuggestedTargets({
+        weightKg: 70,
+        heightCm: 170,
+        trainingGoal: 'maintenance',
+        activityLevel: 'light',
+      });
+
+      expect(result.protein).toBe(70 * 1.8);
+      expect(result.calories).toBe(Math.round(result.tdee / 50) * 50);
+      const atwater = (result.protein * 4) + (result.carbs * 4) + (result.fat * 9);
+      expect(Math.abs(result.calories - atwater)).toBeLessThanOrEqual(5);
+    });
+
+    it('enforces bounds on calories, carbs, and hydration limits', () => {
+      // Very light weight test
+      const result = calculateSuggestedTargets({
+        weightKg: 30,
+        heightCm: 120,
+        trainingGoal: 'cutting',
+        activityLevel: 'sedentary',
+      });
+
+      expect(result.calories).toBeGreaterThanOrEqual(1200);
+      expect(result.carbs).toBeGreaterThanOrEqual(50);
+      expect(result.waterMl).toBeGreaterThanOrEqual(2000);
+      expect(result.waterMl).toBeLessThanOrEqual(5000);
+      const atwater = (result.protein * 4) + (result.carbs * 4) + (result.fat * 9);
+      expect(Math.abs(result.calories - atwater)).toBeLessThanOrEqual(5);
+    });
+
+    it('strictly satisfies Atwater 4-4-9 consistency for high body weight edge case (200kg, 120cm, cutting, sedentary)', () => {
+      const result = calculateSuggestedTargets({
+        weightKg: 200,
+        heightCm: 120,
+        trainingGoal: 'cutting',
+        activityLevel: 'sedentary',
+      });
+
+      const atwaterEnergy = (result.protein * 4) + (result.carbs * 4) + (result.fat * 9);
+      expect(Math.abs(result.calories - atwaterEnergy)).toBeLessThanOrEqual(5);
+      expect(result.protein).toBe(440);
+      expect(result.fat).toBe(110);
+      expect(result.carbs).toBe(50);
+      expect(result.calories).toBe(2950);
+    });
+
+    it('maintains Atwater deviation <= 5 kcal across comprehensive parameter grid', () => {
+      const weights = [30, 60, 90, 120, 160, 200, 250];
+      const heights = [100, 130, 165, 185, 210, 230];
+      const goals = ['hypertrophy', 'cutting', 'maintenance'];
+      const activities = ['sedentary', 'light', 'moderate', 'intense', 'very_active'];
+
+      for (const weightKg of weights) {
+        for (const heightCm of heights) {
+          for (const trainingGoal of goals) {
+            for (const activityLevel of activities) {
+              const res = calculateSuggestedTargets({
+                weightKg,
+                heightCm,
+                trainingGoal,
+                activityLevel,
+              });
+              const atwaterEnergy = (res.protein * 4) + (res.carbs * 4) + (res.fat * 9);
+              expect(Math.abs(res.calories - atwaterEnergy)).toBeLessThanOrEqual(5);
+              expect(res.carbs).toBeGreaterThanOrEqual(50);
+              expect(res.calories).toBeGreaterThanOrEqual(1200);
+            }
+          }
+        }
+      }
+    });
+  });
 });
+
+

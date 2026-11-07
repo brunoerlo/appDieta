@@ -1,6 +1,6 @@
 import * as SQLite from 'expo-sqlite';
 import { SCHEMA_DDL } from './schema';
-import { TACO_FOODS_SEED } from './seed/tacoFoods';
+import { TACO_FOODS_SEED, READY_DISHES_SEED } from './seed/tacoFoods';
 import { DEFAULT_ROUTINES_SEED } from './seed/defaultRoutines';
 import { ISqliteDatabase } from './repositories/interfaces';
 
@@ -109,6 +109,69 @@ export async function runMigrationV1(db: ISqliteDatabase): Promise<void> {
 }
 
 /**
+ * Migration V2: User auth/profile columns, custom exercises table, and ready dishes.
+ */
+export async function runMigrationV2(db: ISqliteDatabase): Promise<void> {
+  // 1. Inspect existing columns in users table
+  const userColumns = await db.getAllAsync<{ name: string }>('PRAGMA table_info(users);');
+  const existingColNames = new Set(userColumns.map((c) => c.name));
+
+  const columnsToAdd: [string, string][] = [
+    ['password', 'TEXT'],
+    ['is_logged_in', 'INTEGER DEFAULT 0'],
+    ['onboarding_completed', 'INTEGER DEFAULT 0'],
+    ['height_cm', 'REAL'],
+    ['target_weight_kg', 'REAL'],
+    ['training_goal', 'TEXT'],
+    ['activity_level', 'TEXT'],
+  ];
+
+  for (const [colName, colType] of columnsToAdd) {
+    if (!existingColNames.has(colName)) {
+      await db.execAsync(`ALTER TABLE users ADD COLUMN ${colName} ${colType};`);
+    }
+  }
+
+  // 2. Create custom_exercises table and indexes if not exists
+  await db.execAsync(`
+    CREATE TABLE IF NOT EXISTS custom_exercises (
+      id TEXT PRIMARY KEY NOT NULL,
+      name TEXT NOT NULL,
+      category TEXT NOT NULL,
+      default_sets INTEGER NOT NULL DEFAULT 3,
+      default_rest_seconds INTEGER NOT NULL DEFAULT 90,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_custom_exercises_category ON custom_exercises(category);
+    CREATE INDEX IF NOT EXISTS idx_custom_exercises_name ON custom_exercises(name COLLATE NOCASE);
+  `);
+
+  // 3. Seed Ready Dishes with category 'Refeições' and source 'recipe'
+  const now = new Date().toISOString();
+  for (const dish of READY_DISHES_SEED) {
+    await db.runAsync(
+      `INSERT OR IGNORE INTO foods (id, name, name_normalized, category, serving_grams, calories, protein, carbs, fat, fiber, barcode, source, serving_unit_name, serving_unit_grams, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
+      dish.id,
+      dish.name,
+      dish.nameNormalized ?? null,
+      dish.category ?? 'Refeições',
+      dish.servingGrams,
+      dish.calories,
+      dish.protein,
+      dish.carbs,
+      dish.fat,
+      dish.fiber ?? 0,
+      dish.barcode ?? null,
+      dish.source,
+      dish.servingUnitName ?? 'g',
+      dish.servingUnitGrams ?? 1,
+      now
+    );
+  }
+}
+
+/**
  * Migration runner based on PRAGMA user_version.
  */
 export async function runMigrations(db: ISqliteDatabase): Promise<void> {
@@ -119,6 +182,13 @@ export async function runMigrations(db: ISqliteDatabase): Promise<void> {
     await db.withTransactionAsync(async () => {
       await runMigrationV1(db);
       await db.execAsync('PRAGMA user_version = 1;');
+    });
+  }
+
+  if (currentVersion < 2) {
+    await db.withTransactionAsync(async () => {
+      await runMigrationV2(db);
+      await db.execAsync('PRAGMA user_version = 2;');
     });
   }
 }

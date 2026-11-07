@@ -17,9 +17,11 @@ import {
 } from '../../utils/workout';
 import { Card } from '../../components/ui/Card';
 import { Badge } from '../../components/ui/Badge';
+import { useSafeTopPadding } from '../../hooks/useSafeTopPadding';
 
 export default function WorkoutHistoryScreen() {
   const router = useRouter();
+  const safeTop = useSafeTopPadding(6);
   const { historySessions, loadHistory, loadExerciseHistory } = useWorkout();
 
   const [activeTab, setActiveTab] = useState<'sessions' | 'progression'>('sessions');
@@ -90,7 +92,7 @@ export default function WorkoutHistoryScreen() {
   return (
     <SafeAreaView style={styles.container}>
       {/* Top Header */}
-      <View style={styles.topHeader}>
+      <View style={[styles.topHeader, { paddingTop: safeTop }]}>
         <TouchableOpacity
           onPress={() => router.back()}
           style={styles.backBtn}

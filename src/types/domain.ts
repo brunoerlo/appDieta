@@ -3,7 +3,10 @@ export type MealType = 'breakfast' | 'lunch' | 'snack' | 'dinner' | 'supper';
 export interface UserProfile {
   id: string;
   email: string;
+  password?: string;
   name: string;
+  isLoggedIn?: boolean;
+  onboardingCompleted?: boolean;
   targetCalories: number;
   targetProtein: number;
   targetCarbs: number;
@@ -31,7 +34,7 @@ export interface FoodItem {
   fat: number;
   fiber?: number;
   barcode?: string;
-  source: 'taco' | 'openfoodfacts' | 'custom';
+  source: 'taco' | 'openfoodfacts' | 'custom' | 'recipe';
   servingUnitName?: string;
   servingUnitGrams?: number;
   createdAt?: string;
@@ -72,6 +75,15 @@ export interface DailyNutritionSummary {
     dinner: DietLogEntry[];
     supper: DietLogEntry[];
   };
+}
+
+export interface CustomExercise {
+  id: string;
+  name: string;
+  category: string;
+  defaultSets: number;
+  defaultRestSeconds: number;
+  createdAt: string;
 }
 
 export interface RoutineExercise {

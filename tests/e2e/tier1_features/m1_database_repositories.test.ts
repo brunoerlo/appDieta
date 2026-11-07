@@ -36,6 +36,7 @@ describe('Tier 1: Feature Coverage — M1 Database, Schemas, Seeds & Repositorie
         'workout_sessions',
         'set_logs',
         'body_logs',
+        'custom_exercises',
       ];
 
       const tables = await ctx.db.getAllAsync<{ name: string }>(
@@ -69,11 +70,11 @@ describe('Tier 1: Feature Coverage — M1 Database, Schemas, Seeds & Repositorie
     it('1.5 verifies migration runner is idempotent and safe against repeated calls', async () => {
       await expect(runMigrations(ctx.db)).resolves.not.toThrow();
 
-      // Check table count remains exactly 9 user tables
+      // Check table count remains exactly 10 user tables
       const tables = await ctx.db.getAllAsync<{ name: string }>(
         "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%';"
       );
-      expect(tables.length).toBe(9);
+      expect(tables.length).toBe(10);
     });
   });
 

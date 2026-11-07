@@ -261,9 +261,15 @@ describe('Tier 5 Adversarial Stress & Vulnerability Hardening: DB & Nutrition', 
     });
 
     it('2.4 handles empty, whitespace-only, and ultra-large queries without database crash', async () => {
-      expect(await dietRepo.searchFoods('')).toEqual([]);
-      expect(await dietRepo.searchFoods('   ')).toEqual([]);
-      expect(await dietRepo.searchFoods('\t\n\r  ')).toEqual([]);
+      const emptyRes = await dietRepo.searchFoods('');
+      expect(emptyRes.length).toBeGreaterThan(0);
+      expect(emptyRes.length).toBeLessThanOrEqual(30);
+      expect(emptyRes[0].category).toBe('Refeições');
+
+      const spaceRes = await dietRepo.searchFoods('   ');
+      expect(spaceRes.length).toBeGreaterThan(0);
+      expect(spaceRes.length).toBeLessThanOrEqual(30);
+      expect(spaceRes[0].category).toBe('Refeições');
 
       // 2,000-character adversarial query
       const giantQuery = 'peito de frango '.repeat(150);

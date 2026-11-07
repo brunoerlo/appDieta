@@ -9,6 +9,7 @@ import {
   WorkoutSession,
   SetLog,
   ExerciseHistoryPoint,
+  CustomExercise,
 } from '../../types/domain';
 
 interface RoutineRow {
@@ -52,6 +53,15 @@ interface SetLogRow {
   weight_kg: number;
   reps: number;
   completed: number; // 0 or 1
+  created_at: string;
+}
+
+interface CustomExerciseRow {
+  id: string;
+  name: string;
+  category: string;
+  default_sets: number;
+  default_rest_seconds: number;
   created_at: string;
 }
 
@@ -471,5 +481,53 @@ export class SqliteWorkoutRepository implements IWorkoutRepository {
         bestSetReps: r.best_reps,
       };
     });
+  }
+
+  async getCustomExercises(): Promise<CustomExercise[]> {
+    const rows = await this.db.getAllAsync<CustomExerciseRow>(
+      `SELECT id, name, category, default_sets, default_rest_seconds, created_at
+       FROM custom_exercises
+       ORDER BY name COLLATE NOCASE ASC;`
+    );
+
+    return rows.map((r) => ({
+      id: r.id,
+      name: r.name,
+      category: r.category,
+      defaultSets: r.default_sets,
+      defaultRestSeconds: r.default_rest_seconds,
+      createdAt: r.created_at,
+    }));
+  }
+
+  async createCustomExercise(
+    data: Omit<CustomExercise, 'id' | 'createdAt'>
+  ): Promise<CustomExercise> {
+    const id = `custom_ex_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+    const createdAt = new Date().toISOString();
+    const defaultSets = data.defaultSets ?? 3;
+    const defaultRestSeconds = data.defaultRestSeconds ?? 90;
+    const trimmedName = data.name.trim();
+    const trimmedCategory = data.category.trim();
+
+    await this.db.runAsync(
+      `INSERT INTO custom_exercises (id, name, category, default_sets, default_rest_seconds, created_at)
+       VALUES (?, ?, ?, ?, ?, ?);`,
+      id,
+      trimmedName,
+      trimmedCategory,
+      defaultSets,
+      defaultRestSeconds,
+      createdAt
+    );
+
+    return {
+      id,
+      name: trimmedName,
+      category: trimmedCategory,
+      defaultSets,
+      defaultRestSeconds,
+      createdAt,
+    };
   }
 }

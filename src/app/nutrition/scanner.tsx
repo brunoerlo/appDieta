@@ -10,7 +10,6 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
@@ -20,9 +19,11 @@ import { openFoodFactsService } from '../../services/OpenFoodFactsService';
 import { ServingSizeModal } from '../../components/nutrition/ServingSizeModal';
 import { FoodItem, MealType } from '../../types/domain';
 import { useDiet } from '../../hooks/useDiet';
+import { useSafeTopPadding } from '../../hooks/useSafeTopPadding';
 
 export default function BarcodeScannerScreen() {
   const router = useRouter();
+  const safeTop = useSafeTopPadding(10);
   const params = useLocalSearchParams<{ mealType?: MealType; date?: string }>();
   const mealType = params.mealType || 'snack';
 
@@ -151,7 +152,7 @@ export default function BarcodeScannerScreen() {
       )}
 
       {/* Top Controls Overlay */}
-      <SafeAreaView style={styles.topControls} edges={['top', 'left', 'right']}>
+      <View style={[styles.topControls, { paddingTop: safeTop, paddingBottom: 12 }]}>
         <TouchableOpacity
           style={styles.circleBtn}
           onPress={() => router.back()}
@@ -169,7 +170,7 @@ export default function BarcodeScannerScreen() {
         >
           <Text style={styles.circleBtnText}>{torch ? '⚡' : '💡'}</Text>
         </TouchableOpacity>
-      </SafeAreaView>
+      </View>
 
       {/* Loading Indicator */}
       {loading && (

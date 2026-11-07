@@ -7,11 +7,11 @@ import {
   TouchableOpacity,
   Image,
   ScrollView,
-  Platform,
   Dimensions,
 } from 'react-native';
 import { BodyLog } from '../../types/domain';
 import { useTheme } from '../../hooks/useTheme';
+import { useSafeTopPadding } from '../../hooks/useSafeTopPadding';
 import {
   calculatePhotoDeltaMetrics,
   extractPoseFromUri,
@@ -43,6 +43,7 @@ export const BeforeAfterViewerModal: React.FC<BeforeAfterViewerModalProps> = ({
 }) => {
   const { colors } = useTheme();
   const screenWidth = Dimensions.get('window').width;
+  const safeTop = useSafeTopPadding(8);
 
   const [mode, setMode] = useState<ComparisonMode>('sideBySide');
   const [beforeIdx, setBeforeIdx] = useState<number>(0);
@@ -117,10 +118,10 @@ export const BeforeAfterViewerModal: React.FC<BeforeAfterViewerModalProps> = ({
   const afterPose = afterPhoto ? extractPoseFromUri(afterPhoto.uri) : 'front';
 
   return (
-    <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
+    <Modal visible={visible} animationType="slide" statusBarTranslucent={true} onRequestClose={onClose}>
       <View style={[styles.container, { backgroundColor: colors.background }]}>
         {/* Top Header */}
-        <View style={[styles.header, { borderBottomColor: colors.cardBorder }]}>
+        <View style={[styles.header, { borderBottomColor: colors.cardBorder, paddingTop: safeTop }]}>
           <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
             <Text style={[styles.closeBtnText, { color: colors.textPrimary }]}>✕ Fechar</Text>
           </TouchableOpacity>
@@ -476,7 +477,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingTop: Platform.OS === 'ios' ? 56 : 20,
     paddingBottom: 12,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },

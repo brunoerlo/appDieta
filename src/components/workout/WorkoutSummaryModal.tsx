@@ -13,6 +13,7 @@ import { DarkTheme } from '../../constants/theme';
 import { Button } from '../ui/Button';
 import { Card } from '../ui/Card';
 import { formatDurationMinutes } from '../../utils/workout';
+import { useSafeTopPadding } from '../../hooks/useSafeTopPadding';
 
 export interface ExerciseSummaryItem {
   name: string;
@@ -56,16 +57,19 @@ export const WorkoutSummaryModal: React.FC<WorkoutSummaryModalProps> = ({
   onDiscard,
   isSaving = false,
 }) => {
+  const safeTop = useSafeTopPadding(16);
+
   return (
     <Modal
       visible={visible}
       animationType="slide"
       presentationStyle="pageSheet"
+      statusBarTranslucent={true}
       onRequestClose={onContinueWorkout}
     >
       <SafeAreaView style={styles.container}>
         <ScrollView
-          contentContainerStyle={styles.scrollContent}
+          contentContainerStyle={[styles.scrollContent, { paddingTop: safeTop }]}
           showsVerticalScrollIndicator={false}
         >
           {/* Header */}

@@ -15,6 +15,7 @@ import { useWorkout } from '../../hooks/useWorkout';
 import { Button } from '../../components/ui/Button';
 import { ExerciseConfigRow, DraftExercise } from '../../components/workout/ExerciseConfigRow';
 import { ExercisePickerModal, ExercisePickerResult } from '../../components/workout/ExercisePickerModal';
+import { useSafeTopPadding } from '../../hooks/useSafeTopPadding';
 
 const SPLIT_PRESETS = [
   { label: 'ABC', prefix: 'Treino - ' },
@@ -30,6 +31,7 @@ export default function EditRoutineScreen() {
   const { routines, createRoutine, updateRoutine, getRoutineById } = useWorkout();
 
   const isEditing = Boolean(routineId);
+  const safeTop = useSafeTopPadding(8);
 
   const existingRoutine = useMemo(() => {
     return routineId ? routines.find((r) => r.id === routineId) : undefined;
@@ -183,7 +185,7 @@ export default function EditRoutineScreen() {
   return (
     <SafeAreaView style={styles.container}>
       {/* Top Bar */}
-      <View style={styles.topBar}>
+      <View style={[styles.topBar, { paddingTop: safeTop }]}>
         <TouchableOpacity
           onPress={() => router.back()}
           style={styles.cancelBtn}

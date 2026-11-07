@@ -1,13 +1,24 @@
-import React, { createContext, useState, useEffect, useMemo, useCallback } from 'react';
+import React, { createContext, useState, useEffect, useMemo, useCallback, useContext } from 'react';
 import { UserProfile } from '../types/domain';
-import { IAuthRepository } from '../database/repositories/interfaces';
+import {
+  IAuthRepository,
+  RegisterUserInput,
+  LoginUserInput,
+  OnboardingData,
+} from '../database/repositories/interfaces';
 
 export interface ProfileContextValue {
   profile: UserProfile | null;
   isLoading: boolean;
   error: string | null;
+  isLoggedIn: boolean;
+  onboardingCompleted: boolean;
   updateProfile: (updates: Partial<UserProfile>) => Promise<UserProfile>;
   refresh: () => Promise<void>;
+  register: (input: RegisterUserInput) => Promise<UserProfile>;
+  login: (input: LoginUserInput) => Promise<UserProfile>;
+  logout: () => Promise<void>;
+  completeOnboarding: (data: OnboardingData) => Promise<UserProfile>;
 }
 
 export const ProfileContext = createContext<ProfileContextValue | null>(null);
@@ -22,6 +33,14 @@ export class ProfileStateManager {
   private listeners: (() => void)[] = [];
 
   constructor(private authRepo: IAuthRepository) {}
+
+  public get isLoggedIn(): boolean {
+    return Boolean(this.profile?.isLoggedIn);
+  }
+
+  public get onboardingCompleted(): boolean {
+    return Boolean(this.profile?.onboardingCompleted);
+  }
 
   public subscribe(listener: () => void): () => void {
     this.listeners.push(listener);
@@ -70,6 +89,75 @@ export class ProfileStateManager {
       this.notify();
     }
   }
+
+  public async register(input: RegisterUserInput): Promise<UserProfile> {
+    this.isLoading = true;
+    this.error = null;
+    this.notify();
+    try {
+      const user = await this.authRepo.registerUser(input);
+      this.profile = user;
+      return user;
+    } catch (err: any) {
+      this.error = err?.message || 'Falha ao cadastrar usuário';
+      throw err;
+    } finally {
+      this.isLoading = false;
+      this.notify();
+    }
+  }
+
+  public async login(input: LoginUserInput): Promise<UserProfile> {
+    this.isLoading = true;
+    this.error = null;
+    this.notify();
+    try {
+      const user = await this.authRepo.loginUser(input);
+      this.profile = user;
+      return user;
+    } catch (err: any) {
+      this.error = err?.message || 'Falha ao realizar login';
+      throw err;
+    } finally {
+      this.isLoading = false;
+      this.notify();
+    }
+  }
+
+  public async logout(): Promise<void> {
+    this.isLoading = true;
+    this.error = null;
+    this.notify();
+    try {
+      await this.authRepo.logoutUser();
+      if (this.profile) {
+        this.profile = { ...this.profile, isLoggedIn: false };
+      }
+    } catch (err: any) {
+      this.error = err?.message || 'Falha ao sair da conta';
+      throw err;
+    } finally {
+      this.isLoading = false;
+      this.notify();
+    }
+  }
+
+  public async completeOnboarding(data: OnboardingData): Promise<UserProfile> {
+    this.isLoading = true;
+    this.error = null;
+    this.notify();
+    try {
+      const updated = await this.authRepo.completeOnboarding(data);
+      this.profile = updated;
+      return updated;
+    } catch (err: any) {
+      this.error = err?.message || 'Falha ao concluir onboarding';
+      throw err;
+    } finally {
+      this.isLoading = false;
+      this.notify();
+    }
+  }
 }
 
 export const ProfileProvider: React.FC<{
@@ -94,7 +182,6 @@ export const ProfileProvider: React.FC<{
   }, [authRepo]);
 
   useEffect(() => {
-
     let active = true;
     (async () => {
       try {
@@ -115,7 +202,6 @@ export const ProfileProvider: React.FC<{
     };
   }, [authRepo]);
 
-
   const updateProfile = useCallback(
     async (updates: Partial<UserProfile>) => {
       setIsLoading(true);
@@ -134,16 +220,108 @@ export const ProfileProvider: React.FC<{
     [authRepo]
   );
 
+  const register = useCallback(
+    async (input: RegisterUserInput) => {
+      setIsLoading(true);
+      setError(null);
+      try {
+        const created = await authRepo.registerUser(input);
+        setProfile(created);
+        return created;
+      } catch (err: any) {
+        setError(err?.message || 'Falha ao cadastrar usuário');
+        throw err;
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [authRepo]
+  );
+
+  const login = useCallback(
+    async (input: LoginUserInput) => {
+      setIsLoading(true);
+      setError(null);
+      try {
+        const user = await authRepo.loginUser(input);
+        setProfile(user);
+        return user;
+      } catch (err: any) {
+        setError(err?.message || 'Falha ao realizar login');
+        throw err;
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [authRepo]
+  );
+
+  const logout = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      await authRepo.logoutUser();
+      setProfile((prev) => (prev ? { ...prev, isLoggedIn: false } : null));
+    } catch (err: any) {
+      setError(err?.message || 'Falha ao sair da conta');
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
+  }, [authRepo]);
+
+  const completeOnboarding = useCallback(
+    async (data: OnboardingData) => {
+      setIsLoading(true);
+      setError(null);
+      try {
+        const updated = await authRepo.completeOnboarding(data);
+        setProfile(updated);
+        return updated;
+      } catch (err: any) {
+        setError(err?.message || 'Falha ao concluir onboarding');
+        throw err;
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [authRepo]
+  );
+
   const value = useMemo<ProfileContextValue>(
     () => ({
       profile,
       isLoading,
       error,
+      isLoggedIn: Boolean(profile?.isLoggedIn),
+      onboardingCompleted: Boolean(profile?.onboardingCompleted),
       updateProfile,
       refresh: loadProfile,
+      register,
+      login,
+      logout,
+      completeOnboarding,
     }),
-    [profile, isLoading, error, updateProfile, loadProfile]
+    [
+      profile,
+      isLoading,
+      error,
+      updateProfile,
+      loadProfile,
+      register,
+      login,
+      logout,
+      completeOnboarding,
+    ]
   );
 
   return <ProfileContext.Provider value={value}>{children}</ProfileContext.Provider>;
 };
+
+export function useProfile(): ProfileContextValue {
+  const context = useContext(ProfileContext);
+  if (!context) {
+    throw new Error('useProfile must be used within a ProfileProvider');
+  }
+  return context;
+}

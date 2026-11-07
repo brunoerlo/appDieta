@@ -6,6 +6,7 @@ import {
   TextInput,
   TouchableOpacity,
   FlatList,
+  ScrollView,
   ActivityIndicator,
   Keyboard,
 } from 'react-native';
@@ -19,11 +20,13 @@ import { ServingSizeModal } from '../../components/nutrition/ServingSizeModal';
 import { FoodItem, MealType } from '../../types/domain';
 import { MEAL_TYPE_NAMES } from '../../utils/nutrition';
 import { useDiet } from '../../hooks/useDiet';
+import { useSafeTopPadding } from '../../hooks/useSafeTopPadding';
 
-type FilterTab = 'all' | 'taco' | 'custom' | 'off';
+type FilterTab = 'all' | 'meals' | 'taco' | 'custom' | 'off';
 
 export default function FoodSearchScreen() {
   const router = useRouter();
+  const safeTop = useSafeTopPadding(6);
   const params = useLocalSearchParams<{ mealType?: MealType; date?: string }>();
   const mealType: MealType = params.mealType || 'lunch';
 
@@ -42,7 +45,7 @@ export default function FoodSearchScreen() {
 
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Initial load of common TACO foods
+  // Initial load of common TACO foods and ready meals
   useEffect(() => {
     let active = true;
     dietRepo.searchFoods('', 30).then((foods) => {
@@ -101,8 +104,13 @@ export default function FoodSearchScreen() {
     }
 
     if (activeTab === 'all') return combined;
-    if (activeTab === 'taco') return combined.filter((item) => item.source === 'taco');
-    if (activeTab === 'custom') return combined.filter((item) => item.source === 'custom');
+    if (activeTab === 'meals') {
+      return combined.filter(
+        (item) => item.category === 'Refeições' || item.source === 'recipe'
+      );
+    }
+    if (activeTab === 'taco') return combined.filter((item) => item.source === 'taco' && item.category !== 'Refeições');
+    if (activeTab === 'custom') return combined.filter((item) => item.source === 'custom' && item.category !== 'Refeições');
     if (activeTab === 'off') return combined.filter((item) => item.source === 'openfoodfacts');
     return combined;
   }, [localResults, remoteResults, activeTab]);
@@ -140,21 +148,26 @@ export default function FoodSearchScreen() {
     router.back();
   };
 
-  const renderSourceBadge = (source: 'taco' | 'openfoodfacts' | 'custom') => {
-    switch (source) {
+  const renderSourceBadge = (item: FoodItem) => {
+    if (item.category === 'Refeições' || item.source === 'recipe') {
+      return <Text style={styles.badgeMeal}>Refeição</Text>;
+    }
+    switch (item.source) {
       case 'taco':
         return <Text style={styles.badgeTaco}>TACO</Text>;
       case 'openfoodfacts':
         return <Text style={styles.badgeOff}>OFF</Text>;
       case 'custom':
         return <Text style={styles.badgeCustom}>Custom</Text>;
+      default:
+        return null;
     }
   };
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
       {/* Top Header Bar */}
-      <View style={styles.headerBar}>
+      <View style={[styles.headerBar, { paddingTop: safeTop }]}>
         <TouchableOpacity
           onPress={() => router.back()}
           style={styles.closeBtn}
@@ -201,7 +214,7 @@ export default function FoodSearchScreen() {
         <Text style={styles.searchIcon}>🔍</Text>
         <TextInput
           style={styles.searchInput}
-          placeholder="Buscar alimentos (ex: frango, arroz, maçã...)"
+          placeholder="Buscar alimentos ou pratos (ex: carbonara, omelete, frango...)"
           placeholderTextColor={DarkTheme.colors.textDimmed}
           value={query}
           onChangeText={handleQueryChange}
@@ -218,42 +231,57 @@ export default function FoodSearchScreen() {
       </View>
 
       {/* Filter Tabs */}
-      <View style={styles.tabsRow}>
-        <TouchableOpacity
-          style={[styles.tab, activeTab === 'all' && styles.tabActive]}
-          onPress={() => setActiveTab('all')}
+      <View style={styles.tabsWrapper}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.tabsScrollContent}
         >
-          <Text style={[styles.tabText, activeTab === 'all' && styles.tabTextActive]}>
-            Todos
-          </Text>
-        </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.tab, activeTab === 'all' && styles.tabActive]}
+            onPress={() => setActiveTab('all')}
+          >
+            <Text style={[styles.tabText, activeTab === 'all' && styles.tabTextActive]}>
+              Todos
+            </Text>
+          </TouchableOpacity>
 
-        <TouchableOpacity
-          style={[styles.tab, activeTab === 'taco' && styles.tabActive]}
-          onPress={() => setActiveTab('taco')}
-        >
-          <Text style={[styles.tabText, activeTab === 'taco' && styles.tabTextActive]}>
-            TACO / IBGE
-          </Text>
-        </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.tab, activeTab === 'meals' && styles.tabActive]}
+            onPress={() => setActiveTab('meals')}
+          >
+            <Text style={[styles.tabText, activeTab === 'meals' && styles.tabTextActive]}>
+              🍲 Refeições
+            </Text>
+          </TouchableOpacity>
 
-        <TouchableOpacity
-          style={[styles.tab, activeTab === 'custom' && styles.tabActive]}
-          onPress={() => setActiveTab('custom')}
-        >
-          <Text style={[styles.tabText, activeTab === 'custom' && styles.tabTextActive]}>
-            Personalizados
-          </Text>
-        </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.tab, activeTab === 'taco' && styles.tabActive]}
+            onPress={() => setActiveTab('taco')}
+          >
+            <Text style={[styles.tabText, activeTab === 'taco' && styles.tabTextActive]}>
+              TACO / IBGE
+            </Text>
+          </TouchableOpacity>
 
-        <TouchableOpacity
-          style={[styles.tab, activeTab === 'off' && styles.tabActive]}
-          onPress={() => setActiveTab('off')}
-        >
-          <Text style={[styles.tabText, activeTab === 'off' && styles.tabTextActive]}>
-            Web (OFF)
-          </Text>
-        </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.tab, activeTab === 'custom' && styles.tabActive]}
+            onPress={() => setActiveTab('custom')}
+          >
+            <Text style={[styles.tabText, activeTab === 'custom' && styles.tabTextActive]}>
+              Personalizados
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.tab, activeTab === 'off' && styles.tabActive]}
+            onPress={() => setActiveTab('off')}
+          >
+            <Text style={[styles.tabText, activeTab === 'off' && styles.tabTextActive]}>
+              Web (OFF)
+            </Text>
+          </TouchableOpacity>
+        </ScrollView>
       </View>
 
       {/* Results List */}
@@ -297,7 +325,7 @@ export default function FoodSearchScreen() {
                 <Text style={styles.foodRowName} numberOfLines={1}>
                   {item.name}
                 </Text>
-                {renderSourceBadge(item.source)}
+                {renderSourceBadge(item)}
               </View>
 
               <Text style={styles.foodRowMacros}>
@@ -399,11 +427,13 @@ const styles = StyleSheet.create({
   searchSpinner: {
     marginLeft: 8,
   },
-  tabsRow: {
-    flexDirection: 'row',
+  tabsWrapper: {
+    marginBottom: DarkTheme.spacing.sm,
+  },
+  tabsScrollContent: {
     paddingHorizontal: DarkTheme.spacing.md,
-    paddingVertical: DarkTheme.spacing.sm,
     gap: 8,
+    alignItems: 'center',
   },
   tab: {
     paddingVertical: 6,
@@ -486,6 +516,15 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   badgeCustom: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: DarkTheme.colors.calories,
+    backgroundColor: DarkTheme.colors.caloriesTrack,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  badgeMeal: {
     fontSize: 10,
     fontWeight: '700',
     color: DarkTheme.colors.calories,

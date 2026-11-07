@@ -8,7 +8,7 @@ export default function TabLayout() {
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
 
-  // Dynamic tab bar sizing for iPhone 16 with Home Indicator (safe area bottom ~34px)
+  // Dynamic tab bar sizing for devices with Home Indicator (safe area bottom)
   const bottomInset = Math.max(insets.bottom, Platform.OS === 'ios' ? 20 : 8);
   const tabBarHeight = 56 + bottomInset;
 
@@ -31,6 +31,15 @@ export default function TabLayout() {
     >
       <Tabs.Screen
         name="index"
+        options={{
+          title: 'Início',
+          tabBarIcon: ({ focused }) => (
+            <Text style={[styles.tabIcon, focused && styles.tabIconActive]}>🏠</Text>
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="diet"
         options={{
           title: 'Dieta',
           tabBarIcon: ({ focused }) => (

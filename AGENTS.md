@@ -39,3 +39,9 @@ Docs: https://docs.expo.dev/eas/index.md
 - If `ios/` and `android/` directories do not exist, they are generated (Continuous Native Generation). Never create or edit them by hand — configure native behavior in `app.json` and config plugins.
 - Expo Go only includes its bundled native modules. After adding a library with native code, the app needs a development build: `npx expo run:ios|android` locally, or `eas build --profile development`.
 - Prefer recommended Expo modules over third-party libraries, and check your available skills before adding dependencies. Docs: https://docs.expo.dev/versions/latest/index.md
+
+## Mobile UI & State Invariants
+
+- **Safe Area Inset Rule**: Screens and modals must respect device top insets (status bar/clock area). Use `useSafeTopPadding` or `SafeAreaView` with proper edges (`['top']` or `AppTopBar`) to prevent interactive elements and buttons from being clipped or rendered underneath the status bar clock.
+- **Optimistic State & RefreshControl Decoupling**: Never bind `RefreshControl`'s `refreshing` prop directly to background mutation states (`isLoading`). Decouple user-initiated pull-to-refresh (`isRefreshing`) from fast, optimistic micro-actions (e.g. water quick-add/decrement, food logs) to prevent screen jitter and UI flickering.
+- **Context Memoization Invariant**: In React Context providers managing mutable store states with versioning (e.g., `WorkoutContext`), always include the state version/trigger in the `useMemo` dependency array to ensure consumer screens re-render immediately upon store mutations.

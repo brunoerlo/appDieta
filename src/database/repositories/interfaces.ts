@@ -40,6 +40,8 @@ export interface IDietRepository {
   addWaterLog(date: string, amountMl: number): Promise<WaterLogEntry>;
   deleteWaterLog(id: string): Promise<void>;
   resetWaterLogs(date: string): Promise<void>;
+  getDailyWaterTotal(date: string): Promise<number>;
+  decrementWaterLog(date: string, amountMl: number): Promise<WaterLogEntry | null>;
   getDailyNutritionSummary(date: string): Promise<DailyNutritionSummary>;
 }
 
@@ -85,4 +87,6 @@ export interface IBodyRepository {
   calculateMovingAverage(date: string, windowDays?: number): Promise<number | null>;
   savePhoto(date: string, photoUri: string): Promise<string[]>;
   getPhotos(): Promise<{ date: string; uri: string }[]>;
+  deletePhoto(date: string, photoUri: string): Promise<string[]>;
 }
+

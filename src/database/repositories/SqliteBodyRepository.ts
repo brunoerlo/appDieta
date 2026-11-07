@@ -198,4 +198,19 @@ export class SqliteBodyRepository implements IBodyRepository {
 
     return photos;
   }
+
+  async deletePhoto(date: string, photoUri: string): Promise<string[]> {
+    const existing = await this.getBodyLog(date);
+    if (!existing || !existing.photoUris) {
+      return [];
+    }
+    const updatedUris = existing.photoUris.filter((u) => u !== photoUri);
+    await this.db.runAsync(
+      `UPDATE body_logs SET photo_uris_json = ? WHERE date = ?;`,
+      JSON.stringify(updatedUris),
+      date
+    );
+    return updatedUris;
+  }
 }
+

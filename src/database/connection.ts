@@ -52,10 +52,11 @@ export async function runMigrationV1(db: ISqliteDatabase): Promise<void> {
     const now = new Date().toISOString();
     for (const food of TACO_FOODS_SEED) {
       await db.runAsync(
-        `INSERT INTO foods (id, name, category, serving_grams, calories, protein, carbs, fat, fiber, barcode, source, serving_unit_name, serving_unit_grams, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
+        `INSERT INTO foods (id, name, name_normalized, category, serving_grams, calories, protein, carbs, fat, fiber, barcode, source, serving_unit_name, serving_unit_grams, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
         food.id,
         food.name,
+        food.nameNormalized ?? null,
         food.category ?? '',
         food.servingGrams,
         food.calories,

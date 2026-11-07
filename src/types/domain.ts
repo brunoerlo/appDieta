@@ -10,13 +10,19 @@ export interface UserProfile {
   targetFat: number;
   targetWaterMl: number;
   theme: 'dark' | 'light';
+  targetWeightKg?: number;
+  heightCm?: number;
+  trainingGoal?: string;
+  activityLevel?: string;
   createdAt: string;
   updatedAt?: string;
 }
 
+
 export interface FoodItem {
   id: string;
   name: string;
+  nameNormalized?: string;
   category?: string;
   servingGrams: number;
   calories: number;
@@ -138,4 +144,21 @@ export interface WeightHistoryPoint {
   date: string;
   weightKg: number;
   movingAverage?: number | null;
+}
+
+export type PhotoPose = 'front' | 'side' | 'back' | 'other';
+
+export interface ProgressPhotoItem {
+  date: string;
+  uri: string;
+  pose?: PhotoPose;
+  weightKg?: number;
+  bodyFatPct?: number;
+}
+
+export interface PhotoDeltaMetrics {
+  daysBetween: number;
+  weightDeltaKg: number | null;
+  bodyFatDeltaPct: number | null;
+  waistDeltaCm: number | null;
 }

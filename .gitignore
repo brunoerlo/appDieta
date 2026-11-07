@@ -31,7 +31,20 @@ yarn-error.*
 *.pem
 
 # local env files
+.env
 .env*.local
+
+# local databases
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+
+# AI agent artifacts and internal test docs
+.agents/
+TEST_INFRA.md
+TEST_READY.md
 
 # typescript
 *.tsbuildinfo

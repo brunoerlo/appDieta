@@ -45,41 +45,41 @@ It follows an offline-first architecture powered by local SQLite (`expo-sqlite`)
 
 | # | Feature | Description | Milestone | Source |
 |---|---------|-------------|-----------|--------|
-| 1 | SQLite Database Init & Migration | Initializes `fitness.db`, WAL mode, foreign keys, schema migrations | M1 | ORIGINAL_REQUEST §R1 |
-| 2 | TACO/IBGE Seed Data Injection | Seeds Brazilian food composition dataset into `foods` table | M1 | ORIGINAL_REQUEST §R1, Acceptance |
-| 3 | Standard Workout Routines Seed | Seeds default routine templates (ABC, Push/Pull/Legs) | M1 | ORIGINAL_REQUEST §R1 |
-| 4 | Repository Pattern Abstraction | Type-safe interfaces (`IDietRepository`, `IWorkoutRepository`, `IBodyRepository`, `IAuthRepository`) | M1 | ORIGINAL_REQUEST §R1, Acceptance |
-| 5 | Categorized Meal Diary | Displays food entries grouped by Café da Manhã, Almoço, Lanche, Jantar, Ceia | M2 | ORIGINAL_REQUEST §R2 |
-| 6 | Daily Calorie & Macro Target Progress | Aggregates daily kcal, protein, carbs, fat vs target goals | M2 | ORIGINAL_REQUEST §R2, Acceptance |
-| 7 | Indexed TACO Food Search | Sub-100ms local B-tree indexed food lookup | M2 | ORIGINAL_REQUEST §R2, Acceptance |
-| 8 | Open Food Facts Search | Remote HTTP lookup for industrial products with local caching | M2 | ORIGINAL_REQUEST §R2, Acceptance |
-| 9 | Barcode Scanner Search | Scans EAN/UPC barcode with camera, searches local + Open Food Facts | M2 | ORIGINAL_REQUEST §R2, Acceptance |
-| 10 | Custom Food Creation | Manual food creation modal with custom grams and macros | M2 | ORIGINAL_REQUEST §R2 |
-| 11 | Food Portion Scaling & Logging | Recalculates macros based on serving grams and adds to meal | M2 | ORIGINAL_REQUEST §R2, Acceptance |
-| 12 | Food Log Deletion & Edit | Modifies or deletes logged food items from daily meal | M2 | ORIGINAL_REQUEST §R2 |
-| 13 | Daily Water Intake Tracker | Tracks consumed water vs daily target (ml) with visual progress bar | M2 | ORIGINAL_REQUEST §R2, Acceptance |
-| 14 | Quick Water Increment Shortcuts | Fast buttons (+250ml, +500ml) persisting immediately to DB | M2 | ORIGINAL_REQUEST §R2, Acceptance |
-| 15 | Water Intake Reset / Undo | Decrements or resets erroneous water entries | M2 | Domain Survey |
-| 16 | Routine Catalog & Management | List, create, and manage workout routines (ABC, PPL) | M3 | ORIGINAL_REQUEST §R3 |
-| 17 | Routine Exercise Configuration | Configure exercises, target sets, default rest seconds, order | M3 | ORIGINAL_REQUEST §R3 |
-| 18 | Live Workout Execution | Real-time workout session tracking with live elapsed timer | M3 | ORIGINAL_REQUEST §R3, Acceptance |
-| 19 | Previous Session Load Reference | Displays weight and reps performed in the latest session for each set | M3 | ORIGINAL_REQUEST §R3, Acceptance |
-| 20 | Set Logging (Weight x Reps x Check) | Records completed sets with weight in kg and rep counts | M3 | ORIGINAL_REQUEST §R3, Acceptance |
-| 21 | Automated Rest Timer & Haptics | Auto-triggers rest countdown with `expo-haptics` vibration on set finish | M3 | ORIGINAL_REQUEST §R3, Acceptance |
-| 22 | Session Completion & Summary | Finalizes session, computes total volume, elapsed time, saves to DB | M3 | ORIGINAL_REQUEST §R3, Acceptance |
-| 23 | Workout History Log | Chronological list of completed workout sessions with metrics | M3 | ORIGINAL_REQUEST §R3, Acceptance |
-| 24 | Load & 1RM Progression Chart | Time-series chart tracking load progression and 1RM (Brzycki/Epley) | M3 | ORIGINAL_REQUEST §R3 |
-| 25 | Daily Morning Weigh-in | Logs morning body weight in kg with date | M4 | ORIGINAL_REQUEST §R4, Acceptance |
-| 26 | 7-Day Moving Average Calculation | Calculates 7-day rolling moving average of body weight | M4 | ORIGINAL_REQUEST §R4, Acceptance |
-| 27 | Weight Trend Chart | Dual-series chart rendering daily raw weigh-ins vs 7-day moving average | M4 | ORIGINAL_REQUEST §R4 |
-| 28 | Body Composition Metrics | Records % Body Fat and computes estimated Lean Mass and Fat Mass | M4 | ORIGINAL_REQUEST §R4, Acceptance |
-| 29 | Body Circumference Tracking | Records tape measurements: waist, chest, arms, thighs in cm | M4 | ORIGINAL_REQUEST §R4 |
-| 30 | Progress Photo Logging | Stores progress photos with date tags in permanent document storage | M4 | ORIGINAL_REQUEST §R4 |
-| 31 | Before vs. After Photo Comparison | Side-by-side comparative viewer for photos across dates | M4 | ORIGINAL_REQUEST §R4 |
-| 32 | User Profile & Goal Configuration | Configures user name, target calories, macros, water goal, theme | M4 | ORIGINAL_REQUEST §R4 |
-| 33 | OLED Dark Mode & Light Mode Theme | High-contrast sports OLED dark mode (`#0A0A0C`) with light mode toggle | M4 | ORIGINAL_REQUEST §R4, Acceptance |
-| 34 | Tab Navigation (Expo Router) | Root layouts and 4-tab bar navigation in `src/app/` | M4 | ORIGINAL_REQUEST §R5, AGENTS.md |
-| 35 | E2E Test Suite Validation & Adversarial Hardening | 100% pass on Tiers 1-4 tests, plus Tier 5 adversarial verification | M5 | Project Pattern, Acceptance |
+| 1 | SQLite Database Init & Migration | Initializes `fitness.db`, WAL mode, foreign keys, schema migrations | M1 | MVP Spec §R1 |
+| 2 | TACO/IBGE Seed Data Injection | Seeds Brazilian food composition dataset into `foods` table | M1 | MVP Spec §R1 |
+| 3 | Standard Workout Routines Seed | Seeds default routine templates (ABC, Push/Pull/Legs) | M1 | MVP Spec §R1 |
+| 4 | Repository Pattern Abstraction | Type-safe interfaces (`IDietRepository`, `IWorkoutRepository`, `IBodyRepository`, `IAuthRepository`) | M1 | MVP Spec §R1 |
+| 5 | Categorized Meal Diary | Displays food entries grouped by Café da Manhã, Almoço, Lanche, Jantar, Ceia | M2 | MVP Spec §R2 |
+| 6 | Daily Calorie & Macro Target Progress | Aggregates daily kcal, protein, carbs, fat vs target goals | M2 | MVP Spec §R2 |
+| 7 | Indexed TACO Food Search | Sub-100ms local B-tree indexed food lookup | M2 | MVP Spec §R2 |
+| 8 | Open Food Facts Search | Remote HTTP lookup for industrial products with local caching | M2 | MVP Spec §R2 |
+| 9 | Barcode Scanner Search | Scans EAN/UPC barcode with camera, searches local + Open Food Facts | M2 | MVP Spec §R2 |
+| 10 | Custom Food Creation | Manual food creation modal with custom grams and macros | M2 | MVP Spec §R2 |
+| 11 | Food Portion Scaling & Logging | Recalculates macros based on serving grams and adds to meal | M2 | MVP Spec §R2 |
+| 12 | Food Log Deletion & Edit | Modifies or deletes logged food items from daily meal | M2 | MVP Spec §R2 |
+| 13 | Daily Water Intake Tracker | Tracks consumed water vs daily target (ml) with visual progress bar | M2 | MVP Spec §R2 |
+| 14 | Quick Water Increment Shortcuts | Fast buttons (+250ml, +500ml) persisting immediately to DB | M2 | MVP Spec §R2 |
+| 15 | Water Intake Reset / Undo | Decrements or resets erroneous water entries | M2 | MVP Spec §R2 |
+| 16 | Routine Catalog & Management | List, create, and manage workout routines (ABC, PPL) | M3 | MVP Spec §R3 |
+| 17 | Routine Exercise Configuration | Configure exercises, target sets, default rest seconds, order | M3 | MVP Spec §R3 |
+| 18 | Live Workout Execution | Real-time workout session tracking with live elapsed timer | M3 | MVP Spec §R3 |
+| 19 | Previous Session Load Reference | Displays weight and reps performed in the latest session for each set | M3 | MVP Spec §R3 |
+| 20 | Set Logging (Weight x Reps x Check) | Records completed sets with weight in kg and rep counts | M3 | MVP Spec §R3 |
+| 21 | Automated Rest Timer & Haptics | Auto-triggers rest countdown with `expo-haptics` vibration on set finish | M3 | MVP Spec §R3 |
+| 22 | Session Completion & Summary | Finalizes session, computes total volume, elapsed time, saves to DB | M3 | MVP Spec §R3 |
+| 23 | Workout History Log | Chronological list of completed workout sessions with metrics | M3 | MVP Spec §R3 |
+| 24 | Load & 1RM Progression Chart | Time-series chart tracking load progression and 1RM (Brzycki/Epley) | M3 | MVP Spec §R3 |
+| 25 | Daily Morning Weigh-in | Logs morning body weight in kg with date | M4 | MVP Spec §R4 |
+| 26 | 7-Day Moving Average Calculation | Calculates 7-day rolling moving average of body weight | M4 | MVP Spec §R4 |
+| 27 | Weight Trend Chart | Dual-series chart rendering daily raw weigh-ins vs 7-day moving average | M4 | MVP Spec §R4 |
+| 28 | Body Composition Metrics | Records % Body Fat and computes estimated Lean Mass and Fat Mass | M4 | MVP Spec §R4 |
+| 29 | Body Circumference Tracking | Records tape measurements: waist, chest, arms, thighs in cm | M4 | MVP Spec §R4 |
+| 30 | Progress Photo Logging | Stores progress photos with date tags in permanent document storage | M4 | MVP Spec §R4 |
+| 31 | Before vs. After Photo Comparison | Side-by-side comparative viewer for photos across dates | M4 | MVP Spec §R4 |
+| 32 | User Profile & Goal Configuration | Configures user name, target calories, macros, water goal, theme | M4 | MVP Spec §R4 |
+| 33 | OLED Dark Mode & Light Mode Theme | High-contrast sports OLED dark mode (`#0A0A0C`) with light mode toggle | M4 | MVP Spec §R4 |
+| 34 | Tab Navigation (Expo Router) | Root layouts and 4-tab bar navigation in `src/app/` | M4 | MVP Spec §R5 |
+| 35 | E2E Test Suite Validation & Adversarial Hardening | 100% pass on Tiers 1-4 tests, plus Tier 5 adversarial verification | M5 | MVP Spec §R5 |
 
 ---
 
@@ -88,10 +88,10 @@ It follows an offline-first architecture powered by local SQLite (`expo-sqlite`)
 | # | Name | Scope | Dependencies | Status |
 |---|------|-------|-------------|--------|
 | M1 | Database, Schemas, TACO Seed & Repositories | Initialize SQLite, create 9 tables, seed TACO & routines, implement `IDietRepository`, `IWorkoutRepository`, `IBodyRepository`, `IAuthRepository`, and setup `npm test` test suite with 100% pass | None | DONE |
-| M2 | Nutrition & Hydration Module | Meal diary (5 meals), macro calculations, TACO indexed search, Open Food Facts API & barcode scan, custom foods, water tracker with +250/+500ml shortcuts | M1 | PLANNED |
-| M3 | Workout & Progression Module | Workout routines, Live Workout execution screen, previous session reference, set checklist, auto rest countdown timer with `expo-haptics`, workout history, 1RM & volume progression charts | M1 | PLANNED |
-| M4 | Body Evolution, Photos & UI Theme | Daily weigh-in, 7-day moving average, trend chart, body fat / lean mass / circumferences, progress photos with before/after comparison, profile settings, OLED dark theme & light mode toggle, Expo Router tabs | M1 | PLANNED |
-| M5 | Final E2E Integration & Adversarial Hardening | Pass 100% of E2E Test Suite (Tiers 1-4 published in `TEST_READY.md`) + Tier 5 adversarial stress testing, zero lint errors, zero typescript errors | M1, M2, M3, M4, TEST_READY | PLANNED |
+| M2 | Nutrition & Hydration Module | Meal diary (5 meals), macro calculations, TACO indexed search, Open Food Facts API & barcode scan, custom foods, water tracker with +250/+500ml shortcuts | M1 | DONE |
+| M3 | Workout & Progression Module | Workout routines, Live Workout execution screen, previous session reference, set checklist, auto rest countdown timer with `expo-haptics`, workout history, 1RM & volume progression charts | M1 | DONE |
+| M4 | Body Evolution, Photos & UI Theme | Daily weigh-in, 7-day moving average, trend chart, body fat / lean mass / circumferences, progress photos with before/after comparison, profile settings, OLED dark theme & light mode toggle, Expo Router tabs | M1 | DONE |
+| M5 | Final E2E Integration & Adversarial Hardening | Pass 100% of E2E Test Suite (Tiers 1-4 in `tests/e2e/`) + Tier 5 adversarial stress testing, zero lint errors, zero typescript errors | M1, M2, M3, M4 | DONE |
 
 ---
 
@@ -140,7 +140,7 @@ It follows an offline-first architecture powered by local SQLite (`expo-sqlite`)
 ## Code Layout
 
 ```
-/home/bruno/Documentos/app/
+irontrack/
 ├── assets/                          # App icons and splash screens
 ├── src/
 │   ├── app/                         # Expo Router screens (ONLY routes & navigators)

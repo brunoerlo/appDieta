@@ -2,6 +2,10 @@
 module.exports = {
   preset: 'jest-expo',
   testEnvironment: 'node',
+  setupFiles: [
+    ...require('jest-expo/jest-preset').setupFiles,
+    '<rootDir>/tests/setupPre.js',
+  ],
   setupFilesAfterEnv: ['<rootDir>/tests/setup.ts'],
   testMatch: [
     '<rootDir>/tests/unit/**/*.test.ts',

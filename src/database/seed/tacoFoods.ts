@@ -1,6 +1,7 @@
 import { FoodItem } from '../../types/domain';
+import { normalizeFoodText } from '../../utils/text';
 
-export const TACO_FOODS_SEED: Omit<FoodItem, 'createdAt'>[] = [
+const RAW_TACO_FOODS: Omit<FoodItem, 'createdAt'>[] = [
   {
     id: 'taco-peito-frango-grelhado',
     name: 'Peito de frango, grelhado',
@@ -590,3 +591,8 @@ export const TACO_FOODS_SEED: Omit<FoodItem, 'createdAt'>[] = [
     servingUnitGrams: 100,
   },
 ];
+
+export const TACO_FOODS_SEED: Omit<FoodItem, 'createdAt'>[] = RAW_TACO_FOODS.map((food) => ({
+  ...food,
+  nameNormalized: normalizeFoodText(food.name),
+}));

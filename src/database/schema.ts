@@ -22,6 +22,7 @@ CREATE TABLE IF NOT EXISTS users (
 CREATE TABLE IF NOT EXISTS foods (
   id TEXT PRIMARY KEY NOT NULL,
   name TEXT NOT NULL,
+  name_normalized TEXT,
   category TEXT NOT NULL,
   serving_grams REAL NOT NULL DEFAULT 100,
   calories REAL NOT NULL,
@@ -37,6 +38,7 @@ CREATE TABLE IF NOT EXISTS foods (
 );
 
 CREATE INDEX IF NOT EXISTS idx_foods_name ON foods(name COLLATE NOCASE);
+CREATE INDEX IF NOT EXISTS idx_foods_name_normalized ON foods(name_normalized);
 CREATE INDEX IF NOT EXISTS idx_foods_barcode ON foods(barcode);
 CREATE INDEX IF NOT EXISTS idx_foods_source ON foods(source);
 

@@ -1,4 +1,5 @@
 import { IDietRepository, ISqliteDatabase } from './interfaces';
+import { normalizeFoodText } from '../../utils/text';
 import {
   DietLogEntry,
   FoodItem,
@@ -24,6 +25,7 @@ interface DietLogRow {
 interface FoodRow {
   id: string;
   name: string;
+  name_normalized?: string | null;
   category: string | null;
   serving_grams: number;
   calories: number;
@@ -68,6 +70,7 @@ export class SqliteDietRepository implements IDietRepository {
     return {
       id: row.id,
       name: row.name,
+      nameNormalized: row.name_normalized ?? undefined,
       category: row.category ?? undefined,
       servingGrams: row.serving_grams,
       calories: row.calories,
@@ -157,19 +160,27 @@ export class SqliteDietRepository implements IDietRepository {
     const sanitized = query.trim();
     if (!sanitized) return [];
 
-    const wildcard = `%${sanitized}%`;
-    const prefix = `${sanitized}%`;
+    const normalized = normalizeFoodText(sanitized);
+    const wildcardRaw = `%${sanitized}%`;
+    const prefixRaw = `${sanitized}%`;
+    const wildcardNorm = `%${normalized}%`;
+    const prefixNorm = `${normalized}%`;
 
     const rows = await this.db.getAllAsync<FoodRow>(
-      `SELECT id, name, category, serving_grams, calories, protein, carbs, fat, fiber, barcode, source, serving_unit_name, serving_unit_grams, created_at
+      `SELECT id, name, name_normalized, category, serving_grams, calories, protein, carbs, fat, fiber, barcode, source, serving_unit_name, serving_unit_grams, created_at
        FROM foods
-       WHERE name LIKE ?
+       WHERE name LIKE ? OR (name_normalized IS NOT NULL AND name_normalized LIKE ?)
        ORDER BY
-         CASE WHEN name LIKE ? THEN 1 ELSE 2 END,
+         CASE
+           WHEN name LIKE ? OR (name_normalized IS NOT NULL AND name_normalized LIKE ?) THEN 1
+           ELSE 2
+         END,
          name ASC
        LIMIT ?;`,
-      wildcard,
-      prefix,
+      wildcardRaw,
+      wildcardNorm,
+      prefixRaw,
+      prefixNorm,
       limit
     );
 
@@ -178,7 +189,7 @@ export class SqliteDietRepository implements IDietRepository {
 
   async getFoodByBarcode(barcode: string): Promise<FoodItem | null> {
     const row = await this.db.getFirstAsync<FoodRow>(
-      `SELECT id, name, category, serving_grams, calories, protein, carbs, fat, fiber, barcode, source, serving_unit_name, serving_unit_grams, created_at
+      `SELECT id, name, name_normalized, category, serving_grams, calories, protein, carbs, fat, fiber, barcode, source, serving_unit_name, serving_unit_grams, created_at
        FROM foods
        WHERE barcode = ?
        LIMIT 1;`,
@@ -191,12 +202,14 @@ export class SqliteDietRepository implements IDietRepository {
   async createFood(food: Omit<FoodItem, 'id' | 'createdAt'>): Promise<FoodItem> {
     const id = `food-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
     const createdAt = new Date().toISOString();
+    const nameNormalized = food.nameNormalized ?? normalizeFoodText(food.name);
 
     await this.db.runAsync(
-      `INSERT INTO foods (id, name, category, serving_grams, calories, protein, carbs, fat, fiber, barcode, source, serving_unit_name, serving_unit_grams, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
+      `INSERT INTO foods (id, name, name_normalized, category, serving_grams, calories, protein, carbs, fat, fiber, barcode, source, serving_unit_name, serving_unit_grams, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
       id,
       food.name,
+      nameNormalized,
       food.category ?? '',
       food.servingGrams,
       food.calories,
@@ -214,6 +227,7 @@ export class SqliteDietRepository implements IDietRepository {
     return {
       ...food,
       id,
+      nameNormalized,
       createdAt,
     };
   }
@@ -264,7 +278,14 @@ export class SqliteDietRepository implements IDietRepository {
       `SELECT SUM(amount_ml) as total FROM water_logs WHERE date = ?;`,
       date
     );
-    return row?.total ?? 0;
+    return Math.max(0, row?.total ?? 0);
+  }
+
+  async decrementWaterLog(date: string, amountMl: number): Promise<WaterLogEntry | null> {
+    const currentTotal = await this.getDailyWaterTotal(date);
+    if (currentTotal <= 0) return null;
+    const delta = Math.min(Math.abs(amountMl), currentTotal);
+    return this.addWaterLog(date, -delta);
   }
 
   async getDailyNutritionSummary(date: string): Promise<DailyNutritionSummary> {

@@ -33,3 +33,42 @@ jest.mock('expo-sqlite', () => ({
   }),
   useSQLiteContext: jest.fn(() => mockTestDbInstance),
 }));
+
+const mockFileSystem = {
+  documentDirectory: 'file:///data/user/0/host.exp.exponent/files/',
+  cacheDirectory: 'file:///data/user/0/host.exp.exponent/cache/',
+  makeDirectoryAsync: jest.fn().mockResolvedValue(undefined),
+  copyAsync: jest.fn().mockResolvedValue(undefined),
+  deleteAsync: jest.fn().mockResolvedValue(undefined),
+  getInfoAsync: jest.fn().mockResolvedValue({ exists: true, isDirectory: true }),
+  readAsStringAsync: jest.fn().mockResolvedValue(''),
+  writeAsStringAsync: jest.fn().mockResolvedValue(undefined),
+};
+
+// Mock expo-file-system
+jest.mock('expo-file-system', () => mockFileSystem);
+jest.mock('expo-file-system/legacy', () => mockFileSystem);
+
+
+// Mock expo-camera
+jest.mock('expo-camera', () => {
+  const React = require('react');
+  const { View } = require('react-native');
+  return {
+    CameraView: React.forwardRef((props: any, ref: any) => {
+      React.useImperativeHandle(ref, () => ({
+        takePictureAsync: jest.fn().mockResolvedValue({
+          uri: 'file:///data/photos/test_captured.jpg',
+          width: 1080,
+          height: 1920,
+        }),
+      }));
+      return React.createElement(View, { testID: 'mock-camera-view', ...props });
+    }),
+    useCameraPermissions: jest.fn(() => [
+      { granted: true, canAskAgain: true, status: 'granted' },
+      jest.fn().mockResolvedValue({ granted: true }),
+    ]),
+  };
+});
+

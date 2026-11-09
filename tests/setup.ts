@@ -14,8 +14,8 @@ jest.mock(
 // Mock expo-constants
 jest.mock('expo-constants', () => ({
   expoConfig: {
-    name: 'IronTrack',
-    slug: 'irontrack',
+    name: '-Frango',
+    slug: 'MenosFrango',
     version: '1.0.0',
   },
 }));

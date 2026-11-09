@@ -41,7 +41,7 @@ export const AppTopBar: React.FC<AppTopBarProps> = ({
   showBorderBottom = true,
   style,
   titleStyle,
-  extraTopPadding = 8,
+  extraTopPadding = 2,
 }) => {
   const safeTop = useSafeTopPadding(extraTopPadding);
   const { colors } = useTheme();
@@ -97,7 +97,7 @@ export const AppTopBar: React.FC<AppTopBarProps> = ({
         <View style={[styles.centerSlot, !centerTitle && styles.alignLeft]}>
           {isLogoInstagram ? (
             <Text style={[styles.instagramBrand, { color: colors.textPrimary }, titleStyle]}>
-              IronTrack
+              <Text style={{ color: colors.primary }}>-</Text>Frango
             </Text>
           ) : (
             <>
@@ -141,7 +141,7 @@ export const AppTopBar: React.FC<AppTopBarProps> = ({
 
 const styles = StyleSheet.create({
   container: {
-    paddingBottom: 10,
+    paddingBottom: 8,
     paddingHorizontal: 16,
   },
   contentRow: {

@@ -14,9 +14,9 @@ import {
   Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { DarkTheme } from '../../constants/theme';
+import { spacing, borderRadius, ThemeColors } from '../../constants/theme';
+import { useTheme } from '../../hooks/useTheme';
 import { Badge } from '../ui/Badge';
-import { useSafeTopPadding } from '../../hooks/useSafeTopPadding';
 import { useWorkout } from '../../hooks/useWorkout';
 
 export interface ExercisePickerResult {
@@ -154,8 +154,8 @@ export const ExercisePickerModal: React.FC<ExercisePickerModalProps> = ({
   const [newRestSeconds, setNewRestSeconds] = useState(60);
   const [isSaving, setIsSaving] = useState(false);
   const [nameError, setNameError] = useState(false);
-
-  const safeTop = useSafeTopPadding(8);
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
 
   // Merging custom exercises with default catalog exercises
   const mergedExercises = useMemo(() => {
@@ -258,7 +258,7 @@ export const ExercisePickerModal: React.FC<ExercisePickerModalProps> = ({
         {viewMode === 'picker' ? (
           <>
             {/* Header */}
-            <View style={[styles.header, { paddingTop: safeTop }]}>
+            <View style={styles.header}>
               <Text style={styles.headerTitle}>Selecionar Exercício</Text>
               <TouchableOpacity
                 onPress={handleModalClose}
@@ -276,7 +276,7 @@ export const ExercisePickerModal: React.FC<ExercisePickerModalProps> = ({
               <TextInput
                 style={styles.searchInput}
                 placeholder="Buscar por nome do exercício..."
-                placeholderTextColor={DarkTheme.colors.textDimmed}
+                placeholderTextColor={colors.textDimmed}
                 value={searchQuery}
                 onChangeText={setSearchQuery}
                 autoCorrect={false}
@@ -356,7 +356,7 @@ export const ExercisePickerModal: React.FC<ExercisePickerModalProps> = ({
                       {item.isCustom && (
                         <Badge
                           label="Personalizado"
-                          color={DarkTheme.colors.calories}
+                          color={colors.calories}
                           backgroundColor="rgba(245, 158, 11, 0.15)"
                         />
                       )}
@@ -364,8 +364,8 @@ export const ExercisePickerModal: React.FC<ExercisePickerModalProps> = ({
                     <View style={styles.metaRow}>
                       <Badge
                         label={item.muscleGroup}
-                        color={DarkTheme.colors.primary}
-                        backgroundColor={DarkTheme.colors.primaryMuted}
+                        color={colors.primary}
+                        backgroundColor={colors.primaryMuted}
                       />
                       <Text style={styles.metaRest}>
                         • Descanso: {item.defaultRestSeconds}s
@@ -408,7 +408,7 @@ export const ExercisePickerModal: React.FC<ExercisePickerModalProps> = ({
             behavior={Platform.OS === 'ios' ? 'padding' : undefined}
           >
             {/* Create Top Bar */}
-            <View style={[styles.header, { paddingTop: safeTop }]}>
+            <View style={styles.header}>
               <TouchableOpacity
                 onPress={() => setViewMode('picker')}
                 style={styles.cancelBtn}
@@ -426,7 +426,7 @@ export const ExercisePickerModal: React.FC<ExercisePickerModalProps> = ({
                 accessibilityLabel="Salvar e adicionar exercício"
               >
                 {isSaving ? (
-                  <ActivityIndicator size="small" color={DarkTheme.colors.primary} />
+                  <ActivityIndicator size="small" color={colors.primary} />
                 ) : (
                   <Text style={styles.saveText}>Salvar</Text>
                 )}
@@ -444,7 +444,7 @@ export const ExercisePickerModal: React.FC<ExercisePickerModalProps> = ({
                 <TextInput
                   style={[styles.formInput, nameError && styles.formInputError]}
                   placeholder="Ex: Elevação Pélvica, Agachamento Búlgaro..."
-                  placeholderTextColor={DarkTheme.colors.textDimmed}
+                  placeholderTextColor={colors.textDimmed}
                   value={newName}
                   onChangeText={(val) => {
                     setNewName(val);
@@ -610,23 +610,24 @@ export const ExercisePickerModal: React.FC<ExercisePickerModalProps> = ({
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: DarkTheme.colors.background,
+    backgroundColor: colors.background,
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: DarkTheme.spacing.lg,
-    paddingTop: DarkTheme.spacing.md,
-    paddingBottom: DarkTheme.spacing.sm,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.sm,
     borderBottomWidth: 1,
-    borderBottomColor: DarkTheme.colors.cardBorder,
+    borderBottomColor: colors.cardBorder,
   },
   headerTitle: {
-    color: DarkTheme.colors.textPrimary,
+    color: colors.textPrimary,
     fontSize: 18,
     fontWeight: '700',
   },
@@ -637,7 +638,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   closeText: {
-    color: DarkTheme.colors.textSecondary,
+    color: colors.textSecondary,
     fontSize: 18,
     fontWeight: '600',
   },
@@ -647,7 +648,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   cancelText: {
-    color: DarkTheme.colors.textSecondary,
+    color: colors.textSecondary,
     fontSize: 15,
   },
   saveBtn: {
@@ -657,124 +658,124 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   saveText: {
-    color: DarkTheme.colors.primary,
+    color: colors.primary,
     fontSize: 16,
     fontWeight: '700',
   },
   searchContainer: {
-    paddingHorizontal: DarkTheme.spacing.lg,
-    marginTop: DarkTheme.spacing.sm,
-    marginBottom: DarkTheme.spacing.sm,
+    paddingHorizontal: spacing.lg,
+    marginTop: spacing.sm,
+    marginBottom: spacing.sm,
   },
   searchInput: {
-    backgroundColor: DarkTheme.colors.surfaceMuted,
-    borderColor: DarkTheme.colors.cardBorder,
+    backgroundColor: colors.surfaceMuted,
+    borderColor: colors.cardBorder,
     borderWidth: 1,
-    borderRadius: DarkTheme.borderRadius.md,
-    color: DarkTheme.colors.textPrimary,
+    borderRadius: borderRadius.md,
+    color: colors.textPrimary,
     fontSize: 15,
-    paddingHorizontal: DarkTheme.spacing.md,
+    paddingHorizontal: spacing.md,
     paddingVertical: 10,
     minHeight: 44,
   },
   pillsContainer: {
-    marginBottom: DarkTheme.spacing.sm,
+    marginBottom: spacing.sm,
   },
   pillsList: {
-    paddingHorizontal: DarkTheme.spacing.lg,
-    gap: DarkTheme.spacing.xs,
+    paddingHorizontal: spacing.lg,
+    gap: spacing.xs,
   },
   musclePill: {
     paddingHorizontal: 12,
     paddingVertical: 8,
-    borderRadius: DarkTheme.borderRadius.full,
-    backgroundColor: DarkTheme.colors.surfaceMuted,
+    borderRadius: borderRadius.full,
+    backgroundColor: colors.surfaceMuted,
     borderWidth: 1,
-    borderColor: DarkTheme.colors.cardBorder,
+    borderColor: colors.cardBorder,
     minHeight: 36,
     justifyContent: 'center',
   },
   musclePillActive: {
-    backgroundColor: DarkTheme.colors.primaryMuted,
-    borderColor: DarkTheme.colors.primary,
+    backgroundColor: colors.primaryMuted,
+    borderColor: colors.primary,
   },
   musclePillText: {
-    color: DarkTheme.colors.textSecondary,
+    color: colors.textSecondary,
     fontSize: 12,
     fontWeight: '600',
   },
   musclePillTextActive: {
-    color: DarkTheme.colors.primary,
+    color: colors.primary,
   },
   createBannerContainer: {
-    paddingHorizontal: DarkTheme.spacing.lg,
-    marginBottom: DarkTheme.spacing.sm,
+    paddingHorizontal: spacing.lg,
+    marginBottom: spacing.sm,
   },
   createBannerBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: DarkTheme.colors.card,
+    backgroundColor: colors.card,
     borderWidth: 1,
-    borderColor: DarkTheme.colors.primary,
-    borderRadius: DarkTheme.borderRadius.md,
-    paddingHorizontal: DarkTheme.spacing.md,
-    paddingVertical: DarkTheme.spacing.sm,
+    borderColor: colors.primary,
+    borderRadius: borderRadius.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
     minHeight: 52,
   },
   createBannerLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: DarkTheme.spacing.sm,
+    gap: spacing.sm,
     flex: 1,
   },
   createBannerIconCircle: {
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: DarkTheme.colors.primaryMuted,
+    backgroundColor: colors.primaryMuted,
     alignItems: 'center',
     justifyContent: 'center',
   },
   createBannerIcon: {
-    color: DarkTheme.colors.primary,
+    color: colors.primary,
     fontSize: 18,
     fontWeight: '700',
   },
   createBannerTitle: {
-    color: DarkTheme.colors.textPrimary,
+    color: colors.textPrimary,
     fontSize: 14,
     fontWeight: '700',
   },
   createBannerSubtitle: {
-    color: DarkTheme.colors.textDimmed,
+    color: colors.textDimmed,
     fontSize: 11,
   },
   createBannerArrow: {
-    color: DarkTheme.colors.primary,
+    color: colors.primary,
     fontSize: 20,
     fontWeight: '600',
-    marginLeft: DarkTheme.spacing.xs,
+    marginLeft: spacing.xs,
   },
   listContent: {
-    paddingHorizontal: DarkTheme.spacing.lg,
-    paddingBottom: DarkTheme.spacing.xl,
+    paddingHorizontal: spacing.lg,
+    paddingBottom: spacing.xl,
   },
   exerciseItem: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: DarkTheme.colors.card,
-    borderColor: DarkTheme.colors.cardBorder,
+    backgroundColor: colors.card,
+    borderColor: colors.cardBorder,
     borderWidth: 1,
-    borderRadius: DarkTheme.borderRadius.md,
-    padding: DarkTheme.spacing.md,
-    marginBottom: DarkTheme.spacing.xs,
+    borderRadius: borderRadius.md,
+    padding: spacing.md,
+    marginBottom: spacing.xs,
     minHeight: 64,
   },
   exerciseInfo: {
     flex: 1,
-    marginRight: DarkTheme.spacing.sm,
+    marginRight: spacing.sm,
   },
   nameRow: {
     flexDirection: 'row',
@@ -784,7 +785,7 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
   },
   exerciseName: {
-    color: DarkTheme.colors.textPrimary,
+    color: colors.textPrimary,
     fontSize: 15,
     fontWeight: '600',
   },
@@ -795,80 +796,80 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
   },
   metaRest: {
-    color: DarkTheme.colors.textDimmed,
+    color: colors.textDimmed,
     fontSize: 12,
   },
   addIconCircle: {
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: DarkTheme.colors.surfaceMuted,
+    backgroundColor: colors.surfaceMuted,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: DarkTheme.colors.cardBorder,
+    borderColor: colors.cardBorder,
   },
   addIconText: {
-    color: DarkTheme.colors.primary,
+    color: colors.primary,
     fontSize: 20,
     fontWeight: '700',
   },
   emptyContainer: {
-    paddingVertical: DarkTheme.spacing.xxl,
+    paddingVertical: spacing.xxl,
     alignItems: 'center',
   },
   emptyText: {
-    color: DarkTheme.colors.textSecondary,
+    color: colors.textSecondary,
     fontSize: 14,
-    marginBottom: DarkTheme.spacing.md,
+    marginBottom: spacing.md,
     textAlign: 'center',
   },
   customBtn: {
-    backgroundColor: DarkTheme.colors.primaryMuted,
-    borderColor: DarkTheme.colors.primary,
+    backgroundColor: colors.primaryMuted,
+    borderColor: colors.primary,
     borderWidth: 1,
-    borderRadius: DarkTheme.borderRadius.md,
-    paddingHorizontal: DarkTheme.spacing.lg,
+    borderRadius: borderRadius.md,
+    paddingHorizontal: spacing.lg,
     paddingVertical: 12,
     minHeight: 44,
     justifyContent: 'center',
   },
   customBtnText: {
-    color: DarkTheme.colors.primary,
+    color: colors.primary,
     fontSize: 14,
     fontWeight: '600',
   },
 
   // Form Styles
   formScrollContent: {
-    padding: DarkTheme.spacing.lg,
-    paddingBottom: DarkTheme.spacing.xxl,
+    padding: spacing.lg,
+    paddingBottom: spacing.xxl,
   },
   formGroup: {
-    marginBottom: DarkTheme.spacing.lg,
+    marginBottom: spacing.lg,
   },
   formLabel: {
-    color: DarkTheme.colors.textSecondary,
+    color: colors.textSecondary,
     fontSize: 13,
     fontWeight: '600',
     marginBottom: 8,
   },
   formInput: {
-    backgroundColor: DarkTheme.colors.card,
-    borderColor: DarkTheme.colors.cardBorder,
+    backgroundColor: colors.card,
+    borderColor: colors.cardBorder,
     borderWidth: 1,
-    borderRadius: DarkTheme.borderRadius.md,
-    color: DarkTheme.colors.textPrimary,
+    borderRadius: borderRadius.md,
+    color: colors.textPrimary,
     fontSize: 15,
-    paddingHorizontal: DarkTheme.spacing.md,
+    paddingHorizontal: spacing.md,
     paddingVertical: 12,
     minHeight: 48,
   },
   formInputError: {
-    borderColor: DarkTheme.colors.danger,
+    borderColor: colors.danger,
   },
   errorText: {
-    color: DarkTheme.colors.danger,
+    color: colors.danger,
     fontSize: 12,
     marginTop: 4,
   },
@@ -880,45 +881,45 @@ const styles = StyleSheet.create({
   categoryChip: {
     paddingHorizontal: 12,
     paddingVertical: 8,
-    borderRadius: DarkTheme.borderRadius.sm,
-    backgroundColor: DarkTheme.colors.surfaceMuted,
+    borderRadius: borderRadius.sm,
+    backgroundColor: colors.surfaceMuted,
     borderWidth: 1,
-    borderColor: DarkTheme.colors.cardBorder,
+    borderColor: colors.cardBorder,
     minHeight: 36,
     justifyContent: 'center',
   },
   categoryChipActive: {
-    backgroundColor: DarkTheme.colors.primaryMuted,
-    borderColor: DarkTheme.colors.primary,
+    backgroundColor: colors.primaryMuted,
+    borderColor: colors.primary,
   },
   categoryChipText: {
-    color: DarkTheme.colors.textSecondary,
+    color: colors.textSecondary,
     fontSize: 12,
     fontWeight: '600',
   },
   categoryChipTextActive: {
-    color: DarkTheme.colors.primary,
+    color: colors.primary,
   },
   stepperRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: DarkTheme.colors.card,
+    backgroundColor: colors.card,
     borderWidth: 1,
-    borderColor: DarkTheme.colors.cardBorder,
-    borderRadius: DarkTheme.borderRadius.md,
-    padding: DarkTheme.spacing.xs,
+    borderColor: colors.cardBorder,
+    borderRadius: borderRadius.md,
+    padding: spacing.xs,
   },
   stepperBtn: {
     width: 60,
     height: 44,
-    borderRadius: DarkTheme.borderRadius.sm,
-    backgroundColor: DarkTheme.colors.surfaceMuted,
+    borderRadius: borderRadius.sm,
+    backgroundColor: colors.surfaceMuted,
     alignItems: 'center',
     justifyContent: 'center',
   },
   stepperBtnText: {
-    color: DarkTheme.colors.primary,
+    color: colors.primary,
     fontSize: 16,
     fontWeight: '700',
   },
@@ -927,49 +928,49 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   stepperValueText: {
-    color: DarkTheme.colors.textPrimary,
+    color: colors.textPrimary,
     fontSize: 18,
     fontWeight: '700',
   },
   stepperUnitText: {
-    color: DarkTheme.colors.textDimmed,
+    color: colors.textDimmed,
     fontSize: 11,
   },
   presetChipsRow: {
     flexDirection: 'row',
     gap: 8,
-    marginTop: DarkTheme.spacing.xs,
+    marginTop: spacing.xs,
   },
   quickPresetChip: {
     flex: 1,
     paddingVertical: 6,
-    borderRadius: DarkTheme.borderRadius.sm,
-    backgroundColor: DarkTheme.colors.surfaceMuted,
+    borderRadius: borderRadius.sm,
+    backgroundColor: colors.surfaceMuted,
     borderWidth: 1,
-    borderColor: DarkTheme.colors.cardBorder,
+    borderColor: colors.cardBorder,
     alignItems: 'center',
     justifyContent: 'center',
     minHeight: 32,
   },
   quickPresetChipActive: {
-    borderColor: DarkTheme.colors.primary,
-    backgroundColor: DarkTheme.colors.primaryMuted,
+    borderColor: colors.primary,
+    backgroundColor: colors.primaryMuted,
   },
   quickPresetText: {
-    color: DarkTheme.colors.textSecondary,
+    color: colors.textSecondary,
     fontSize: 12,
     fontWeight: '600',
   },
   quickPresetTextActive: {
-    color: DarkTheme.colors.primary,
+    color: colors.primary,
   },
   submitBtn: {
-    backgroundColor: DarkTheme.colors.primary,
-    borderRadius: DarkTheme.borderRadius.md,
+    backgroundColor: colors.primary,
+    borderRadius: borderRadius.md,
     paddingVertical: 14,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: DarkTheme.spacing.md,
+    marginTop: spacing.md,
     minHeight: 48,
   },
   submitBtnText: {

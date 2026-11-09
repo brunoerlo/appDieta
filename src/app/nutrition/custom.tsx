@@ -16,7 +16,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
-import { DarkTheme } from '../../constants/theme';
+import { spacing, borderRadius, ThemeColors } from '../../constants/theme';
+import { useTheme } from '../../hooks/useTheme';
 import { SqliteDietRepository } from '../../database/repositories/SqliteDietRepository';
 import { Button } from '../../components/ui/Button';
 import { FoodItem, MealType } from '../../types/domain';
@@ -26,9 +27,8 @@ import {
   MEAL_TYPE_NAMES,
 } from '../../utils/nutrition';
 import { useDiet } from '../../hooks/useDiet';
-import { useSafeTopPadding } from '../../hooks/useSafeTopPadding';
 
-type CreationType = 'food' | 'meal';
+type CreationType = 'food' | 'meal' | 'drink';
 type EntryMode = '100g' | 'portion';
 type MealMode = 'ingredients' | 'direct';
 
@@ -44,7 +44,8 @@ export interface RecipeIngredient {
 
 export default function CustomFoodScreen() {
   const router = useRouter();
-  const safeTop = useSafeTopPadding(6);
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const params = useLocalSearchParams<{
     mealType?: MealType;
     date?: string;
@@ -270,10 +271,12 @@ export default function CustomFoodScreen() {
 
   // Normalization logic
   const getNormalizedFood = (): Omit<FoodItem, 'id' | 'createdAt'> => {
+    const isDrink = creationType === 'drink';
+    const defaultUnit = isDrink ? 'ml' : 'g';
     if (mode === '100g') {
       return {
         name: brand.trim() ? `${name.trim()} (${brand.trim()})` : name.trim(),
-        category: brand.trim() || 'Personalizados',
+        category: isDrink ? 'Bebidas' : (brand.trim() || 'Personalizados'),
         servingGrams: 100,
         calories: Number(numKcal.toFixed(1)),
         protein: Number(numP.toFixed(1)),
@@ -282,14 +285,14 @@ export default function CustomFoodScreen() {
         fiber: numFiber !== undefined ? Number(numFiber.toFixed(1)) : undefined,
         barcode: barcode.trim() || undefined,
         source: 'custom' as const,
-        servingUnitName: 'g',
+        servingUnitName: defaultUnit,
         servingUnitGrams: 1,
       };
     } else {
       const factor = 100 / numPortionGrams;
       return {
         name: brand.trim() ? `${name.trim()} (${brand.trim()})` : name.trim(),
-        category: brand.trim() || 'Personalizados',
+        category: isDrink ? 'Bebidas' : (brand.trim() || 'Personalizados'),
         servingGrams: 100,
         calories: Number((numKcal * factor).toFixed(1)),
         protein: Number((numP * factor).toFixed(1)),
@@ -298,7 +301,7 @@ export default function CustomFoodScreen() {
         fiber: numFiber !== undefined ? Number((numFiber * factor).toFixed(1)) : undefined,
         barcode: barcode.trim() || undefined,
         source: 'custom' as const,
-        servingUnitName: portionName.trim() || 'porção',
+        servingUnitName: portionName.trim() || (isDrink ? 'copo (200ml)' : 'porção'),
         servingUnitGrams: numPortionGrams,
       };
     }
@@ -339,16 +342,17 @@ export default function CustomFoodScreen() {
   };
 
   const handleSaveOnly = async () => {
-    const isValid = creationType === 'food' ? validateFood() : validateMeal();
+    const isValid = creationType === 'meal' ? validateMeal() : validateFood();
     if (!isValid || saving) return;
 
     setSaving(true);
     try {
-      const itemToSave = creationType === 'food' ? getNormalizedFood() : getNormalizedMeal();
+      const itemToSave = creationType === 'meal' ? getNormalizedMeal() : getNormalizedFood();
       await dietRepo.createFood(itemToSave);
+      const typeLabel = creationType === 'meal' ? 'Prato' : creationType === 'drink' ? 'Bebida' : 'Alimento';
       Alert.alert(
         'Sucesso',
-        `${creationType === 'food' ? 'Alimento' : 'Prato'} salvo com sucesso no seu catálogo!`,
+        `${typeLabel} salvo com sucesso no seu catálogo!`,
         [{ text: 'OK', onPress: () => router.back() }]
       );
     } catch {
@@ -359,19 +363,19 @@ export default function CustomFoodScreen() {
   };
 
   const handleSaveAndLog = async () => {
-    const isValid = creationType === 'food' ? validateFood() : validateMeal();
+    const isValid = creationType === 'meal' ? validateMeal() : validateFood();
     if (!isValid || saving) return;
 
     setSaving(true);
     try {
-      const itemToSave = creationType === 'food' ? getNormalizedFood() : getNormalizedMeal();
+      const itemToSave = creationType === 'meal' ? getNormalizedMeal() : getNormalizedFood();
       const created = await dietRepo.createFood(itemToSave);
 
       let gramsToLog: number;
-      if (creationType === 'food') {
-        gramsToLog = mode === 'portion' ? numPortionGrams : 100;
-      } else {
+      if (creationType === 'meal') {
         gramsToLog = mealMode === 'ingredients' ? totalGrams : numDishPortionGrams;
+      } else {
+        gramsToLog = mode === 'portion' ? numPortionGrams : 100;
       }
 
       await addFoodLog({
@@ -391,7 +395,7 @@ export default function CustomFoodScreen() {
   return (
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
       {/* Header */}
-      <View style={[styles.header, { paddingTop: safeTop }]}>
+      <View style={styles.header}>
         <TouchableOpacity
           style={styles.closeBtn}
           onPress={() => router.back()}
@@ -400,7 +404,7 @@ export default function CustomFoodScreen() {
           <Text style={styles.closeBtnText}>✕</Text>
         </TouchableOpacity>
         <Text style={styles.title}>
-          {creationType === 'food' ? 'Criar Alimento' : 'Criar Refeição / Prato'}
+          {creationType === 'food' ? 'Criar Alimento' : creationType === 'drink' ? 'Criar Bebida' : 'Criar Refeição / Prato'}
         </Text>
         <View style={{ width: 36 }} />
       </View>
@@ -413,7 +417,7 @@ export default function CustomFoodScreen() {
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
         >
-          {/* Main Segmented Control: Alimento vs Refeição / Prato */}
+          {/* Main Segmented Control: Alimento vs Bebida vs Refeição / Prato */}
           <View style={styles.mainSegmentedRow}>
             <TouchableOpacity
               style={[
@@ -436,6 +440,24 @@ export default function CustomFoodScreen() {
             <TouchableOpacity
               style={[
                 styles.mainSegmentBtn,
+                creationType === 'drink' && styles.mainSegmentBtnActive,
+              ]}
+              onPress={() => setCreationType('drink')}
+              activeOpacity={0.7}
+            >
+              <Text
+                style={[
+                  styles.mainSegmentText,
+                  creationType === 'drink' && styles.mainSegmentTextActive,
+                ]}
+              >
+                🥤 Bebida
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.mainSegmentBtn,
                 creationType === 'meal' && styles.mainSegmentBtnActive,
               ]}
               onPress={() => setCreationType('meal')}
@@ -447,22 +469,24 @@ export default function CustomFoodScreen() {
                   creationType === 'meal' && styles.mainSegmentTextActive,
                 ]}
               >
-                🍲 Refeição / Prato
+                🍲 Refeição
               </Text>
             </TouchableOpacity>
           </View>
 
-          {creationType === 'food' ? (
+          {creationType !== 'meal' ? (
             /* ========================================================
-               SINGLE FOOD FLOW
+               SINGLE FOOD / BEVERAGE FLOW
             ======================================================== */
             <>
               {/* Food Name */}
-              <Text style={styles.label}>NOME DO ALIMENTO *</Text>
+              <Text style={styles.label}>
+                {creationType === 'drink' ? 'NOME DA BEBIDA *' : 'NOME DO ALIMENTO *'}
+              </Text>
               <TextInput
                 style={styles.input}
-                placeholder="Ex: Pasta de Amendoim Integral"
-                placeholderTextColor={DarkTheme.colors.textDimmed}
+                placeholder={creationType === 'drink' ? 'Ex: Suco de Laranja Integral' : 'Ex: Pasta de Amendoim Integral'}
+                placeholderTextColor={colors.textDimmed}
                 value={name}
                 onChangeText={setName}
               />
@@ -472,7 +496,7 @@ export default function CustomFoodScreen() {
               <TextInput
                 style={styles.input}
                 placeholder="Ex: Dr. Peanut"
-                placeholderTextColor={DarkTheme.colors.textDimmed}
+                placeholderTextColor={colors.textDimmed}
                 value={brand}
                 onChangeText={setBrand}
               />
@@ -482,7 +506,7 @@ export default function CustomFoodScreen() {
               <TextInput
                 style={styles.input}
                 placeholder="Ex: 7898950001234"
-                placeholderTextColor={DarkTheme.colors.textDimmed}
+                placeholderTextColor={colors.textDimmed}
                 value={barcode}
                 onChangeText={setBarcode}
                 keyboardType="numeric"
@@ -497,7 +521,7 @@ export default function CustomFoodScreen() {
                   activeOpacity={0.7}
                 >
                   <Text style={[styles.modeText, mode === '100g' && styles.modeTextActive]}>
-                    Valores por 100g
+                    {creationType === 'drink' ? 'Valores por 100ml' : 'Valores por 100g'}
                   </Text>
                 </TouchableOpacity>
 
@@ -507,7 +531,7 @@ export default function CustomFoodScreen() {
                   activeOpacity={0.7}
                 >
                   <Text style={[styles.modeText, mode === 'portion' && styles.modeTextActive]}>
-                    Por Porção (ex: 30g)
+                    {creationType === 'drink' ? 'Por Copo / Dose' : 'Por Porção (ex: 30g)'}
                   </Text>
                 </TouchableOpacity>
               </View>
@@ -516,11 +540,13 @@ export default function CustomFoodScreen() {
               {mode === 'portion' && (
                 <View style={styles.portionFieldsRow}>
                   <View style={styles.portionCol}>
-                    <Text style={styles.label}>PESO DA PORÇÃO (g) *</Text>
+                    <Text style={styles.label}>
+                      {creationType === 'drink' ? 'VOLUME DA PORÇÃO (ml) *' : 'PESO DA PORÇÃO (g) *'}
+                    </Text>
                     <TextInput
                       style={styles.input}
-                      placeholder="30"
-                      placeholderTextColor={DarkTheme.colors.textDimmed}
+                      placeholder={creationType === 'drink' ? '200' : '30'}
+                      placeholderTextColor={colors.textDimmed}
                       value={portionGrams}
                       onChangeText={setPortionGrams}
                       keyboardType="numeric"
@@ -531,8 +557,8 @@ export default function CustomFoodScreen() {
                     <Text style={styles.label}>NOME DA PORÇÃO</Text>
                     <TextInput
                       style={styles.input}
-                      placeholder="Ex: scoop, fatia"
-                      placeholderTextColor={DarkTheme.colors.textDimmed}
+                      placeholder={creationType === 'drink' ? 'Ex: copo, lata' : 'Ex: scoop, fatia'}
+                      placeholderTextColor={colors.textDimmed}
                       value={portionName}
                       onChangeText={setPortionName}
                     />
@@ -542,7 +568,7 @@ export default function CustomFoodScreen() {
 
               {/* Macro Inputs */}
               <Text style={styles.sectionTitle}>
-                MACRONUTRIENTES {mode === '100g' ? '(por 100g)' : `(por ${numPortionGrams}g)`}:
+                MACRONUTRIENTES {mode === '100g' ? (creationType === 'drink' ? '(por 100ml)' : '(por 100g)') : `(por ${numPortionGrams}${creationType === 'drink' ? 'ml' : 'g'})`}:
               </Text>
 
               <View style={styles.macroGrid}>
@@ -551,7 +577,7 @@ export default function CustomFoodScreen() {
                   <TextInput
                     style={styles.macroInput}
                     placeholder="0"
-                    placeholderTextColor={DarkTheme.colors.textDimmed}
+                    placeholderTextColor={colors.textDimmed}
                     value={calories}
                     onChangeText={setCalories}
                     keyboardType="numeric"
@@ -563,7 +589,7 @@ export default function CustomFoodScreen() {
                   <TextInput
                     style={styles.macroInput}
                     placeholder="0"
-                    placeholderTextColor={DarkTheme.colors.textDimmed}
+                    placeholderTextColor={colors.textDimmed}
                     value={protein}
                     onChangeText={setProtein}
                     keyboardType="numeric"
@@ -575,7 +601,7 @@ export default function CustomFoodScreen() {
                   <TextInput
                     style={styles.macroInput}
                     placeholder="0"
-                    placeholderTextColor={DarkTheme.colors.textDimmed}
+                    placeholderTextColor={colors.textDimmed}
                     value={carbs}
                     onChangeText={setCarbs}
                     keyboardType="numeric"
@@ -587,7 +613,7 @@ export default function CustomFoodScreen() {
                   <TextInput
                     style={styles.macroInput}
                     placeholder="0"
-                    placeholderTextColor={DarkTheme.colors.textDimmed}
+                    placeholderTextColor={colors.textDimmed}
                     value={fat}
                     onChangeText={setFat}
                     keyboardType="numeric"
@@ -600,7 +626,7 @@ export default function CustomFoodScreen() {
                 <TextInput
                   style={styles.macroInput}
                   placeholder="0"
-                  placeholderTextColor={DarkTheme.colors.textDimmed}
+                  placeholderTextColor={colors.textDimmed}
                   value={fiber}
                   onChangeText={setFiber}
                   keyboardType="numeric"
@@ -632,7 +658,7 @@ export default function CustomFoodScreen() {
               <TextInput
                 style={styles.input}
                 placeholder="Ex: Espaguete à Carbonara, Omelete Proteico..."
-                placeholderTextColor={DarkTheme.colors.textDimmed}
+                placeholderTextColor={colors.textDimmed}
                 value={dishName}
                 onChangeText={setDishName}
               />
@@ -746,7 +772,7 @@ export default function CustomFoodScreen() {
                       <TextInput
                         style={styles.input}
                         placeholder="250"
-                        placeholderTextColor={DarkTheme.colors.textDimmed}
+                        placeholderTextColor={colors.textDimmed}
                         value={dishPortionGrams}
                         onChangeText={setDishPortionGrams}
                         keyboardType="numeric"
@@ -758,7 +784,7 @@ export default function CustomFoodScreen() {
                       <TextInput
                         style={styles.input}
                         placeholder="Ex: prato (250g)"
-                        placeholderTextColor={DarkTheme.colors.textDimmed}
+                        placeholderTextColor={colors.textDimmed}
                         value={dishPortionName}
                         onChangeText={setDishPortionName}
                       />
@@ -775,7 +801,7 @@ export default function CustomFoodScreen() {
                       <TextInput
                         style={styles.macroInput}
                         placeholder="0"
-                        placeholderTextColor={DarkTheme.colors.textDimmed}
+                        placeholderTextColor={colors.textDimmed}
                         value={dishCalories}
                         onChangeText={setDishCalories}
                         keyboardType="numeric"
@@ -787,7 +813,7 @@ export default function CustomFoodScreen() {
                       <TextInput
                         style={styles.macroInput}
                         placeholder="0"
-                        placeholderTextColor={DarkTheme.colors.textDimmed}
+                        placeholderTextColor={colors.textDimmed}
                         value={dishProtein}
                         onChangeText={setDishProtein}
                         keyboardType="numeric"
@@ -799,7 +825,7 @@ export default function CustomFoodScreen() {
                       <TextInput
                         style={styles.macroInput}
                         placeholder="0"
-                        placeholderTextColor={DarkTheme.colors.textDimmed}
+                        placeholderTextColor={colors.textDimmed}
                         value={dishCarbs}
                         onChangeText={setDishCarbs}
                         keyboardType="numeric"
@@ -811,7 +837,7 @@ export default function CustomFoodScreen() {
                       <TextInput
                         style={styles.macroInput}
                         placeholder="0"
-                        placeholderTextColor={DarkTheme.colors.textDimmed}
+                        placeholderTextColor={colors.textDimmed}
                         value={dishFat}
                         onChangeText={setDishFat}
                         keyboardType="numeric"
@@ -824,7 +850,7 @@ export default function CustomFoodScreen() {
                     <TextInput
                       style={styles.macroInput}
                       placeholder="0"
-                      placeholderTextColor={DarkTheme.colors.textDimmed}
+                      placeholderTextColor={colors.textDimmed}
                       value={dishFiber}
                       onChangeText={setDishFiber}
                       keyboardType="numeric"
@@ -882,7 +908,7 @@ export default function CustomFoodScreen() {
         onRequestClose={() => setIsPickerVisible(false)}
       >
         <SafeAreaView style={styles.pickerModalContainer}>
-          <View style={[styles.header, { paddingTop: safeTop }]}>
+          <View style={styles.header}>
             <TouchableOpacity
               style={styles.closeBtn}
               onPress={() => setIsPickerVisible(false)}
@@ -898,7 +924,7 @@ export default function CustomFoodScreen() {
             <TextInput
               style={styles.input}
               placeholder="Buscar ingrediente (ex: ovo, bacon, queijo...)"
-              placeholderTextColor={DarkTheme.colors.textDimmed}
+              placeholderTextColor={colors.textDimmed}
               value={pickerSearch}
               onChangeText={handlePickerSearchChange}
               autoFocus={true}
@@ -908,14 +934,14 @@ export default function CustomFoodScreen() {
           {isPickerLoading ? (
             <ActivityIndicator
               size="large"
-              color={DarkTheme.colors.primary}
+              color={colors.primary}
               style={{ marginTop: 20 }}
             />
           ) : (
             <FlatList
               data={pickerFoods}
               keyExtractor={(item) => item.id}
-              contentContainerStyle={{ padding: DarkTheme.spacing.md }}
+              contentContainerStyle={{ padding: spacing.md }}
               renderItem={({ item }) => {
                 const isSelected = selectedIngredientFood?.id === item.id;
                 return (
@@ -985,443 +1011,444 @@ export default function CustomFoodScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: DarkTheme.colors.background,
-  },
-  flex1: {
-    flex: 1,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: DarkTheme.spacing.md,
-    paddingVertical: DarkTheme.spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: DarkTheme.colors.cardBorder,
-  },
-  closeBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: DarkTheme.borderRadius.full,
-    backgroundColor: DarkTheme.colors.surfaceMuted,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  closeBtnText: {
-    color: DarkTheme.colors.textPrimary,
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  title: {
-    color: DarkTheme.colors.textPrimary,
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  scrollContent: {
-    padding: DarkTheme.spacing.lg,
-    paddingBottom: 40,
-  },
+const createStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    flex1: {
+      flex: 1,
+    },
+    header: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.sm,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.cardBorder,
+    },
+    closeBtn: {
+      width: 36,
+      height: 36,
+      borderRadius: borderRadius.full,
+      backgroundColor: colors.surfaceMuted,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    closeBtnText: {
+      color: colors.textPrimary,
+      fontSize: 16,
+      fontWeight: '700',
+    },
+    title: {
+      color: colors.textPrimary,
+      fontSize: 16,
+      fontWeight: '700',
+    },
+    scrollContent: {
+      padding: spacing.lg,
+      paddingBottom: 40,
+    },
 
-  // Main Segmented Row
-  mainSegmentedRow: {
-    flexDirection: 'row',
-    gap: 8,
-    marginBottom: DarkTheme.spacing.md,
-    backgroundColor: DarkTheme.colors.surfaceMuted,
-    borderRadius: DarkTheme.borderRadius.md,
-    padding: 4,
-    borderWidth: 1,
-    borderColor: DarkTheme.colors.cardBorder,
-  },
-  mainSegmentBtn: {
-    flex: 1,
-    paddingVertical: 10,
-    alignItems: 'center',
-    borderRadius: DarkTheme.borderRadius.sm,
-  },
-  mainSegmentBtnActive: {
-    backgroundColor: DarkTheme.colors.card,
-    borderWidth: 1,
-    borderColor: DarkTheme.colors.primary,
-  },
-  mainSegmentText: {
-    color: DarkTheme.colors.textSecondary,
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  mainSegmentTextActive: {
-    color: DarkTheme.colors.primary,
-    fontWeight: '700',
-  },
+    // Main Segmented Row
+    mainSegmentedRow: {
+      flexDirection: 'row',
+      gap: 8,
+      marginBottom: spacing.md,
+      backgroundColor: colors.surfaceMuted,
+      borderRadius: borderRadius.md,
+      padding: 4,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+    },
+    mainSegmentBtn: {
+      flex: 1,
+      paddingVertical: 10,
+      alignItems: 'center',
+      borderRadius: borderRadius.sm,
+    },
+    mainSegmentBtnActive: {
+      backgroundColor: colors.card,
+      borderWidth: 1,
+      borderColor: colors.primary,
+    },
+    mainSegmentText: {
+      color: colors.textSecondary,
+      fontSize: 13,
+      fontWeight: '600',
+    },
+    mainSegmentTextActive: {
+      color: colors.primary,
+      fontWeight: '700',
+    },
 
-  label: {
-    color: DarkTheme.colors.textSecondary,
-    fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 0.5,
-    marginBottom: 6,
-    marginTop: 10,
-  },
-  input: {
-    backgroundColor: DarkTheme.colors.surfaceMuted,
-    borderColor: DarkTheme.colors.cardBorder,
-    borderWidth: 1,
-    borderRadius: DarkTheme.borderRadius.sm,
-    paddingHorizontal: 12,
-    height: 44,
-    color: DarkTheme.colors.textPrimary,
-    fontSize: 14,
-  },
-  modeRow: {
-    flexDirection: 'row',
-    gap: 8,
-    marginBottom: 6,
-  },
-  modeBtn: {
-    flex: 1,
-    backgroundColor: DarkTheme.colors.surfaceMuted,
-    borderColor: DarkTheme.colors.cardBorder,
-    borderWidth: 1,
-    borderRadius: DarkTheme.borderRadius.sm,
-    paddingVertical: 10,
-    alignItems: 'center',
-  },
-  modeBtnActive: {
-    backgroundColor: DarkTheme.colors.primaryMuted,
-    borderColor: DarkTheme.colors.primary,
-  },
-  modeText: {
-    color: DarkTheme.colors.textSecondary,
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  modeTextActive: {
-    color: DarkTheme.colors.primary,
-  },
-  portionFieldsRow: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  portionCol: {
-    flex: 1,
-  },
-  sectionTitle: {
-    color: DarkTheme.colors.textPrimary,
-    fontSize: 12,
-    fontWeight: '700',
-    letterSpacing: 0.5,
-    marginTop: 16,
-    marginBottom: 10,
-  },
-  macroGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10,
-  },
-  macroInputWrapper: {
-    width: '48%',
-  },
-  macroInputLabel: {
-    color: DarkTheme.colors.textSecondary,
-    fontSize: 11,
-    fontWeight: '600',
-    marginBottom: 4,
-  },
-  macroInput: {
-    backgroundColor: DarkTheme.colors.surfaceMuted,
-    borderColor: DarkTheme.colors.cardBorder,
-    borderWidth: 1,
-    borderRadius: DarkTheme.borderRadius.sm,
-    paddingHorizontal: 12,
-    height: 44,
-    color: DarkTheme.colors.textPrimary,
-    fontSize: 15,
-    fontWeight: '600',
-  },
-  singleMacroRow: {
-    marginTop: 10,
-    width: '48%',
-  },
-  atwaterBox: {
-    backgroundColor: DarkTheme.colors.surfaceMuted,
-    borderColor: DarkTheme.colors.cardBorder,
-    borderWidth: 1,
-    borderRadius: DarkTheme.borderRadius.sm,
-    padding: 10,
-    marginTop: 14,
-  },
-  atwaterBoxWarning: {
-    borderColor: DarkTheme.colors.calories,
-    backgroundColor: DarkTheme.colors.caloriesTrack,
-  },
-  atwaterText: {
-    color: DarkTheme.colors.textSecondary,
-    fontSize: 12,
-  },
-  bold: {
-    color: DarkTheme.colors.textPrimary,
-    fontWeight: '700',
-  },
-  actionStack: {
-    marginTop: 24,
-    gap: 8,
-  },
-  spacingBtn: {
-    marginTop: 4,
-  },
+    label: {
+      color: colors.textSecondary,
+      fontSize: 11,
+      fontWeight: '700',
+      letterSpacing: 0.5,
+      marginBottom: 6,
+      marginTop: 10,
+    },
+    input: {
+      backgroundColor: colors.surfaceMuted,
+      borderColor: colors.cardBorder,
+      borderWidth: 1,
+      borderRadius: borderRadius.sm,
+      paddingHorizontal: 12,
+      height: 44,
+      color: colors.textPrimary,
+      fontSize: 14,
+    },
+    modeRow: {
+      flexDirection: 'row',
+      gap: 8,
+      marginBottom: 6,
+    },
+    modeBtn: {
+      flex: 1,
+      backgroundColor: colors.surfaceMuted,
+      borderColor: colors.cardBorder,
+      borderWidth: 1,
+      borderRadius: borderRadius.sm,
+      paddingVertical: 10,
+      alignItems: 'center',
+    },
+    modeBtnActive: {
+      backgroundColor: colors.primaryMuted,
+      borderColor: colors.primary,
+    },
+    modeText: {
+      color: colors.textSecondary,
+      fontSize: 12,
+      fontWeight: '600',
+    },
+    modeTextActive: {
+      color: colors.primary,
+    },
+    portionFieldsRow: {
+      flexDirection: 'row',
+      gap: 10,
+    },
+    portionCol: {
+      flex: 1,
+    },
+    sectionTitle: {
+      color: colors.textPrimary,
+      fontSize: 12,
+      fontWeight: '700',
+      letterSpacing: 0.5,
+      marginTop: 16,
+      marginBottom: 10,
+    },
+    macroGrid: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 10,
+    },
+    macroInputWrapper: {
+      width: '48%',
+    },
+    macroInputLabel: {
+      color: colors.textSecondary,
+      fontSize: 11,
+      fontWeight: '600',
+      marginBottom: 4,
+    },
+    macroInput: {
+      backgroundColor: colors.surfaceMuted,
+      borderColor: colors.cardBorder,
+      borderWidth: 1,
+      borderRadius: borderRadius.sm,
+      paddingHorizontal: 12,
+      height: 44,
+      color: colors.textPrimary,
+      fontSize: 15,
+      fontWeight: '600',
+    },
+    singleMacroRow: {
+      marginTop: 10,
+      width: '48%',
+    },
+    atwaterBox: {
+      backgroundColor: colors.surfaceMuted,
+      borderColor: colors.cardBorder,
+      borderWidth: 1,
+      borderRadius: borderRadius.sm,
+      padding: 10,
+      marginTop: 14,
+    },
+    atwaterBoxWarning: {
+      borderColor: colors.calories,
+      backgroundColor: colors.caloriesTrack,
+    },
+    atwaterText: {
+      color: colors.textSecondary,
+      fontSize: 12,
+    },
+    bold: {
+      color: colors.textPrimary,
+      fontWeight: '700',
+    },
+    actionStack: {
+      marginTop: 24,
+      gap: 8,
+    },
+    spacingBtn: {
+      marginTop: 4,
+    },
 
-  // Meal Recipe Builder Styles
-  recipeBuilderContainer: {
-    marginTop: 10,
-  },
-  mealHeroCard: {
-    backgroundColor: DarkTheme.colors.card,
-    borderColor: DarkTheme.colors.primary,
-    borderWidth: 1,
-    borderRadius: DarkTheme.borderRadius.md,
-    padding: DarkTheme.spacing.md,
-    marginBottom: DarkTheme.spacing.md,
-  },
-  mealHeroHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 6,
-  },
-  mealHeroTitle: {
-    color: DarkTheme.colors.primary,
-    fontSize: 12,
-    fontWeight: '700',
-    letterSpacing: 0.5,
-  },
-  mealHeroGrams: {
-    color: DarkTheme.colors.textSecondary,
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  mealHeroCalories: {
-    color: DarkTheme.colors.textPrimary,
-    fontSize: 28,
-    fontWeight: '800',
-    marginBottom: 12,
-  },
-  mealHeroMacrosRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: 8,
-  },
-  macroPill: {
-    flex: 1,
-    backgroundColor: DarkTheme.colors.surfaceMuted,
-    borderRadius: DarkTheme.borderRadius.sm,
-    paddingVertical: 6,
-    paddingHorizontal: 8,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: DarkTheme.colors.cardBorder,
-  },
-  macroPillLabel: {
-    color: DarkTheme.colors.textDimmed,
-    fontSize: 10,
-    fontWeight: '600',
-    marginBottom: 2,
-  },
-  macroPillValue: {
-    color: DarkTheme.colors.textPrimary,
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  addIngredientBtn: {
-    backgroundColor: DarkTheme.colors.primaryMuted,
-    borderColor: DarkTheme.colors.primary,
-    borderWidth: 1,
-    borderRadius: DarkTheme.borderRadius.md,
-    paddingVertical: 12,
-    alignItems: 'center',
-    marginBottom: DarkTheme.spacing.md,
-  },
-  addIngredientBtnText: {
-    color: DarkTheme.colors.primary,
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  ingredientsListTitle: {
-    color: DarkTheme.colors.textSecondary,
-    fontSize: 12,
-    fontWeight: '700',
-    letterSpacing: 0.5,
-    marginBottom: 8,
-  },
-  emptyIngredientsText: {
-    color: DarkTheme.colors.textDimmed,
-    fontSize: 13,
-    textAlign: 'center',
-    paddingVertical: 16,
-    lineHeight: 18,
-  },
-  ingredientCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: DarkTheme.colors.card,
-    borderColor: DarkTheme.colors.cardBorder,
-    borderWidth: 1,
-    borderRadius: DarkTheme.borderRadius.md,
-    padding: DarkTheme.spacing.sm,
-    marginBottom: 8,
-  },
-  ingredientInfo: {
-    flex: 1,
-    marginRight: 8,
-  },
-  ingredientName: {
-    color: DarkTheme.colors.textPrimary,
-    fontSize: 13,
-    fontWeight: '600',
-    marginBottom: 2,
-  },
-  ingredientMacros: {
-    color: DarkTheme.colors.textDimmed,
-    fontSize: 11,
-  },
-  ingredientControls: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  ingredientGramsInput: {
-    backgroundColor: DarkTheme.colors.surfaceMuted,
-    borderColor: DarkTheme.colors.cardBorder,
-    borderWidth: 1,
-    borderRadius: DarkTheme.borderRadius.sm,
-    color: DarkTheme.colors.textPrimary,
-    fontSize: 13,
-    fontWeight: '700',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    minWidth: 48,
-    textAlign: 'center',
-  },
-  ingredientGramsUnit: {
-    color: DarkTheme.colors.textSecondary,
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  removeIngredientBtn: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: DarkTheme.colors.surfaceMuted,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginLeft: 4,
-  },
-  removeIngredientText: {
-    color: DarkTheme.colors.danger,
-    fontSize: 12,
-    fontWeight: '700',
-  },
+    // Meal Recipe Builder Styles
+    recipeBuilderContainer: {
+      marginTop: 10,
+    },
+    mealHeroCard: {
+      backgroundColor: colors.card,
+      borderColor: colors.primary,
+      borderWidth: 1,
+      borderRadius: borderRadius.md,
+      padding: spacing.md,
+      marginBottom: spacing.md,
+    },
+    mealHeroHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 6,
+    },
+    mealHeroTitle: {
+      color: colors.primary,
+      fontSize: 12,
+      fontWeight: '700',
+      letterSpacing: 0.5,
+    },
+    mealHeroGrams: {
+      color: colors.textSecondary,
+      fontSize: 12,
+      fontWeight: '600',
+    },
+    mealHeroCalories: {
+      color: colors.textPrimary,
+      fontSize: 28,
+      fontWeight: '800',
+      marginBottom: 12,
+    },
+    mealHeroMacrosRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      gap: 8,
+    },
+    macroPill: {
+      flex: 1,
+      backgroundColor: colors.surfaceMuted,
+      borderRadius: borderRadius.sm,
+      paddingVertical: 6,
+      paddingHorizontal: 8,
+      alignItems: 'center',
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+    },
+    macroPillLabel: {
+      color: colors.textDimmed,
+      fontSize: 10,
+      fontWeight: '600',
+      marginBottom: 2,
+    },
+    macroPillValue: {
+      color: colors.textPrimary,
+      fontSize: 13,
+      fontWeight: '700',
+    },
+    addIngredientBtn: {
+      backgroundColor: colors.primaryMuted,
+      borderColor: colors.primary,
+      borderWidth: 1,
+      borderRadius: borderRadius.md,
+      paddingVertical: 12,
+      alignItems: 'center',
+      marginBottom: spacing.md,
+    },
+    addIngredientBtnText: {
+      color: colors.primary,
+      fontSize: 14,
+      fontWeight: '700',
+    },
+    ingredientsListTitle: {
+      color: colors.textSecondary,
+      fontSize: 12,
+      fontWeight: '700',
+      letterSpacing: 0.5,
+      marginBottom: 8,
+    },
+    emptyIngredientsText: {
+      color: colors.textDimmed,
+      fontSize: 13,
+      textAlign: 'center',
+      paddingVertical: 16,
+      lineHeight: 18,
+    },
+    ingredientCard: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      backgroundColor: colors.card,
+      borderColor: colors.cardBorder,
+      borderWidth: 1,
+      borderRadius: borderRadius.md,
+      padding: spacing.sm,
+      marginBottom: 8,
+    },
+    ingredientInfo: {
+      flex: 1,
+      marginRight: 8,
+    },
+    ingredientName: {
+      color: colors.textPrimary,
+      fontSize: 13,
+      fontWeight: '600',
+      marginBottom: 2,
+    },
+    ingredientMacros: {
+      color: colors.textDimmed,
+      fontSize: 11,
+    },
+    ingredientControls: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+    },
+    ingredientGramsInput: {
+      backgroundColor: colors.surfaceMuted,
+      borderColor: colors.cardBorder,
+      borderWidth: 1,
+      borderRadius: borderRadius.sm,
+      color: colors.textPrimary,
+      fontSize: 13,
+      fontWeight: '700',
+      paddingHorizontal: 8,
+      paddingVertical: 4,
+      minWidth: 48,
+      textAlign: 'center',
+    },
+    ingredientGramsUnit: {
+      color: colors.textSecondary,
+      fontSize: 12,
+      fontWeight: '600',
+    },
+    removeIngredientBtn: {
+      width: 28,
+      height: 28,
+      borderRadius: 14,
+      backgroundColor: colors.surfaceMuted,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginLeft: 4,
+    },
+    removeIngredientText: {
+      color: colors.danger,
+      fontSize: 12,
+      fontWeight: '700',
+    },
 
-  // Direct Dish Container
-  directMealContainer: {
-    marginTop: 10,
-  },
+    // Direct Dish Container
+    directMealContainer: {
+      marginTop: 10,
+    },
 
-  // Ingredient Picker Modal
-  pickerModalContainer: {
-    flex: 1,
-    backgroundColor: DarkTheme.colors.background,
-  },
-  pickerSearchContainer: {
-    paddingHorizontal: DarkTheme.spacing.md,
-    paddingVertical: DarkTheme.spacing.sm,
-  },
-  pickerFoodRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 10,
-    paddingHorizontal: DarkTheme.spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: DarkTheme.colors.cardBorder,
-  },
-  pickerFoodRowSelected: {
-    backgroundColor: DarkTheme.colors.primaryMuted,
-    borderRadius: DarkTheme.borderRadius.sm,
-  },
-  pickerFoodName: {
-    color: DarkTheme.colors.textPrimary,
-    fontSize: 14,
-    fontWeight: '600',
-    marginBottom: 2,
-  },
-  pickerFoodMacros: {
-    color: DarkTheme.colors.textDimmed,
-    fontSize: 11,
-  },
-  checkmark: {
-    color: DarkTheme.colors.primary,
-    fontSize: 18,
-    fontWeight: '700',
-    marginLeft: 8,
-  },
-  pickerConfirmBar: {
-    backgroundColor: DarkTheme.colors.card,
-    borderTopWidth: 1,
-    borderTopColor: DarkTheme.colors.cardBorder,
-    padding: DarkTheme.spacing.md,
-  },
-  pickerGramsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    marginBottom: 10,
-  },
-  pickerGramsLabel: {
-    color: DarkTheme.colors.textPrimary,
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  pickerGramsInput: {
-    backgroundColor: DarkTheme.colors.surfaceMuted,
-    borderColor: DarkTheme.colors.primary,
-    borderWidth: 1,
-    borderRadius: DarkTheme.borderRadius.sm,
-    color: DarkTheme.colors.textPrimary,
-    fontSize: 16,
-    fontWeight: '700',
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    minWidth: 70,
-    textAlign: 'center',
-  },
-  pickerGramsUnit: {
-    color: DarkTheme.colors.textSecondary,
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  quickGramsRow: {
-    flexDirection: 'row',
-    gap: 8,
-    marginBottom: 12,
-  },
-  quickGramChip: {
-    flex: 1,
-    backgroundColor: DarkTheme.colors.surfaceMuted,
-    borderWidth: 1,
-    borderColor: DarkTheme.colors.cardBorder,
-    borderRadius: DarkTheme.borderRadius.sm,
-    paddingVertical: 6,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  quickGramChipText: {
-    color: DarkTheme.colors.textSecondary,
-    fontSize: 12,
-    fontWeight: '600',
-  },
-});
+    // Ingredient Picker Modal
+    pickerModalContainer: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    pickerSearchContainer: {
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.sm,
+    },
+    pickerFoodRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingVertical: 10,
+      paddingHorizontal: spacing.sm,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.cardBorder,
+    },
+    pickerFoodRowSelected: {
+      backgroundColor: colors.primaryMuted,
+      borderRadius: borderRadius.sm,
+    },
+    pickerFoodName: {
+      color: colors.textPrimary,
+      fontSize: 14,
+      fontWeight: '600',
+      marginBottom: 2,
+    },
+    pickerFoodMacros: {
+      color: colors.textDimmed,
+      fontSize: 11,
+    },
+    checkmark: {
+      color: colors.primary,
+      fontSize: 18,
+      fontWeight: '700',
+      marginLeft: 8,
+    },
+    pickerConfirmBar: {
+      backgroundColor: colors.card,
+      borderTopWidth: 1,
+      borderTopColor: colors.cardBorder,
+      padding: spacing.md,
+    },
+    pickerGramsRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 8,
+      marginBottom: 10,
+    },
+    pickerGramsLabel: {
+      color: colors.textPrimary,
+      fontSize: 14,
+      fontWeight: '600',
+    },
+    pickerGramsInput: {
+      backgroundColor: colors.surfaceMuted,
+      borderColor: colors.primary,
+      borderWidth: 1,
+      borderRadius: borderRadius.sm,
+      color: colors.textPrimary,
+      fontSize: 16,
+      fontWeight: '700',
+      paddingHorizontal: 12,
+      paddingVertical: 4,
+      minWidth: 70,
+      textAlign: 'center',
+    },
+    pickerGramsUnit: {
+      color: colors.textSecondary,
+      fontSize: 14,
+      fontWeight: '600',
+    },
+    quickGramsRow: {
+      flexDirection: 'row',
+      gap: 8,
+      marginBottom: 12,
+    },
+    quickGramChip: {
+      flex: 1,
+      backgroundColor: colors.surfaceMuted,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+      borderRadius: borderRadius.sm,
+      paddingVertical: 6,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    quickGramChipText: {
+      color: colors.textSecondary,
+      fontSize: 12,
+      fontWeight: '600',
+    },
+  });

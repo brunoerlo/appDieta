@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { DarkTheme } from '../../constants/theme';
+import { spacing, borderRadius, ThemeColors } from '../../constants/theme';
+import { useTheme } from '../../hooks/useTheme';
 import { Card } from '../ui/Card';
 import { FoodLogRow } from './FoodLogRow';
 import { DietLogEntry, MealType } from '../../types/domain';
@@ -32,6 +33,9 @@ export const MealCard: React.FC<MealCardProps> = ({
   onEditLog,
   onDeleteLog,
 }) => {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
+
   const mealIcon = icon || DEFAULT_MEAL_ICONS[mealType] || '🍴';
 
   const totals = useMemo(() => {
@@ -110,71 +114,73 @@ export const MealCard: React.FC<MealCardProps> = ({
   );
 };
 
-const styles = StyleSheet.create({
-  container: {
-    marginHorizontal: DarkTheme.spacing.md,
-    marginVertical: DarkTheme.spacing.xs,
-    padding: DarkTheme.spacing.md,
-  },
-  headerRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  titleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  icon: {
-    fontSize: 16,
-  },
-  title: {
-    color: DarkTheme.colors.textPrimary,
-    fontSize: 14,
-    fontWeight: '700',
-    letterSpacing: 0.5,
-  },
-  caloriesBadge: {
-    color: DarkTheme.colors.calories,
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  macroPill: {
-    marginTop: 4,
-    marginBottom: 6,
-  },
-  macroText: {
-    color: DarkTheme.colors.textSecondary,
-    fontSize: 11,
-  },
-  macroVal: {
-    color: DarkTheme.colors.textPrimary,
-    fontWeight: '600',
-  },
-  foodList: {
-    marginVertical: 4,
-  },
-  emptyText: {
-    color: DarkTheme.colors.textDimmed,
-    fontSize: 12,
-    fontStyle: 'italic',
-    paddingVertical: 12,
-    textAlign: 'center',
-  },
-  addButton: {
-    backgroundColor: DarkTheme.colors.surfaceMuted,
-    borderColor: DarkTheme.colors.cardBorder,
-    borderWidth: 1,
-    borderRadius: DarkTheme.borderRadius.sm,
-    paddingVertical: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 6,
-  },
-  addButtonText: {
-    color: DarkTheme.colors.primary,
-    fontSize: 13,
-    fontWeight: '700',
-  },
-});
+const createStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    container: {
+      marginHorizontal: spacing.md,
+      marginVertical: spacing.xs,
+      padding: spacing.md,
+    },
+    headerRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+    },
+    titleRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+    },
+    icon: {
+      fontSize: 16,
+    },
+    title: {
+      color: colors.textPrimary,
+      fontSize: 14,
+      fontWeight: '700',
+      letterSpacing: 0.5,
+    },
+    caloriesBadge: {
+      color: colors.calories,
+      fontSize: 13,
+      fontWeight: '700',
+    },
+    macroPill: {
+      marginTop: 4,
+      marginBottom: 6,
+    },
+    macroText: {
+      color: colors.textSecondary,
+      fontSize: 11,
+    },
+    macroVal: {
+      color: colors.textPrimary,
+      fontWeight: '600',
+    },
+    foodList: {
+      marginVertical: 4,
+    },
+    emptyText: {
+      color: colors.textDimmed,
+      fontSize: 12,
+      fontStyle: 'italic',
+      paddingVertical: 12,
+      textAlign: 'center',
+    },
+    addButton: {
+      backgroundColor: colors.surfaceMuted,
+      borderColor: colors.cardBorder,
+      borderWidth: 1,
+      borderRadius: borderRadius.sm,
+      paddingVertical: 8,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginTop: 6,
+    },
+    addButtonText: {
+      color: colors.primary,
+      fontSize: 13,
+      fontWeight: '700',
+    },
+  });
+

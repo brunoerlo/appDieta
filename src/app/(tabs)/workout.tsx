@@ -9,7 +9,8 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { DarkTheme } from '../../constants/theme';
+import { spacing, borderRadius, ThemeColors } from '../../constants/theme';
+import { useTheme } from '../../hooks/useTheme';
 import { useWorkout } from '../../hooks/useWorkout';
 import { WorkoutRoutine } from '../../types/domain';
 import { RoutineCard } from '../../components/workout/RoutineCard';
@@ -26,6 +27,8 @@ const FILTER_CATEGORIES = [
 
 export default function WorkoutTabScreen() {
   const router = useRouter();
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const {
     routines,
     isLoadingRoutines,
@@ -100,7 +103,7 @@ export default function WorkoutTabScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
       {/* Top Header */}
       <View style={styles.topHeader}>
         <View>
@@ -127,7 +130,7 @@ export default function WorkoutTabScreen() {
           <RefreshControl
             refreshing={isRefreshing || isLoadingRoutines}
             onRefresh={onRefresh}
-            tintColor={DarkTheme.colors.primary}
+            tintColor={colors.primary}
           />
         }
       >
@@ -236,157 +239,158 @@ export default function WorkoutTabScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: DarkTheme.colors.background,
-  },
-  topHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: DarkTheme.spacing.lg,
-    paddingTop: DarkTheme.spacing.sm,
-    paddingBottom: DarkTheme.spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: DarkTheme.colors.cardBorder,
-  },
-  headerTitle: {
-    color: DarkTheme.colors.textPrimary,
-    fontSize: 22,
-    fontWeight: '800',
-    letterSpacing: 0.5,
-  },
-  headerSubtitle: {
-    color: DarkTheme.colors.textSecondary,
-    fontSize: 13,
-    marginTop: 2,
-  },
-  historyBtn: {
-    backgroundColor: DarkTheme.colors.surfaceMuted,
-    borderColor: DarkTheme.colors.cardBorder,
-    borderWidth: 1,
-    borderRadius: DarkTheme.borderRadius.md,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    minHeight: 44,
-    justifyContent: 'center',
-  },
-  historyBtnText: {
-    color: DarkTheme.colors.textPrimary,
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  scrollContent: {
-    padding: DarkTheme.spacing.lg,
-    paddingBottom: DarkTheme.spacing.xxl,
-  },
-  activeSessionCard: {
-    backgroundColor: '#17231E',
-    borderColor: DarkTheme.colors.primary,
-    borderWidth: 1.5,
-    borderRadius: DarkTheme.borderRadius.lg,
-    padding: DarkTheme.spacing.md,
-    marginBottom: DarkTheme.spacing.lg,
-  },
-  activeHeaderRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 6,
-  },
-  activeBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  pulsingDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: DarkTheme.colors.primary,
-  },
-  activeBadgeText: {
-    color: DarkTheme.colors.primary,
-    fontSize: 11,
-    fontWeight: '800',
-    letterSpacing: 0.5,
-  },
-  activeTimerText: {
-    color: DarkTheme.colors.textPrimary,
-    fontSize: 13,
-    fontWeight: '700',
-    fontVariant: ['tabular-nums'],
-  },
-  activeRoutineName: {
-    color: DarkTheme.colors.textPrimary,
-    fontSize: 18,
-    fontWeight: '700',
-    marginBottom: 4,
-  },
-  activeSetsInfo: {
-    color: DarkTheme.colors.textSecondary,
-    fontSize: 13,
-    marginBottom: DarkTheme.spacing.md,
-  },
-  resumeBtn: {
-    width: '100%',
-  },
-  actionRow: {
-    marginBottom: DarkTheme.spacing.md,
-  },
-  newRoutineBtn: {
-    width: '100%',
-  },
-  filterScroll: {
-    gap: 8,
-    paddingBottom: DarkTheme.spacing.md,
-  },
-  filterPill: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: DarkTheme.borderRadius.full,
-    backgroundColor: DarkTheme.colors.surfaceMuted,
-    borderWidth: 1,
-    borderColor: DarkTheme.colors.cardBorder,
-    minHeight: 38,
-    justifyContent: 'center',
-  },
-  filterPillActive: {
-    backgroundColor: DarkTheme.colors.primaryMuted,
-    borderColor: DarkTheme.colors.primary,
-  },
-  filterText: {
-    color: DarkTheme.colors.textSecondary,
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  filterTextActive: {
-    color: DarkTheme.colors.primary,
-  },
-  routinesList: {
-    marginTop: DarkTheme.spacing.xs,
-  },
-  emptyContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: DarkTheme.spacing.xxl,
-  },
-  emptyIcon: {
-    fontSize: 48,
-    marginBottom: 12,
-  },
-  emptyTitle: {
-    color: DarkTheme.colors.textPrimary,
-    fontSize: 16,
-    fontWeight: '700',
-    marginBottom: 6,
-  },
-  emptySubtitle: {
-    color: DarkTheme.colors.textSecondary,
-    fontSize: 13,
-    textAlign: 'center',
-    lineHeight: 18,
-    paddingHorizontal: DarkTheme.spacing.xl,
-  },
-});
+const createStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    topHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: spacing.lg,
+      paddingTop: spacing.sm,
+      paddingBottom: spacing.md,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.cardBorder,
+    },
+    headerTitle: {
+      color: colors.textPrimary,
+      fontSize: 22,
+      fontWeight: '800',
+      letterSpacing: 0.5,
+    },
+    headerSubtitle: {
+      color: colors.textSecondary,
+      fontSize: 13,
+      marginTop: 2,
+    },
+    historyBtn: {
+      backgroundColor: colors.surfaceMuted,
+      borderColor: colors.cardBorder,
+      borderWidth: 1,
+      borderRadius: borderRadius.md,
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      minHeight: 44,
+      justifyContent: 'center',
+    },
+    historyBtnText: {
+      color: colors.textPrimary,
+      fontSize: 13,
+      fontWeight: '600',
+    },
+    scrollContent: {
+      padding: spacing.lg,
+      paddingBottom: spacing.xxl,
+    },
+    activeSessionCard: {
+      backgroundColor: colors.primaryMuted,
+      borderColor: colors.primary,
+      borderWidth: 1.5,
+      borderRadius: borderRadius.lg,
+      padding: spacing.md,
+      marginBottom: spacing.lg,
+    },
+    activeHeaderRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 6,
+    },
+    activeBadge: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+    },
+    pulsingDot: {
+      width: 8,
+      height: 8,
+      borderRadius: 4,
+      backgroundColor: colors.primary,
+    },
+    activeBadgeText: {
+      color: colors.primary,
+      fontSize: 11,
+      fontWeight: '800',
+      letterSpacing: 0.5,
+    },
+    activeTimerText: {
+      color: colors.textPrimary,
+      fontSize: 13,
+      fontWeight: '700',
+      fontVariant: ['tabular-nums'],
+    },
+    activeRoutineName: {
+      color: colors.textPrimary,
+      fontSize: 18,
+      fontWeight: '700',
+      marginBottom: 4,
+    },
+    activeSetsInfo: {
+      color: colors.textSecondary,
+      fontSize: 13,
+      marginBottom: spacing.md,
+    },
+    resumeBtn: {
+      width: '100%',
+    },
+    actionRow: {
+      marginBottom: spacing.md,
+    },
+    newRoutineBtn: {
+      width: '100%',
+    },
+    filterScroll: {
+      gap: 8,
+      paddingBottom: spacing.md,
+    },
+    filterPill: {
+      paddingHorizontal: 14,
+      paddingVertical: 8,
+      borderRadius: borderRadius.full,
+      backgroundColor: colors.surfaceMuted,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+      minHeight: 38,
+      justifyContent: 'center',
+    },
+    filterPillActive: {
+      backgroundColor: colors.primaryMuted,
+      borderColor: colors.primary,
+    },
+    filterText: {
+      color: colors.textSecondary,
+      fontSize: 13,
+      fontWeight: '600',
+    },
+    filterTextActive: {
+      color: colors.primary,
+    },
+    routinesList: {
+      marginTop: spacing.xs,
+    },
+    emptyContainer: {
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingVertical: spacing.xxl,
+    },
+    emptyIcon: {
+      fontSize: 48,
+      marginBottom: 12,
+    },
+    emptyTitle: {
+      color: colors.textPrimary,
+      fontSize: 16,
+      fontWeight: '700',
+      marginBottom: 6,
+    },
+    emptySubtitle: {
+      color: colors.textSecondary,
+      fontSize: 13,
+      textAlign: 'center',
+      lineHeight: 18,
+      paddingHorizontal: spacing.xl,
+    },
+  });

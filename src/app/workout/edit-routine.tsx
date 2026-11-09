@@ -10,12 +10,12 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { DarkTheme } from '../../constants/theme';
+import { ThemeColors, spacing, borderRadius } from '../../constants/theme';
+import { useTheme } from '../../hooks/useTheme';
 import { useWorkout } from '../../hooks/useWorkout';
 import { Button } from '../../components/ui/Button';
 import { ExerciseConfigRow, DraftExercise } from '../../components/workout/ExerciseConfigRow';
 import { ExercisePickerModal, ExercisePickerResult } from '../../components/workout/ExercisePickerModal';
-import { useSafeTopPadding } from '../../hooks/useSafeTopPadding';
 
 const SPLIT_PRESETS = [
   { label: 'ABC', prefix: 'Treino - ' },
@@ -27,11 +27,12 @@ const SPLIT_PRESETS = [
 
 export default function EditRoutineScreen() {
   const router = useRouter();
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const { routineId } = useLocalSearchParams<{ routineId?: string }>();
   const { routines, createRoutine, updateRoutine, getRoutineById } = useWorkout();
 
   const isEditing = Boolean(routineId);
-  const safeTop = useSafeTopPadding(8);
 
   const existingRoutine = useMemo(() => {
     return routineId ? routines.find((r) => r.id === routineId) : undefined;
@@ -183,9 +184,9 @@ export default function EditRoutineScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top', 'left', 'right', 'bottom']}>
       {/* Top Bar */}
-      <View style={[styles.topBar, { paddingTop: safeTop }]}>
+      <View style={styles.topBar}>
         <TouchableOpacity
           onPress={() => router.back()}
           style={styles.cancelBtn}
@@ -225,7 +226,7 @@ export default function EditRoutineScreen() {
           <TextInput
             style={styles.textInput}
             placeholder="Ex: Treino A - Peito e Tríceps"
-            placeholderTextColor={DarkTheme.colors.textDimmed}
+            placeholderTextColor={colors.textDimmed}
             value={name}
             onChangeText={setName}
           />
@@ -236,7 +237,7 @@ export default function EditRoutineScreen() {
           <TextInput
             style={styles.textInput}
             placeholder="Ex: Foco em peitoral superior e deltoides"
-            placeholderTextColor={DarkTheme.colors.textDimmed}
+            placeholderTextColor={colors.textDimmed}
             value={description}
             onChangeText={setDescription}
           />
@@ -309,119 +310,120 @@ export default function EditRoutineScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: DarkTheme.colors.background,
-  },
-  topBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: DarkTheme.spacing.lg,
-    paddingVertical: DarkTheme.spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: DarkTheme.colors.cardBorder,
-  },
-  cancelBtn: {
-    minWidth: 44,
-    minHeight: 44,
-    justifyContent: 'center',
-  },
-  cancelText: {
-    color: DarkTheme.colors.textSecondary,
-    fontSize: 15,
-  },
-  screenTitle: {
-    color: DarkTheme.colors.textPrimary,
-    fontSize: 17,
-    fontWeight: '700',
-  },
-  saveBtn: {
-    minWidth: 44,
-    minHeight: 44,
-    alignItems: 'flex-end',
-    justifyContent: 'center',
-  },
-  saveText: {
-    color: DarkTheme.colors.primary,
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  saveTextDisabled: {
-    opacity: 0.4,
-  },
-  scrollContent: {
-    padding: DarkTheme.spacing.lg,
-    paddingBottom: DarkTheme.spacing.xxl,
-  },
-  sectionHeader: {
-    color: DarkTheme.colors.textDimmed,
-    fontSize: 12,
-    fontWeight: '700',
-    letterSpacing: 1,
-    marginBottom: DarkTheme.spacing.sm,
-    marginTop: DarkTheme.spacing.sm,
-  },
-  inputGroup: {
-    marginBottom: DarkTheme.spacing.md,
-  },
-  inputLabel: {
-    color: DarkTheme.colors.textSecondary,
-    fontSize: 13,
-    fontWeight: '600',
-    marginBottom: 6,
-  },
-  textInput: {
-    backgroundColor: DarkTheme.colors.card,
-    borderColor: DarkTheme.colors.cardBorder,
-    borderWidth: 1,
-    borderRadius: DarkTheme.borderRadius.md,
-    color: DarkTheme.colors.textPrimary,
-    fontSize: 15,
-    paddingHorizontal: DarkTheme.spacing.md,
-    paddingVertical: 10,
-    minHeight: 44,
-  },
-  presetsRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    marginBottom: DarkTheme.spacing.lg,
-  },
-  presetChip: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: DarkTheme.borderRadius.sm,
-    backgroundColor: DarkTheme.colors.surfaceMuted,
-    borderWidth: 1,
-    borderColor: DarkTheme.colors.cardBorder,
-    minHeight: 36,
-    justifyContent: 'center',
-  },
-  presetChipText: {
-    color: DarkTheme.colors.textSecondary,
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  exercisesHeaderRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: DarkTheme.spacing.sm,
-    marginTop: DarkTheme.spacing.md,
-  },
-  addExerciseLink: {
-    minHeight: 44,
-    justifyContent: 'center',
-  },
-  addExerciseLinkText: {
-    color: DarkTheme.colors.primary,
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  bottomAddBtn: {
-    marginTop: DarkTheme.spacing.md,
-    width: '100%',
-  },
-});
+const createStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    topBar: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: spacing.lg,
+      paddingVertical: spacing.md,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.cardBorder,
+    },
+    cancelBtn: {
+      minWidth: 44,
+      minHeight: 44,
+      justifyContent: 'center',
+    },
+    cancelText: {
+      color: colors.textSecondary,
+      fontSize: 15,
+    },
+    screenTitle: {
+      color: colors.textPrimary,
+      fontSize: 17,
+      fontWeight: '700',
+    },
+    saveBtn: {
+      minWidth: 44,
+      minHeight: 44,
+      alignItems: 'flex-end',
+      justifyContent: 'center',
+    },
+    saveText: {
+      color: colors.primary,
+      fontSize: 16,
+      fontWeight: '700',
+    },
+    saveTextDisabled: {
+      opacity: 0.4,
+    },
+    scrollContent: {
+      padding: spacing.lg,
+      paddingBottom: spacing.xxl,
+    },
+    sectionHeader: {
+      color: colors.textDimmed,
+      fontSize: 12,
+      fontWeight: '700',
+      letterSpacing: 1,
+      marginBottom: spacing.sm,
+      marginTop: spacing.sm,
+    },
+    inputGroup: {
+      marginBottom: spacing.md,
+    },
+    inputLabel: {
+      color: colors.textSecondary,
+      fontSize: 13,
+      fontWeight: '600',
+      marginBottom: 6,
+    },
+    textInput: {
+      backgroundColor: colors.card,
+      borderColor: colors.cardBorder,
+      borderWidth: 1,
+      borderRadius: borderRadius.md,
+      color: colors.textPrimary,
+      fontSize: 15,
+      paddingHorizontal: spacing.md,
+      paddingVertical: 10,
+      minHeight: 44,
+    },
+    presetsRow: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 8,
+      marginBottom: spacing.lg,
+    },
+    presetChip: {
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      borderRadius: borderRadius.sm,
+      backgroundColor: colors.surfaceMuted,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+      minHeight: 36,
+      justifyContent: 'center',
+    },
+    presetChipText: {
+      color: colors.textSecondary,
+      fontSize: 12,
+      fontWeight: '600',
+    },
+    exercisesHeaderRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: spacing.sm,
+      marginTop: spacing.md,
+    },
+    addExerciseLink: {
+      minHeight: 44,
+      justifyContent: 'center',
+    },
+    addExerciseLinkText: {
+      color: colors.primary,
+      fontSize: 13,
+      fontWeight: '600',
+    },
+    bottomAddBtn: {
+      marginTop: spacing.md,
+      width: '100%',
+    },
+  });

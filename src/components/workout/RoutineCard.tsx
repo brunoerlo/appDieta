@@ -1,7 +1,8 @@
 import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
 import { WorkoutRoutine } from '../../types/domain';
-import { DarkTheme } from '../../constants/theme';
+import { spacing, borderRadius, ThemeColors } from '../../constants/theme';
+import { useTheme } from '../../hooks/useTheme';
 import { Card } from '../ui/Card';
 import { Badge } from '../ui/Badge';
 import { Button } from '../ui/Button';
@@ -21,6 +22,9 @@ export const RoutineCard: React.FC<RoutineCardProps> = ({
   onEditRoutine,
   onDeleteRoutine,
 }) => {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
+
   const exercises = useMemo(() => routine.exercises || [], [routine.exercises]);
   const exerciseCount = exercises.length;
 
@@ -73,9 +77,9 @@ export const RoutineCard: React.FC<RoutineCardProps> = ({
       <View style={styles.headerRow}>
         <Badge
           label={categoryTag}
-          color={categoryTag === 'PPL' ? DarkTheme.colors.protein : DarkTheme.colors.primary}
+          color={categoryTag === 'PPL' ? colors.protein : colors.primary}
           backgroundColor={
-            categoryTag === 'PPL' ? 'rgba(59, 130, 246, 0.15)' : DarkTheme.colors.primaryMuted
+            categoryTag === 'PPL' ? 'rgba(59, 130, 246, 0.15)' : colors.primaryMuted
           }
         />
         <View style={styles.actionButtons}>
@@ -154,109 +158,111 @@ export const RoutineCard: React.FC<RoutineCardProps> = ({
   );
 };
 
-const styles = StyleSheet.create({
-  card: {
-    marginBottom: DarkTheme.spacing.md,
-    backgroundColor: DarkTheme.colors.card,
-    borderColor: DarkTheme.colors.cardBorder,
-    borderWidth: 1,
-    borderRadius: DarkTheme.borderRadius.lg,
-    padding: DarkTheme.spacing.lg,
-  },
-  activeCard: {
-    borderColor: DarkTheme.colors.primary,
-    borderWidth: 1.5,
-  },
-  headerRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: DarkTheme.spacing.sm,
-  },
-  actionButtons: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: DarkTheme.spacing.sm,
-  },
-  iconBtn: {
-    minWidth: 44,
-    minHeight: 44,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: DarkTheme.colors.surfaceMuted,
-    borderRadius: DarkTheme.borderRadius.sm,
-  },
-  iconText: {
-    fontSize: 14,
-  },
-  title: {
-    color: DarkTheme.colors.textPrimary,
-    fontSize: 18,
-    fontWeight: '700',
-    marginBottom: 4,
-  },
-  description: {
-    color: DarkTheme.colors.textSecondary,
-    fontSize: 13,
-    lineHeight: 18,
-    marginBottom: DarkTheme.spacing.md,
-  },
-  metricsRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: DarkTheme.spacing.xs,
-    marginBottom: DarkTheme.spacing.md,
-  },
-  metricChip: {
-    backgroundColor: DarkTheme.colors.surfaceMuted,
-    paddingHorizontal: DarkTheme.spacing.sm,
-    paddingVertical: 4,
-    borderRadius: DarkTheme.borderRadius.sm,
-  },
-  metricText: {
-    color: DarkTheme.colors.textSecondary,
-    fontSize: 12,
-    fontWeight: '500',
-  },
-  previewContainer: {
-    backgroundColor: DarkTheme.colors.surfaceMuted,
-    borderRadius: DarkTheme.borderRadius.md,
-    padding: DarkTheme.spacing.md,
-    marginBottom: DarkTheme.spacing.md,
-  },
-  previewRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 4,
-  },
-  bullet: {
-    color: DarkTheme.colors.primary,
-    fontSize: 14,
-    marginRight: 6,
-  },
-  previewName: {
-    color: DarkTheme.colors.textPrimary,
-    fontSize: 13,
-    flex: 1,
-  },
-  previewSets: {
-    color: DarkTheme.colors.textDimmed,
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  remainingText: {
-    color: DarkTheme.colors.textDimmed,
-    fontSize: 12,
-    fontStyle: 'italic',
-    marginTop: 4,
-  },
-  startBtn: {
-    marginTop: 2,
-    width: '100%',
-  },
-  btnIcon: {
-    color: '#FFFFFF',
-    fontSize: 12,
-    marginRight: 6,
-  },
-});
+const createStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    card: {
+      marginBottom: spacing.md,
+      backgroundColor: colors.card,
+      borderColor: colors.cardBorder,
+      borderWidth: 1,
+      borderRadius: borderRadius.lg,
+      padding: spacing.lg,
+    },
+    activeCard: {
+      borderColor: colors.primary,
+      borderWidth: 1.5,
+    },
+    headerRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: spacing.sm,
+    },
+    actionButtons: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.sm,
+    },
+    iconBtn: {
+      minWidth: 44,
+      minHeight: 44,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.surfaceMuted,
+      borderRadius: borderRadius.sm,
+    },
+    iconText: {
+      fontSize: 14,
+    },
+    title: {
+      color: colors.textPrimary,
+      fontSize: 18,
+      fontWeight: '700',
+      marginBottom: 4,
+    },
+    description: {
+      color: colors.textSecondary,
+      fontSize: 13,
+      lineHeight: 18,
+      marginBottom: spacing.md,
+    },
+    metricsRow: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: spacing.xs,
+      marginBottom: spacing.md,
+    },
+    metricChip: {
+      backgroundColor: colors.surfaceMuted,
+      paddingHorizontal: spacing.sm,
+      paddingVertical: 4,
+      borderRadius: borderRadius.sm,
+    },
+    metricText: {
+      color: colors.textSecondary,
+      fontSize: 12,
+      fontWeight: '500',
+    },
+    previewContainer: {
+      backgroundColor: colors.surfaceMuted,
+      borderRadius: borderRadius.md,
+      padding: spacing.md,
+      marginBottom: spacing.md,
+    },
+    previewRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginBottom: 4,
+    },
+    bullet: {
+      color: colors.primary,
+      fontSize: 14,
+      marginRight: 6,
+    },
+    previewName: {
+      color: colors.textPrimary,
+      fontSize: 13,
+      flex: 1,
+    },
+    previewSets: {
+      color: colors.textDimmed,
+      fontSize: 12,
+      fontWeight: '600',
+    },
+    remainingText: {
+      color: colors.textDimmed,
+      fontSize: 12,
+      fontStyle: 'italic',
+      marginTop: 4,
+    },
+    startBtn: {
+      marginTop: 2,
+      width: '100%',
+    },
+    btnIcon: {
+      color: '#FFFFFF',
+      fontSize: 12,
+      marginRight: 6,
+    },
+  });
+

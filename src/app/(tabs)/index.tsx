@@ -110,21 +110,21 @@ export default function HomeScreen() {
           />
 
           <View style={styles.macrosRow}>
-            <View style={styles.macroBadge}>
+            <View style={[styles.macroBadge, { backgroundColor: colors.surfaceMuted }]}>
               <Text style={[styles.macroLabel, { color: colors.protein }]}>Proteína</Text>
               <Text style={[styles.macroValue, { color: colors.textPrimary }]}>
                 {Math.round(dailySummary.totalProtein)}g{' '}
                 <Text style={{ color: colors.textDimmed, fontSize: 11 }}>/ {profile?.targetProtein ?? 150}g</Text>
               </Text>
             </View>
-            <View style={styles.macroBadge}>
+            <View style={[styles.macroBadge, { backgroundColor: colors.surfaceMuted }]}>
               <Text style={[styles.macroLabel, { color: colors.carbs }]}>Carbos</Text>
               <Text style={[styles.macroValue, { color: colors.textPrimary }]}>
                 {Math.round(dailySummary.totalCarbs)}g{' '}
                 <Text style={{ color: colors.textDimmed, fontSize: 11 }}>/ {profile?.targetCarbs ?? 200}g</Text>
               </Text>
             </View>
-            <View style={styles.macroBadge}>
+            <View style={[styles.macroBadge, { backgroundColor: colors.surfaceMuted }]}>
               <Text style={[styles.macroLabel, { color: colors.fat }]}>Gorduras</Text>
               <Text style={[styles.macroValue, { color: colors.textPrimary }]}>
                 {Math.round(dailySummary.totalFat)}g{' '}
@@ -201,7 +201,7 @@ export default function HomeScreen() {
         <Card
           style={[
             styles.card,
-            activeSession && { borderColor: colors.primary, borderWidth: 1.5, backgroundColor: '#17231E' },
+            activeSession && { borderColor: colors.primary, borderWidth: 1.5, backgroundColor: colors.primaryMuted },
           ]}
         >
           <View style={styles.cardHeader}>
@@ -351,7 +351,6 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     paddingHorizontal: 8,
     borderRadius: 8,
-    backgroundColor: 'rgba(255, 255, 255, 0.04)',
   },
   macroLabel: {
     fontSize: 11,

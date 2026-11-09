@@ -1,6 +1,6 @@
 import * as SQLite from 'expo-sqlite';
 import { SCHEMA_DDL } from './schema';
-import { TACO_FOODS_SEED, READY_DISHES_SEED } from './seed/tacoFoods';
+import { TACO_FOODS_SEED, READY_DISHES_SEED, BEVERAGES_SEED } from './seed/tacoFoods';
 import { DEFAULT_ROUTINES_SEED } from './seed/defaultRoutines';
 import { ISqliteDatabase } from './repositories/interfaces';
 
@@ -172,6 +172,34 @@ export async function runMigrationV2(db: ISqliteDatabase): Promise<void> {
 }
 
 /**
+ * Migration V3: Seed beverage items with category 'Bebidas' and serving units in ml.
+ */
+export async function runMigrationV3(db: ISqliteDatabase): Promise<void> {
+  const now = new Date().toISOString();
+  for (const drink of BEVERAGES_SEED) {
+    await db.runAsync(
+      `INSERT OR IGNORE INTO foods (id, name, name_normalized, category, serving_grams, calories, protein, carbs, fat, fiber, barcode, source, serving_unit_name, serving_unit_grams, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
+      drink.id,
+      drink.name,
+      drink.nameNormalized ?? null,
+      drink.category ?? 'Bebidas',
+      drink.servingGrams,
+      drink.calories,
+      drink.protein,
+      drink.carbs,
+      drink.fat,
+      drink.fiber ?? 0,
+      drink.barcode ?? null,
+      drink.source,
+      drink.servingUnitName ?? 'ml',
+      drink.servingUnitGrams ?? 100,
+      now
+    );
+  }
+}
+
+/**
  * Migration runner based on PRAGMA user_version.
  */
 export async function runMigrations(db: ISqliteDatabase): Promise<void> {
@@ -189,6 +217,13 @@ export async function runMigrations(db: ISqliteDatabase): Promise<void> {
     await db.withTransactionAsync(async () => {
       await runMigrationV2(db);
       await db.execAsync('PRAGMA user_version = 2;');
+    });
+  }
+
+  if (currentVersion < 3) {
+    await db.withTransactionAsync(async () => {
+      await runMigrationV3(db);
+      await db.execAsync('PRAGMA user_version = 3;');
     });
   }
 }

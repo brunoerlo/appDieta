@@ -9,7 +9,8 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { DarkTheme } from '../../constants/theme';
+import { ThemeColors, spacing, borderRadius } from '../../constants/theme';
+import { useTheme } from '../../hooks/useTheme';
 import { useWorkout } from '../../hooks/useWorkout';
 import {
   formatDurationMinutes,
@@ -17,11 +18,11 @@ import {
 } from '../../utils/workout';
 import { Card } from '../../components/ui/Card';
 import { Badge } from '../../components/ui/Badge';
-import { useSafeTopPadding } from '../../hooks/useSafeTopPadding';
 
 export default function WorkoutHistoryScreen() {
   const router = useRouter();
-  const safeTop = useSafeTopPadding(6);
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const { historySessions, loadHistory, loadExerciseHistory } = useWorkout();
 
   const [activeTab, setActiveTab] = useState<'sessions' | 'progression'>('sessions');
@@ -90,9 +91,9 @@ export default function WorkoutHistoryScreen() {
   }, [exerciseHistoryPoints]);
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top', 'left', 'right', 'bottom']}>
       {/* Top Header */}
-      <View style={[styles.topHeader, { paddingTop: safeTop }]}>
+      <View style={styles.topHeader}>
         <TouchableOpacity
           onPress={() => router.back()}
           style={styles.backBtn}
@@ -198,8 +199,8 @@ export default function WorkoutHistoryScreen() {
                   <Text style={styles.sessionDate}>{item.date}</Text>
                   <Badge
                     label={formatDurationMinutes(item.durationMinutes)}
-                    color={DarkTheme.colors.primary}
-                    backgroundColor={DarkTheme.colors.primaryMuted}
+                    color={colors.primary}
+                    backgroundColor={colors.primaryMuted}
                   />
                 </View>
 
@@ -382,386 +383,387 @@ export default function WorkoutHistoryScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: DarkTheme.colors.background,
-  },
-  topHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: DarkTheme.spacing.lg,
-    paddingVertical: DarkTheme.spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: DarkTheme.colors.cardBorder,
-  },
-  backBtn: {
-    minWidth: 44,
-    minHeight: 44,
-    justifyContent: 'center',
-  },
-  backBtnText: {
-    color: DarkTheme.colors.primary,
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  headerTitle: {
-    color: DarkTheme.colors.textPrimary,
-    fontSize: 17,
-    fontWeight: '700',
-  },
-  backBtnPlaceholder: {
-    minWidth: 44,
-  },
-  statsBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-around',
-    backgroundColor: DarkTheme.colors.card,
-    borderBottomWidth: 1,
-    borderBottomColor: DarkTheme.colors.cardBorder,
-    paddingVertical: DarkTheme.spacing.md,
-  },
-  statBox: {
-    alignItems: 'center',
-    flex: 1,
-  },
-  statLabel: {
-    color: DarkTheme.colors.textDimmed,
-    fontSize: 10,
-    fontWeight: '700',
-    letterSpacing: 0.5,
-    marginBottom: 4,
-  },
-  statValue: {
-    color: DarkTheme.colors.textPrimary,
-    fontSize: 15,
-    fontWeight: '800',
-  },
-  statDivider: {
-    width: 1,
-    height: 24,
-    backgroundColor: DarkTheme.colors.cardBorder,
-  },
-  segmentedContainer: {
-    flexDirection: 'row',
-    paddingHorizontal: DarkTheme.spacing.lg,
-    paddingVertical: DarkTheme.spacing.sm,
-    backgroundColor: DarkTheme.colors.background,
-    gap: DarkTheme.spacing.sm,
-  },
-  segmentBtn: {
-    flex: 1,
-    paddingVertical: 10,
-    borderRadius: DarkTheme.borderRadius.md,
-    backgroundColor: DarkTheme.colors.surfaceMuted,
-    borderWidth: 1,
-    borderColor: DarkTheme.colors.cardBorder,
-    alignItems: 'center',
-    justifyContent: 'center',
-    minHeight: 44,
-  },
-  segmentBtnActive: {
-    backgroundColor: DarkTheme.colors.primaryMuted,
-    borderColor: DarkTheme.colors.primary,
-  },
-  segmentText: {
-    color: DarkTheme.colors.textSecondary,
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  segmentTextActive: {
-    color: DarkTheme.colors.primary,
-  },
-  listContent: {
-    padding: DarkTheme.spacing.lg,
-    paddingBottom: DarkTheme.spacing.xxl,
-  },
-  sessionCard: {
-    marginBottom: DarkTheme.spacing.md,
-    backgroundColor: DarkTheme.colors.card,
-    borderColor: DarkTheme.colors.cardBorder,
-    borderWidth: 1,
-    borderRadius: DarkTheme.borderRadius.lg,
-    padding: DarkTheme.spacing.md,
-  },
-  sessionHeaderRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 6,
-  },
-  sessionDate: {
-    color: DarkTheme.colors.textDimmed,
-    fontSize: 12,
-    fontWeight: '500',
-  },
-  sessionRoutineName: {
-    color: DarkTheme.colors.textPrimary,
-    fontSize: 17,
-    fontWeight: '700',
-    marginBottom: 6,
-  },
-  sessionMetricsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: DarkTheme.spacing.sm,
-  },
-  sessionMetricText: {
-    color: DarkTheme.colors.textSecondary,
-    fontSize: 13,
-  },
-  metricHighlight: {
-    color: DarkTheme.colors.primary,
-    fontWeight: '700',
-  },
-  metricDot: {
-    color: DarkTheme.colors.textDimmed,
-  },
-  sessionExercisesBlock: {
-    backgroundColor: DarkTheme.colors.surfaceMuted,
-    borderRadius: DarkTheme.borderRadius.sm,
-    padding: DarkTheme.spacing.sm,
-    marginTop: 4,
-  },
-  sessionExerciseLine: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    marginBottom: 4,
-  },
-  sessionExName: {
-    color: DarkTheme.colors.textPrimary,
-    fontSize: 12,
-    fontWeight: '600',
-    width: 140,
-  },
-  sessionExSets: {
-    color: DarkTheme.colors.textDimmed,
-    fontSize: 12,
-    flex: 1,
-  },
-  sessionNotesBox: {
-    marginTop: DarkTheme.spacing.sm,
-    borderTopWidth: 1,
-    borderTopColor: DarkTheme.colors.cardBorder,
-    paddingTop: 6,
-  },
-  sessionNotesText: {
-    color: DarkTheme.colors.textDimmed,
-    fontSize: 12,
-    fontStyle: 'italic',
-  },
-  emptyContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: DarkTheme.spacing.xxl,
-  },
-  emptyIcon: {
-    fontSize: 48,
-    marginBottom: 12,
-  },
-  emptyTitle: {
-    color: DarkTheme.colors.textPrimary,
-    fontSize: 16,
-    fontWeight: '700',
-    marginBottom: 6,
-  },
-  emptySubtitle: {
-    color: DarkTheme.colors.textSecondary,
-    fontSize: 13,
-    textAlign: 'center',
-    lineHeight: 18,
-    paddingHorizontal: DarkTheme.spacing.xl,
-  },
-  sectionHeader: {
-    color: DarkTheme.colors.textDimmed,
-    fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 1,
-    marginBottom: DarkTheme.spacing.sm,
-    marginTop: DarkTheme.spacing.md,
-  },
-  chipsScroll: {
-    gap: 8,
-    paddingBottom: DarkTheme.spacing.xs,
-  },
-  exChip: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: DarkTheme.borderRadius.full,
-    backgroundColor: DarkTheme.colors.surfaceMuted,
-    borderWidth: 1,
-    borderColor: DarkTheme.colors.cardBorder,
-    minHeight: 36,
-    justifyContent: 'center',
-  },
-  exChipActive: {
-    backgroundColor: DarkTheme.colors.primaryMuted,
-    borderColor: DarkTheme.colors.primary,
-  },
-  exChipText: {
-    color: DarkTheme.colors.textSecondary,
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  exChipTextActive: {
-    color: DarkTheme.colors.primary,
-  },
-  prCard: {
-    backgroundColor: DarkTheme.colors.card,
-    borderColor: DarkTheme.colors.cardBorder,
-    borderWidth: 1,
-    borderRadius: DarkTheme.borderRadius.lg,
-    padding: DarkTheme.spacing.md,
-    marginTop: DarkTheme.spacing.sm,
-    marginBottom: DarkTheme.spacing.md,
-  },
-  prHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginBottom: DarkTheme.spacing.sm,
-  },
-  prIcon: {
-    fontSize: 16,
-  },
-  prTitle: {
-    color: DarkTheme.colors.primary,
-    fontSize: 12,
-    fontWeight: '800',
-    letterSpacing: 0.5,
-  },
-  prGrid: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  prItem: {
-    flex: 1,
-  },
-  prLabel: {
-    color: DarkTheme.colors.textDimmed,
-    fontSize: 10,
-    fontWeight: '600',
-    marginBottom: 2,
-  },
-  prValue: {
-    color: DarkTheme.colors.textPrimary,
-    fontSize: 14,
-    fontWeight: '800',
-  },
-  chartCard: {
-    backgroundColor: DarkTheme.colors.card,
-    borderColor: DarkTheme.colors.cardBorder,
-    borderWidth: 1,
-    borderRadius: DarkTheme.borderRadius.lg,
-    padding: DarkTheme.spacing.md,
-    minHeight: 180,
-    justifyContent: 'center',
-    marginBottom: DarkTheme.spacing.md,
-  },
-  barsContainer: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    justifyContent: 'space-around',
-    height: 140,
-  },
-  barCol: {
-    alignItems: 'center',
-    flex: 1,
-    height: '100%',
-    justifyContent: 'flex-end',
-  },
-  barValue: {
-    color: DarkTheme.colors.textSecondary,
-    fontSize: 10,
-    fontWeight: '700',
-    marginBottom: 4,
-  },
-  barTrack: {
-    width: 24,
-    height: 90,
-    backgroundColor: DarkTheme.colors.surfaceMuted,
-    borderRadius: 4,
-    justifyContent: 'flex-end',
-    overflow: 'hidden',
-  },
-  barFill: {
-    width: '100%',
-    backgroundColor: DarkTheme.colors.primary,
-    borderRadius: 4,
-  },
-  barFillPR: {
-    backgroundColor: DarkTheme.colors.calories,
-  },
-  barDate: {
-    color: DarkTheme.colors.textDimmed,
-    fontSize: 10,
-    marginTop: 6,
-  },
-  emptyChart: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: DarkTheme.spacing.lg,
-  },
-  emptyChartText: {
-    color: DarkTheme.colors.textDimmed,
-    fontSize: 13,
-  },
-  tableCard: {
-    backgroundColor: DarkTheme.colors.card,
-    borderColor: DarkTheme.colors.cardBorder,
-    borderWidth: 1,
-    borderRadius: DarkTheme.borderRadius.lg,
-    padding: DarkTheme.spacing.md,
-  },
-  tableHead: {
-    flexDirection: 'row',
-    borderBottomWidth: 1,
-    borderBottomColor: DarkTheme.colors.cardBorder,
-    paddingBottom: 6,
-    marginBottom: 6,
-  },
-  th: {
-    color: DarkTheme.colors.textDimmed,
-    fontSize: 11,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-  },
-  thDate: {
-    flex: 1.2,
-  },
-  thWeight: {
-    flex: 1,
-    textAlign: 'center',
-  },
-  th1RM: {
-    flex: 1,
-    textAlign: 'center',
-  },
-  thVol: {
-    flex: 1,
-    textAlign: 'right',
-  },
-  tableRow: {
-    flexDirection: 'row',
-    paddingVertical: 6,
-    borderBottomWidth: 1,
-    borderBottomColor: DarkTheme.colors.surfaceMuted,
-  },
-  td: {
-    color: DarkTheme.colors.textPrimary,
-    fontSize: 12,
-  },
-  tdEmerald: {
-    color: DarkTheme.colors.primary,
-    fontWeight: '700',
-  },
-  emptyTableText: {
-    color: DarkTheme.colors.textDimmed,
-    fontSize: 12,
-    textAlign: 'center',
-    paddingVertical: 12,
-  },
-});
+const createStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    topHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: spacing.lg,
+      paddingVertical: spacing.sm,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.cardBorder,
+    },
+    backBtn: {
+      minWidth: 44,
+      minHeight: 44,
+      justifyContent: 'center',
+    },
+    backBtnText: {
+      color: colors.primary,
+      fontSize: 16,
+      fontWeight: '600',
+    },
+    headerTitle: {
+      color: colors.textPrimary,
+      fontSize: 17,
+      fontWeight: '700',
+    },
+    backBtnPlaceholder: {
+      minWidth: 44,
+    },
+    statsBanner: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-around',
+      backgroundColor: colors.card,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.cardBorder,
+      paddingVertical: spacing.md,
+    },
+    statBox: {
+      alignItems: 'center',
+      flex: 1,
+    },
+    statLabel: {
+      color: colors.textDimmed,
+      fontSize: 10,
+      fontWeight: '700',
+      letterSpacing: 0.5,
+      marginBottom: 4,
+    },
+    statValue: {
+      color: colors.textPrimary,
+      fontSize: 15,
+      fontWeight: '800',
+    },
+    statDivider: {
+      width: 1,
+      height: 24,
+      backgroundColor: colors.cardBorder,
+    },
+    segmentedContainer: {
+      flexDirection: 'row',
+      paddingHorizontal: spacing.lg,
+      paddingVertical: spacing.sm,
+      backgroundColor: colors.background,
+      gap: spacing.sm,
+    },
+    segmentBtn: {
+      flex: 1,
+      paddingVertical: 10,
+      borderRadius: borderRadius.md,
+      backgroundColor: colors.surfaceMuted,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+      alignItems: 'center',
+      justifyContent: 'center',
+      minHeight: 44,
+    },
+    segmentBtnActive: {
+      backgroundColor: colors.primaryMuted,
+      borderColor: colors.primary,
+    },
+    segmentText: {
+      color: colors.textSecondary,
+      fontSize: 12,
+      fontWeight: '600',
+    },
+    segmentTextActive: {
+      color: colors.primary,
+    },
+    listContent: {
+      padding: spacing.lg,
+      paddingBottom: spacing.xxl,
+    },
+    sessionCard: {
+      marginBottom: spacing.md,
+      backgroundColor: colors.card,
+      borderColor: colors.cardBorder,
+      borderWidth: 1,
+      borderRadius: borderRadius.lg,
+      padding: spacing.md,
+    },
+    sessionHeaderRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 6,
+    },
+    sessionDate: {
+      color: colors.textDimmed,
+      fontSize: 12,
+      fontWeight: '500',
+    },
+    sessionRoutineName: {
+      color: colors.textPrimary,
+      fontSize: 17,
+      fontWeight: '700',
+      marginBottom: 6,
+    },
+    sessionMetricsRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      marginBottom: spacing.sm,
+    },
+    sessionMetricText: {
+      color: colors.textSecondary,
+      fontSize: 13,
+    },
+    metricHighlight: {
+      color: colors.primary,
+      fontWeight: '700',
+    },
+    metricDot: {
+      color: colors.textDimmed,
+    },
+    sessionExercisesBlock: {
+      backgroundColor: colors.surfaceMuted,
+      borderRadius: borderRadius.sm,
+      padding: spacing.sm,
+      marginTop: 4,
+    },
+    sessionExerciseLine: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      marginBottom: 4,
+    },
+    sessionExName: {
+      color: colors.textPrimary,
+      fontSize: 12,
+      fontWeight: '600',
+      width: 140,
+    },
+    sessionExSets: {
+      color: colors.textDimmed,
+      fontSize: 12,
+      flex: 1,
+    },
+    sessionNotesBox: {
+      marginTop: spacing.sm,
+      borderTopWidth: 1,
+      borderTopColor: colors.cardBorder,
+      paddingTop: 6,
+    },
+    sessionNotesText: {
+      color: colors.textDimmed,
+      fontSize: 12,
+      fontStyle: 'italic',
+    },
+    emptyContainer: {
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingVertical: spacing.xxl,
+    },
+    emptyIcon: {
+      fontSize: 48,
+      marginBottom: 12,
+    },
+    emptyTitle: {
+      color: colors.textPrimary,
+      fontSize: 16,
+      fontWeight: '700',
+      marginBottom: 6,
+    },
+    emptySubtitle: {
+      color: colors.textSecondary,
+      fontSize: 13,
+      textAlign: 'center',
+      lineHeight: 18,
+      paddingHorizontal: spacing.xl,
+    },
+    sectionHeader: {
+      color: colors.textDimmed,
+      fontSize: 11,
+      fontWeight: '700',
+      letterSpacing: 1,
+      marginBottom: spacing.sm,
+      marginTop: spacing.md,
+    },
+    chipsScroll: {
+      gap: 8,
+      paddingBottom: spacing.xs,
+    },
+    exChip: {
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      borderRadius: borderRadius.full,
+      backgroundColor: colors.surfaceMuted,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+      minHeight: 36,
+      justifyContent: 'center',
+    },
+    exChipActive: {
+      backgroundColor: colors.primaryMuted,
+      borderColor: colors.primary,
+    },
+    exChipText: {
+      color: colors.textSecondary,
+      fontSize: 12,
+      fontWeight: '600',
+    },
+    exChipTextActive: {
+      color: colors.primary,
+    },
+    prCard: {
+      backgroundColor: colors.card,
+      borderColor: colors.cardBorder,
+      borderWidth: 1,
+      borderRadius: borderRadius.lg,
+      padding: spacing.md,
+      marginTop: spacing.sm,
+      marginBottom: spacing.md,
+    },
+    prHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      marginBottom: spacing.sm,
+    },
+    prIcon: {
+      fontSize: 16,
+    },
+    prTitle: {
+      color: colors.primary,
+      fontSize: 12,
+      fontWeight: '800',
+      letterSpacing: 0.5,
+    },
+    prGrid: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+    },
+    prItem: {
+      flex: 1,
+    },
+    prLabel: {
+      color: colors.textDimmed,
+      fontSize: 10,
+      fontWeight: '600',
+      marginBottom: 2,
+    },
+    prValue: {
+      color: colors.textPrimary,
+      fontSize: 14,
+      fontWeight: '800',
+    },
+    chartCard: {
+      backgroundColor: colors.card,
+      borderColor: colors.cardBorder,
+      borderWidth: 1,
+      borderRadius: borderRadius.lg,
+      padding: spacing.md,
+      minHeight: 180,
+      justifyContent: 'center',
+      marginBottom: spacing.md,
+    },
+    barsContainer: {
+      flexDirection: 'row',
+      alignItems: 'flex-end',
+      justifyContent: 'space-around',
+      height: 140,
+    },
+    barCol: {
+      alignItems: 'center',
+      flex: 1,
+      height: '100%',
+      justifyContent: 'flex-end',
+    },
+    barValue: {
+      color: colors.textSecondary,
+      fontSize: 10,
+      fontWeight: '700',
+      marginBottom: 4,
+    },
+    barTrack: {
+      width: 24,
+      height: 90,
+      backgroundColor: colors.surfaceMuted,
+      borderRadius: 4,
+      justifyContent: 'flex-end',
+      overflow: 'hidden',
+    },
+    barFill: {
+      width: '100%',
+      backgroundColor: colors.primary,
+      borderRadius: 4,
+    },
+    barFillPR: {
+      backgroundColor: colors.calories,
+    },
+    barDate: {
+      color: colors.textDimmed,
+      fontSize: 10,
+      marginTop: 6,
+    },
+    emptyChart: {
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: spacing.lg,
+    },
+    emptyChartText: {
+      color: colors.textDimmed,
+      fontSize: 13,
+    },
+    tableCard: {
+      backgroundColor: colors.card,
+      borderColor: colors.cardBorder,
+      borderWidth: 1,
+      borderRadius: borderRadius.lg,
+      padding: spacing.md,
+    },
+    tableHead: {
+      flexDirection: 'row',
+      borderBottomWidth: 1,
+      borderBottomColor: colors.cardBorder,
+      paddingBottom: 6,
+      marginBottom: 6,
+    },
+    th: {
+      color: colors.textDimmed,
+      fontSize: 11,
+      fontWeight: '700',
+      textTransform: 'uppercase',
+    },
+    thDate: {
+      flex: 1.2,
+    },
+    thWeight: {
+      flex: 1,
+      textAlign: 'center',
+    },
+    th1RM: {
+      flex: 1,
+      textAlign: 'center',
+    },
+    thVol: {
+      flex: 1,
+      textAlign: 'right',
+    },
+    tableRow: {
+      flexDirection: 'row',
+      paddingVertical: 6,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.surfaceMuted,
+    },
+    td: {
+      color: colors.textPrimary,
+      fontSize: 12,
+    },
+    tdEmerald: {
+      color: colors.primary,
+      fontWeight: '700',
+    },
+    emptyTableText: {
+      color: colors.textDimmed,
+      fontSize: 12,
+      textAlign: 'center',
+      paddingVertical: 12,
+    },
+  });

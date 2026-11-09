@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { DarkTheme } from '../../constants/theme';
+import { spacing, borderRadius, ThemeColors } from '../../constants/theme';
+import { useTheme } from '../../hooks/useTheme';
 import { Badge } from '../ui/Badge';
 
 export interface DraftExercise {
@@ -33,6 +34,9 @@ export const ExerciseConfigRow: React.FC<ExerciseConfigRowProps> = ({
   onMoveUp,
   onMoveDown,
 }) => {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
+
   const handleSetsChange = (delta: number) => {
     const next = Math.max(1, Math.min(10, exercise.targetSets + delta));
     onUpdate({ targetSets: next });
@@ -60,8 +64,8 @@ export const ExerciseConfigRow: React.FC<ExerciseConfigRowProps> = ({
             </Text>
             <Badge
               label={exercise.muscleGroup || 'Geral'}
-              color={DarkTheme.colors.primary}
-              backgroundColor={DarkTheme.colors.primaryMuted}
+              color={colors.primary}
+              backgroundColor={colors.primaryMuted}
               style={styles.muscleBadge}
             />
           </View>
@@ -204,164 +208,166 @@ export const ExerciseConfigRow: React.FC<ExerciseConfigRowProps> = ({
   );
 };
 
-const styles = StyleSheet.create({
-  card: {
-    backgroundColor: DarkTheme.colors.card,
-    borderColor: DarkTheme.colors.cardBorder,
-    borderWidth: 1,
-    borderRadius: DarkTheme.borderRadius.md,
-    padding: DarkTheme.spacing.md,
-    marginBottom: DarkTheme.spacing.sm,
-  },
-  headerRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: DarkTheme.spacing.sm,
-  },
-  titleGroup: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-    marginRight: DarkTheme.spacing.sm,
-  },
-  indexBadge: {
-    backgroundColor: DarkTheme.colors.surfaceMuted,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: DarkTheme.borderRadius.sm,
-    marginRight: DarkTheme.spacing.sm,
-  },
-  indexText: {
-    color: DarkTheme.colors.textSecondary,
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  nameBlock: {
-    flex: 1,
-  },
-  exerciseName: {
-    color: DarkTheme.colors.textPrimary,
-    fontSize: 15,
-    fontWeight: '600',
-    marginBottom: 4,
-  },
-  muscleBadge: {
-    alignSelf: 'flex-start',
-  },
-  removeBtn: {
-    minWidth: 44,
-    minHeight: 44,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  removeIcon: {
-    fontSize: 16,
-  },
-  controlsRow: {
-    flexDirection: 'row',
-    gap: DarkTheme.spacing.md,
-    marginBottom: DarkTheme.spacing.sm,
-  },
-  controlSection: {
-    flex: 1,
-  },
-  restSection: {
-    flex: 1.2,
-  },
-  controlLabel: {
-    color: DarkTheme.colors.textDimmed,
-    fontSize: 11,
-    fontWeight: '600',
-    textTransform: 'uppercase',
-    marginBottom: 6,
-  },
-  stepperContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: DarkTheme.colors.surfaceMuted,
-    borderRadius: DarkTheme.borderRadius.sm,
-    borderWidth: 1,
-    borderColor: DarkTheme.colors.cardBorder,
-  },
-  stepperBtn: {
-    minWidth: 44,
-    minHeight: 44,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  stepperText: {
-    color: DarkTheme.colors.primary,
-    fontSize: 18,
-    fontWeight: '700',
-  },
-  stepperValue: {
-    flex: 1,
-    textAlign: 'center',
-    color: DarkTheme.colors.textPrimary,
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  disabledText: {
-    color: DarkTheme.colors.textDimmed,
-    opacity: 0.3,
-  },
-  pillsRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 6,
-    marginBottom: DarkTheme.spacing.sm,
-  },
-  restPill: {
-    paddingHorizontal: 8,
-    paddingVertical: 6,
-    borderRadius: DarkTheme.borderRadius.sm,
-    backgroundColor: DarkTheme.colors.surfaceMuted,
-    borderWidth: 1,
-    borderColor: DarkTheme.colors.cardBorder,
-  },
-  restPillActive: {
-    backgroundColor: DarkTheme.colors.primaryMuted,
-    borderColor: DarkTheme.colors.primary,
-  },
-  restPillText: {
-    color: DarkTheme.colors.textSecondary,
-    fontSize: 11,
-    fontWeight: '600',
-  },
-  restPillTextActive: {
-    color: DarkTheme.colors.primary,
-  },
-  footerRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    borderTopWidth: 1,
-    borderTopColor: DarkTheme.colors.cardBorder,
-    paddingTop: DarkTheme.spacing.xs,
-    marginTop: 2,
-  },
-  reorderLabel: {
-    color: DarkTheme.colors.textDimmed,
-    fontSize: 11,
-  },
-  reorderButtons: {
-    flexDirection: 'row',
-    gap: 4,
-  },
-  arrowBtn: {
-    minWidth: 44,
-    minHeight: 44,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: DarkTheme.colors.surfaceMuted,
-    borderRadius: DarkTheme.borderRadius.sm,
-  },
-  arrowDisabled: {
-    opacity: 0.4,
-  },
-  arrowText: {
-    color: DarkTheme.colors.textPrimary,
-    fontSize: 12,
-  },
-});
+const createStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    card: {
+      backgroundColor: colors.card,
+      borderColor: colors.cardBorder,
+      borderWidth: 1,
+      borderRadius: borderRadius.md,
+      padding: spacing.md,
+      marginBottom: spacing.sm,
+    },
+    headerRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'flex-start',
+      marginBottom: spacing.sm,
+    },
+    titleGroup: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      flex: 1,
+      marginRight: spacing.sm,
+    },
+    indexBadge: {
+      backgroundColor: colors.surfaceMuted,
+      paddingHorizontal: 8,
+      paddingVertical: 4,
+      borderRadius: borderRadius.sm,
+      marginRight: spacing.sm,
+    },
+    indexText: {
+      color: colors.textSecondary,
+      fontSize: 12,
+      fontWeight: '700',
+    },
+    nameBlock: {
+      flex: 1,
+    },
+    exerciseName: {
+      color: colors.textPrimary,
+      fontSize: 15,
+      fontWeight: '600',
+      marginBottom: 4,
+    },
+    muscleBadge: {
+      alignSelf: 'flex-start',
+    },
+    removeBtn: {
+      minWidth: 44,
+      minHeight: 44,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    removeIcon: {
+      fontSize: 16,
+    },
+    controlsRow: {
+      flexDirection: 'row',
+      gap: spacing.md,
+      marginBottom: spacing.sm,
+    },
+    controlSection: {
+      flex: 1,
+    },
+    restSection: {
+      flex: 1.2,
+    },
+    controlLabel: {
+      color: colors.textDimmed,
+      fontSize: 11,
+      fontWeight: '600',
+      textTransform: 'uppercase',
+      marginBottom: 6,
+    },
+    stepperContainer: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: colors.surfaceMuted,
+      borderRadius: borderRadius.sm,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+    },
+    stepperBtn: {
+      minWidth: 44,
+      minHeight: 44,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    stepperText: {
+      color: colors.primary,
+      fontSize: 18,
+      fontWeight: '700',
+    },
+    stepperValue: {
+      flex: 1,
+      textAlign: 'center',
+      color: colors.textPrimary,
+      fontSize: 14,
+      fontWeight: '700',
+    },
+    disabledText: {
+      color: colors.textDimmed,
+      opacity: 0.3,
+    },
+    pillsRow: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 6,
+      marginBottom: spacing.sm,
+    },
+    restPill: {
+      paddingHorizontal: 8,
+      paddingVertical: 6,
+      borderRadius: borderRadius.sm,
+      backgroundColor: colors.surfaceMuted,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+    },
+    restPillActive: {
+      backgroundColor: colors.primaryMuted,
+      borderColor: colors.primary,
+    },
+    restPillText: {
+      color: colors.textSecondary,
+      fontSize: 11,
+      fontWeight: '600',
+    },
+    restPillTextActive: {
+      color: colors.primary,
+    },
+    footerRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      borderTopWidth: 1,
+      borderTopColor: colors.cardBorder,
+      paddingTop: spacing.xs,
+      marginTop: 2,
+    },
+    reorderLabel: {
+      color: colors.textDimmed,
+      fontSize: 11,
+    },
+    reorderButtons: {
+      flexDirection: 'row',
+      gap: 4,
+    },
+    arrowBtn: {
+      minWidth: 44,
+      minHeight: 44,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.surfaceMuted,
+      borderRadius: borderRadius.sm,
+    },
+    arrowDisabled: {
+      opacity: 0.4,
+    },
+    arrowText: {
+      color: colors.textPrimary,
+      fontSize: 12,
+    },
+  });
+

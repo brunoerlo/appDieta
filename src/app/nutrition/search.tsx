@@ -13,20 +13,21 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
-import { DarkTheme } from '../../constants/theme';
+import { spacing, borderRadius, ThemeColors } from '../../constants/theme';
+import { useTheme } from '../../hooks/useTheme';
 import { SqliteDietRepository } from '../../database/repositories/SqliteDietRepository';
 import { openFoodFactsService } from '../../services/OpenFoodFactsService';
 import { ServingSizeModal } from '../../components/nutrition/ServingSizeModal';
 import { FoodItem, MealType } from '../../types/domain';
 import { MEAL_TYPE_NAMES } from '../../utils/nutrition';
 import { useDiet } from '../../hooks/useDiet';
-import { useSafeTopPadding } from '../../hooks/useSafeTopPadding';
 
-type FilterTab = 'all' | 'meals' | 'taco' | 'custom' | 'off';
+type FilterTab = 'all' | 'meals' | 'drinks' | 'taco' | 'custom' | 'off';
 
 export default function FoodSearchScreen() {
   const router = useRouter();
-  const safeTop = useSafeTopPadding(6);
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const params = useLocalSearchParams<{ mealType?: MealType; date?: string }>();
   const mealType: MealType = params.mealType || 'lunch';
 
@@ -48,7 +49,7 @@ export default function FoodSearchScreen() {
   // Initial load of common TACO foods and ready meals
   useEffect(() => {
     let active = true;
-    dietRepo.searchFoods('', 30).then((foods) => {
+    dietRepo.searchFoods('', 100).then((foods) => {
       if (active) setLocalResults(foods);
     });
     return () => {
@@ -106,11 +107,14 @@ export default function FoodSearchScreen() {
     if (activeTab === 'all') return combined;
     if (activeTab === 'meals') {
       return combined.filter(
-        (item) => item.category === 'Refeições' || item.source === 'recipe'
+        (item) => item.category === 'Refeições' || (item.source === 'recipe' && item.category !== 'Bebidas')
       );
     }
-    if (activeTab === 'taco') return combined.filter((item) => item.source === 'taco' && item.category !== 'Refeições');
-    if (activeTab === 'custom') return combined.filter((item) => item.source === 'custom' && item.category !== 'Refeições');
+    if (activeTab === 'drinks') {
+      return combined.filter((item) => item.category === 'Bebidas');
+    }
+    if (activeTab === 'taco') return combined.filter((item) => item.source === 'taco' && item.category !== 'Refeições' && item.category !== 'Bebidas');
+    if (activeTab === 'custom') return combined.filter((item) => item.source === 'custom' && item.category !== 'Refeições' && item.category !== 'Bebidas');
     if (activeTab === 'off') return combined.filter((item) => item.source === 'openfoodfacts');
     return combined;
   }, [localResults, remoteResults, activeTab]);
@@ -149,6 +153,9 @@ export default function FoodSearchScreen() {
   };
 
   const renderSourceBadge = (item: FoodItem) => {
+    if (item.category === 'Bebidas') {
+      return <Text style={styles.badgeDrink}>Bebida</Text>;
+    }
     if (item.category === 'Refeições' || item.source === 'recipe') {
       return <Text style={styles.badgeMeal}>Refeição</Text>;
     }
@@ -167,7 +174,7 @@ export default function FoodSearchScreen() {
   return (
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
       {/* Top Header Bar */}
-      <View style={[styles.headerBar, { paddingTop: safeTop }]}>
+      <View style={styles.headerBar}>
         <TouchableOpacity
           onPress={() => router.back()}
           style={styles.closeBtn}
@@ -215,7 +222,7 @@ export default function FoodSearchScreen() {
         <TextInput
           style={styles.searchInput}
           placeholder="Buscar alimentos ou pratos (ex: carbonara, omelete, frango...)"
-          placeholderTextColor={DarkTheme.colors.textDimmed}
+          placeholderTextColor={colors.textDimmed}
           value={query}
           onChangeText={handleQueryChange}
           autoCorrect={false}
@@ -224,7 +231,7 @@ export default function FoodSearchScreen() {
         {isSearchingRemote && (
           <ActivityIndicator
             size="small"
-            color={DarkTheme.colors.primary}
+            color={colors.primary}
             style={styles.searchSpinner}
           />
         )}
@@ -252,6 +259,15 @@ export default function FoodSearchScreen() {
           >
             <Text style={[styles.tabText, activeTab === 'meals' && styles.tabTextActive]}>
               🍲 Refeições
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.tab, activeTab === 'drinks' && styles.tabActive]}
+            onPress={() => setActiveTab('drinks')}
+          >
+            <Text style={[styles.tabText, activeTab === 'drinks' && styles.tabTextActive]}>
+              🥤 Bebidas
             </Text>
           </TouchableOpacity>
 
@@ -329,7 +345,7 @@ export default function FoodSearchScreen() {
               </View>
 
               <Text style={styles.foodRowMacros}>
-                100g • <Text style={styles.macroHighlight}>{item.calories} kcal</Text> • P:{' '}
+                {item.category === 'Bebidas' ? '100ml' : '100g'} • <Text style={styles.macroHighlight}>{item.calories} kcal</Text> • P:{' '}
                 {item.protein}g • C: {item.carbs}g • G: {item.fat}g
               </Text>
             </View>
@@ -354,206 +370,216 @@ export default function FoodSearchScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: DarkTheme.colors.background,
-  },
-  headerBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: DarkTheme.spacing.md,
-    paddingVertical: DarkTheme.spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: DarkTheme.colors.cardBorder,
-  },
-  closeBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: DarkTheme.borderRadius.full,
-    backgroundColor: DarkTheme.colors.surfaceMuted,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  closeBtnText: {
-    color: DarkTheme.colors.textPrimary,
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  headerTitle: {
-    color: DarkTheme.colors.textPrimary,
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  headerActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  actionIconBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: DarkTheme.borderRadius.full,
-    backgroundColor: DarkTheme.colors.surfaceMuted,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  actionIconText: {
-    fontSize: 16,
-  },
-  searchContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: DarkTheme.colors.card,
-    borderColor: DarkTheme.colors.cardBorder,
-    borderWidth: 1,
-    borderRadius: DarkTheme.borderRadius.md,
-    marginHorizontal: DarkTheme.spacing.md,
-    marginTop: DarkTheme.spacing.md,
-    paddingHorizontal: 12,
-    height: 48,
-  },
-  searchIcon: {
-    fontSize: 16,
-    marginRight: 8,
-  },
-  searchInput: {
-    flex: 1,
-    color: DarkTheme.colors.textPrimary,
-    fontSize: 14,
-    height: '100%',
-  },
-  searchSpinner: {
-    marginLeft: 8,
-  },
-  tabsWrapper: {
-    marginBottom: DarkTheme.spacing.sm,
-  },
-  tabsScrollContent: {
-    paddingHorizontal: DarkTheme.spacing.md,
-    gap: 8,
-    alignItems: 'center',
-  },
-  tab: {
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: DarkTheme.borderRadius.full,
-    backgroundColor: DarkTheme.colors.surfaceMuted,
-    borderColor: DarkTheme.colors.cardBorder,
-    borderWidth: 1,
-  },
-  tabActive: {
-    backgroundColor: DarkTheme.colors.primaryMuted,
-    borderColor: DarkTheme.colors.primary,
-  },
-  tabText: {
-    color: DarkTheme.colors.textSecondary,
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  tabTextActive: {
-    color: DarkTheme.colors.primary,
-  },
-  listContent: {
-    paddingHorizontal: DarkTheme.spacing.md,
-    paddingBottom: 24,
-  },
-  foodRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: DarkTheme.colors.cardBorder,
-  },
-  foodRowInfo: {
-    flex: 1,
-    marginRight: 10,
-  },
-  foodRowHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 4,
-  },
-  foodRowName: {
-    color: DarkTheme.colors.textPrimary,
-    fontSize: 15,
-    fontWeight: '600',
-    flex: 1,
-    marginRight: 8,
-  },
-  foodRowMacros: {
-    color: DarkTheme.colors.textSecondary,
-    fontSize: 12,
-  },
-  macroHighlight: {
-    color: DarkTheme.colors.calories,
-    fontWeight: '600',
-  },
-  chevron: {
-    color: DarkTheme.colors.textDimmed,
-    fontSize: 20,
-    fontWeight: '600',
-  },
-  badgeTaco: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: DarkTheme.colors.primary,
-    backgroundColor: DarkTheme.colors.primaryMuted,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-  },
-  badgeOff: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: DarkTheme.colors.water,
-    backgroundColor: DarkTheme.colors.waterTrack,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-  },
-  badgeCustom: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: DarkTheme.colors.calories,
-    backgroundColor: DarkTheme.colors.caloriesTrack,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-  },
-  badgeMeal: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: DarkTheme.colors.calories,
-    backgroundColor: DarkTheme.colors.caloriesTrack,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-  },
-  emptyContainer: {
-    paddingVertical: 36,
-    alignItems: 'center',
-  },
-  emptyText: {
-    color: DarkTheme.colors.textDimmed,
-    fontSize: 14,
-    textAlign: 'center',
-    marginBottom: 16,
-  },
-  createPromptBtn: {
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    backgroundColor: DarkTheme.colors.surfaceMuted,
-    borderColor: DarkTheme.colors.cardBorder,
-    borderWidth: 1,
-    borderRadius: DarkTheme.borderRadius.md,
-  },
-  createPromptText: {
-    color: DarkTheme.colors.primary,
-    fontSize: 13,
-    fontWeight: '700',
-  },
-});
+const createStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    headerBar: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.sm,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.cardBorder,
+    },
+    closeBtn: {
+      width: 36,
+      height: 36,
+      borderRadius: borderRadius.full,
+      backgroundColor: colors.surfaceMuted,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    closeBtnText: {
+      color: colors.textPrimary,
+      fontSize: 16,
+      fontWeight: '700',
+    },
+    headerTitle: {
+      color: colors.textPrimary,
+      fontSize: 16,
+      fontWeight: '700',
+    },
+    headerActions: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+    },
+    actionIconBtn: {
+      width: 36,
+      height: 36,
+      borderRadius: borderRadius.full,
+      backgroundColor: colors.surfaceMuted,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    actionIconText: {
+      fontSize: 16,
+    },
+    searchContainer: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: colors.card,
+      borderColor: colors.cardBorder,
+      borderWidth: 1,
+      borderRadius: borderRadius.md,
+      marginHorizontal: spacing.md,
+      marginTop: spacing.md,
+      paddingHorizontal: 12,
+      height: 48,
+    },
+    searchIcon: {
+      fontSize: 16,
+      marginRight: 8,
+    },
+    searchInput: {
+      flex: 1,
+      color: colors.textPrimary,
+      fontSize: 14,
+      height: '100%',
+    },
+    searchSpinner: {
+      marginLeft: 8,
+    },
+    tabsWrapper: {
+      marginBottom: spacing.sm,
+    },
+    tabsScrollContent: {
+      paddingHorizontal: spacing.md,
+      gap: 8,
+      alignItems: 'center',
+    },
+    tab: {
+      paddingVertical: 6,
+      paddingHorizontal: 12,
+      borderRadius: borderRadius.full,
+      backgroundColor: colors.surfaceMuted,
+      borderColor: colors.cardBorder,
+      borderWidth: 1,
+    },
+    tabActive: {
+      backgroundColor: colors.primaryMuted,
+      borderColor: colors.primary,
+    },
+    tabText: {
+      color: colors.textSecondary,
+      fontSize: 12,
+      fontWeight: '600',
+    },
+    tabTextActive: {
+      color: colors.primary,
+    },
+    listContent: {
+      paddingHorizontal: spacing.md,
+      paddingBottom: 24,
+    },
+    foodRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingVertical: 12,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.cardBorder,
+    },
+    foodRowInfo: {
+      flex: 1,
+      marginRight: 10,
+    },
+    foodRowHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginBottom: 4,
+    },
+    foodRowName: {
+      color: colors.textPrimary,
+      fontSize: 15,
+      fontWeight: '600',
+      flex: 1,
+      marginRight: 8,
+    },
+    foodRowMacros: {
+      color: colors.textSecondary,
+      fontSize: 12,
+    },
+    macroHighlight: {
+      color: colors.calories,
+      fontWeight: '600',
+    },
+    chevron: {
+      color: colors.textDimmed,
+      fontSize: 20,
+      fontWeight: '600',
+    },
+    badgeTaco: {
+      fontSize: 10,
+      fontWeight: '700',
+      color: colors.primary,
+      backgroundColor: colors.primaryMuted,
+      paddingHorizontal: 6,
+      paddingVertical: 2,
+      borderRadius: 4,
+    },
+    badgeOff: {
+      fontSize: 10,
+      fontWeight: '700',
+      color: colors.water,
+      backgroundColor: colors.waterTrack,
+      paddingHorizontal: 6,
+      paddingVertical: 2,
+      borderRadius: 4,
+    },
+    badgeCustom: {
+      fontSize: 10,
+      fontWeight: '700',
+      color: colors.calories,
+      backgroundColor: colors.caloriesTrack,
+      paddingHorizontal: 6,
+      paddingVertical: 2,
+      borderRadius: 4,
+    },
+    badgeMeal: {
+      fontSize: 10,
+      fontWeight: '700',
+      color: colors.calories,
+      backgroundColor: colors.caloriesTrack,
+      paddingHorizontal: 6,
+      paddingVertical: 2,
+      borderRadius: 4,
+    },
+    badgeDrink: {
+      fontSize: 10,
+      fontWeight: '700',
+      color: colors.water,
+      backgroundColor: colors.waterTrack,
+      paddingHorizontal: 6,
+      paddingVertical: 2,
+      borderRadius: 4,
+    },
+    emptyContainer: {
+      paddingVertical: 36,
+      alignItems: 'center',
+    },
+    emptyText: {
+      color: colors.textDimmed,
+      fontSize: 14,
+      textAlign: 'center',
+      marginBottom: 16,
+    },
+    createPromptBtn: {
+      paddingHorizontal: 16,
+      paddingVertical: 10,
+      backgroundColor: colors.surfaceMuted,
+      borderColor: colors.cardBorder,
+      borderWidth: 1,
+      borderRadius: borderRadius.md,
+    },
+    createPromptText: {
+      color: colors.primary,
+      fontSize: 13,
+      fontWeight: '700',
+    },
+  });

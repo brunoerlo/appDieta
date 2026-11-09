@@ -159,12 +159,16 @@ export class SqliteDietRepository implements IDietRepository {
   async searchFoods(query: string, limit = 50): Promise<FoodItem[]> {
     const sanitized = query.trim();
     if (!sanitized) {
-      const topLimit = Math.min(limit, 30);
+      const topLimit = limit === 50 ? 30 : Math.min(limit, 100);
       const rows = await this.db.getAllAsync<FoodRow>(
         `SELECT id, name, name_normalized, category, serving_grams, calories, protein, carbs, fat, fiber, barcode, source, serving_unit_name, serving_unit_grams, created_at
          FROM foods
          ORDER BY
-           CASE WHEN category = 'Refeições' THEN 0 ELSE 1 END,
+           CASE
+             WHEN category = 'Refeições' THEN 0
+             WHEN category = 'Bebidas' THEN 1
+             ELSE 2
+           END,
            name ASC
          LIMIT ?;`,
         topLimit
@@ -212,7 +216,8 @@ export class SqliteDietRepository implements IDietRepository {
   }
 
   async createFood(food: Omit<FoodItem, 'id' | 'createdAt'>): Promise<FoodItem> {
-    const id = `food-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
+    const prefix = food.category === 'Bebidas' ? 'drink' : 'food';
+    const id = `${prefix}-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
     const createdAt = new Date().toISOString();
     const nameNormalized = food.nameNormalized ?? normalizeFoodText(food.name);
 

@@ -13,12 +13,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useBody } from '../../hooks/useBody';
 import { useTheme } from '../../hooks/useTheme';
-import { useSafeTopPadding } from '../../hooks/useSafeTopPadding';
 
 export default function BodyLogModalScreen() {
   const router = useRouter();
   const { colors } = useTheme();
-  const safeTop = useSafeTopPadding(8);
   const { selectedDate, currentBodyLog, saveWeighIn, saveMeasurements } = useBody();
 
   const [weightStr, setWeightStr] = useState('');
@@ -91,13 +89,16 @@ export default function BodyLogModalScreen() {
   const dateFormatted = parts.length === 3 ? `${parts[2]}/${parts[1]}/${parts[0]}` : selectedDate;
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+    <SafeAreaView
+      style={[styles.container, { backgroundColor: colors.background }]}
+      edges={['top', 'left', 'right', 'bottom']}
+    >
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={styles.flex}
       >
         {/* Header */}
-        <View style={[styles.header, { borderBottomColor: colors.cardBorder, paddingTop: safeTop }]}>
+        <View style={[styles.header, { borderBottomColor: colors.cardBorder }]}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
             <Text style={[styles.backBtnText, { color: colors.textPrimary }]}>✕ Fechar</Text>
           </TouchableOpacity>

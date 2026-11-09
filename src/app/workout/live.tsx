@@ -9,7 +9,8 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { DarkTheme } from '../../constants/theme';
+import { ThemeColors, spacing, borderRadius } from '../../constants/theme';
+import { useTheme } from '../../hooks/useTheme';
 import { useWorkout } from '../../hooks/useWorkout';
 import { formatElapsedSeconds, calculate1RM } from '../../utils/workout';
 import { LiveSetRow } from '../../components/workout/LiveSetRow';
@@ -25,7 +26,9 @@ import { useSafeTopPadding } from '../../hooks/useSafeTopPadding';
 
 export default function LiveWorkoutScreen() {
   const router = useRouter();
+  const { colors } = useTheme();
   const safeTop = useSafeTopPadding(6);
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const { routineId } = useLocalSearchParams<{ routineId?: string }>();
   const {
     routines,
@@ -205,8 +208,8 @@ export default function LiveWorkoutScreen() {
 
   if (!activeSession) {
     return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.loadingContainer}>
+      <SafeAreaView style={styles.container} edges={['bottom', 'left', 'right']}>
+        <View style={[styles.loadingContainer, { paddingTop: safeTop }]}>
           <Text style={styles.loadingText}>Carregando treino...</Text>
         </View>
       </SafeAreaView>
@@ -214,7 +217,7 @@ export default function LiveWorkoutScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['bottom', 'left', 'right']}>
       {/* Top Header */}
       <View style={[styles.topHeader, { paddingTop: safeTop }]}>
         <TouchableOpacity
@@ -222,14 +225,15 @@ export default function LiveWorkoutScreen() {
           style={styles.headerBtn}
           accessibilityRole="button"
           accessibilityLabel="Descartar treino"
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
         >
-          <Text style={styles.discardHeaderLink}>✕ Descartar</Text>
+          <Text style={styles.discardHeaderLink} numberOfLines={1}>✕ Descartar</Text>
         </TouchableOpacity>
 
         {/* Stopwatch indicator */}
         <View style={styles.timerBadge}>
           <View style={styles.pulsingDot} />
-          <Text style={styles.timerText}>
+          <Text style={styles.timerText} numberOfLines={1}>
             {formatElapsedSeconds(activeSession.elapsedSeconds)}
           </Text>
         </View>
@@ -239,8 +243,9 @@ export default function LiveWorkoutScreen() {
           style={styles.finishBtn}
           accessibilityRole="button"
           accessibilityLabel="Finalizar treino"
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
         >
-          <Text style={styles.finishBtnText}>Finalizar</Text>
+          <Text style={styles.finishBtnText} numberOfLines={1}>Finalizar</Text>
         </TouchableOpacity>
       </View>
 
@@ -277,8 +282,8 @@ export default function LiveWorkoutScreen() {
                   {exercise.muscleGroup && (
                     <Badge
                       label={exercise.muscleGroup}
-                      color={DarkTheme.colors.primary}
-                      backgroundColor={DarkTheme.colors.primaryMuted}
+                      color={colors.primary}
+                      backgroundColor={colors.primaryMuted}
                     />
                   )}
                   <Text style={styles.restLabel}>
@@ -409,204 +414,206 @@ export default function LiveWorkoutScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: DarkTheme.colors.background,
-  },
-  loadingContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  loadingText: {
-    color: DarkTheme.colors.textSecondary,
-    fontSize: 16,
-  },
-  topHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: DarkTheme.spacing.lg,
-    paddingVertical: DarkTheme.spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: DarkTheme.colors.cardBorder,
-  },
-  headerBtn: {
-    minWidth: 44,
-    minHeight: 44,
-    justifyContent: 'center',
-  },
-  discardHeaderLink: {
-    color: DarkTheme.colors.danger,
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  timerBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: DarkTheme.colors.surfaceMuted,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: DarkTheme.borderRadius.full,
-    gap: 6,
-  },
-  pulsingDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: DarkTheme.colors.primary,
-  },
-  timerText: {
-    color: DarkTheme.colors.textPrimary,
-    fontSize: 14,
-    fontWeight: '700',
-    fontVariant: ['tabular-nums'],
-  },
-  finishBtn: {
-    backgroundColor: DarkTheme.colors.primary,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: DarkTheme.borderRadius.md,
-    minHeight: 44,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  finishBtnText: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  bannerCard: {
-    paddingHorizontal: DarkTheme.spacing.lg,
-    paddingVertical: DarkTheme.spacing.md,
-    backgroundColor: DarkTheme.colors.card,
-    borderBottomWidth: 1,
-    borderBottomColor: DarkTheme.colors.cardBorder,
-  },
-  routineNameText: {
-    color: DarkTheme.colors.textPrimary,
-    fontSize: 18,
-    fontWeight: '800',
-    marginBottom: 4,
-  },
-  bannerMetricsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  bannerMetric: {
-    color: DarkTheme.colors.textSecondary,
-    fontSize: 13,
-  },
-  bannerMetricDivider: {
-    color: DarkTheme.colors.textDimmed,
-  },
-  emeraldMetric: {
-    color: DarkTheme.colors.primary,
-    fontWeight: '700',
-  },
-  scrollContent: {
-    padding: DarkTheme.spacing.lg,
-    paddingBottom: DarkTheme.spacing.xxl,
-  },
-  scrollPaddingForRestBar: {
-    paddingBottom: 80,
-  },
-  exerciseCard: {
-    backgroundColor: DarkTheme.colors.card,
-    borderColor: DarkTheme.colors.cardBorder,
-    borderWidth: 1,
-    borderRadius: DarkTheme.borderRadius.lg,
-    padding: DarkTheme.spacing.md,
-    marginBottom: DarkTheme.spacing.lg,
-  },
-  exHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: DarkTheme.spacing.sm,
-  },
-  exTitleBlock: {
-    flex: 1,
-  },
-  exNameText: {
-    color: DarkTheme.colors.textPrimary,
-    fontSize: 16,
-    fontWeight: '700',
-    marginBottom: 4,
-  },
-  exBadgesRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  restLabel: {
-    color: DarkTheme.colors.textDimmed,
-    fontSize: 12,
-  },
-  removeExBtn: {
-    minWidth: 44,
-    minHeight: 44,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  removeExIcon: {
-    fontSize: 16,
-  },
-  tableHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: DarkTheme.spacing.sm,
-    paddingVertical: 4,
-    marginBottom: 4,
-  },
-  thText: {
-    color: DarkTheme.colors.textDimmed,
-    fontSize: 11,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-  },
-  thSet: {
-    width: 28,
-    textAlign: 'center',
-    marginRight: 6,
-  },
-  thPrev: {
-    flex: 1.2,
-    paddingHorizontal: 4,
-  },
-  thKg: {
-    width: 60,
-    textAlign: 'center',
-    marginHorizontal: 4,
-  },
-  thReps: {
-    width: 60,
-    textAlign: 'center',
-    marginHorizontal: 4,
-  },
-  thCheck: {
-    width: 44,
-    textAlign: 'center',
-    marginLeft: 4,
-  },
-  addSetBtn: {
-    paddingVertical: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: DarkTheme.borderRadius.sm,
-    backgroundColor: DarkTheme.colors.surfaceMuted,
-    marginTop: 6,
-    minHeight: 44,
-  },
-  addSetText: {
-    color: DarkTheme.colors.primary,
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  addExerciseBtn: {
-    width: '100%',
-    marginBottom: DarkTheme.spacing.lg,
-  },
-});
+const createStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    loadingContainer: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    loadingText: {
+      color: colors.textSecondary,
+      fontSize: 16,
+    },
+    topHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: spacing.lg,
+      paddingBottom: spacing.sm,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.cardBorder,
+    },
+    headerBtn: {
+      minWidth: 44,
+      minHeight: 44,
+      justifyContent: 'center',
+    },
+    discardHeaderLink: {
+      color: colors.danger,
+      fontSize: 14,
+      fontWeight: '600',
+    },
+    timerBadge: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: colors.surfaceMuted,
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      borderRadius: borderRadius.full,
+      gap: 6,
+    },
+    pulsingDot: {
+      width: 8,
+      height: 8,
+      borderRadius: 4,
+      backgroundColor: colors.primary,
+    },
+    timerText: {
+      color: colors.textPrimary,
+      fontSize: 14,
+      fontWeight: '700',
+      fontVariant: ['tabular-nums'],
+    },
+    finishBtn: {
+      backgroundColor: colors.primary,
+      paddingHorizontal: 14,
+      paddingVertical: 8,
+      borderRadius: borderRadius.md,
+      minWidth: 44,
+      minHeight: 44,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    finishBtnText: {
+      color: '#FFFFFF',
+      fontSize: 14,
+      fontWeight: '700',
+    },
+    bannerCard: {
+      paddingHorizontal: spacing.lg,
+      paddingVertical: spacing.md,
+      backgroundColor: colors.card,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.cardBorder,
+    },
+    routineNameText: {
+      color: colors.textPrimary,
+      fontSize: 18,
+      fontWeight: '800',
+      marginBottom: 4,
+    },
+    bannerMetricsRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+    },
+    bannerMetric: {
+      color: colors.textSecondary,
+      fontSize: 13,
+    },
+    bannerMetricDivider: {
+      color: colors.textDimmed,
+    },
+    emeraldMetric: {
+      color: colors.primary,
+      fontWeight: '700',
+    },
+    scrollContent: {
+      padding: spacing.lg,
+      paddingBottom: spacing.xxl,
+    },
+    scrollPaddingForRestBar: {
+      paddingBottom: 80,
+    },
+    exerciseCard: {
+      backgroundColor: colors.card,
+      borderColor: colors.cardBorder,
+      borderWidth: 1,
+      borderRadius: borderRadius.lg,
+      padding: spacing.md,
+      marginBottom: spacing.lg,
+    },
+    exHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'flex-start',
+      marginBottom: spacing.sm,
+    },
+    exTitleBlock: {
+      flex: 1,
+    },
+    exNameText: {
+      color: colors.textPrimary,
+      fontSize: 16,
+      fontWeight: '700',
+      marginBottom: 4,
+    },
+    exBadgesRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+    },
+    restLabel: {
+      color: colors.textDimmed,
+      fontSize: 12,
+    },
+    removeExBtn: {
+      minWidth: 44,
+      minHeight: 44,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    removeExIcon: {
+      fontSize: 16,
+    },
+    tableHeaderRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: spacing.sm,
+      paddingVertical: 4,
+      marginBottom: 4,
+    },
+    thText: {
+      color: colors.textDimmed,
+      fontSize: 11,
+      fontWeight: '700',
+      textTransform: 'uppercase',
+    },
+    thSet: {
+      width: 28,
+      textAlign: 'center',
+      marginRight: 6,
+    },
+    thPrev: {
+      flex: 1.2,
+      paddingHorizontal: 4,
+    },
+    thKg: {
+      width: 60,
+      textAlign: 'center',
+      marginHorizontal: 4,
+    },
+    thReps: {
+      width: 60,
+      textAlign: 'center',
+      marginHorizontal: 4,
+    },
+    thCheck: {
+      width: 44,
+      textAlign: 'center',
+      marginLeft: 4,
+    },
+    addSetBtn: {
+      paddingVertical: 10,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderRadius: borderRadius.sm,
+      backgroundColor: colors.surfaceMuted,
+      marginTop: 6,
+      minHeight: 44,
+    },
+    addSetText: {
+      color: colors.primary,
+      fontSize: 13,
+      fontWeight: '600',
+    },
+    addExerciseBtn: {
+      width: '100%',
+      marginBottom: spacing.lg,
+    },
+  });

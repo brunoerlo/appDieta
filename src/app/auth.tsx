@@ -15,7 +15,6 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useProfile } from '../hooks/useProfile';
 import { useTheme } from '../hooks/useTheme';
 import { useBody } from '../hooks/useBody';
-import { useSafeTopPadding } from '../hooks/useSafeTopPadding';
 import { calculateSuggestedTargets } from '../utils/nutrition';
 import { TrainingGoal, ActivityLevel } from '../database/repositories/interfaces';
 
@@ -24,7 +23,6 @@ export default function AuthScreen() {
   const params = useLocalSearchParams<{ step?: string }>();
   const { colors } = useTheme();
   const { login, register, completeOnboarding, isLoggedIn, onboardingCompleted } = useProfile();
-  const safeTop = useSafeTopPadding(16);
 
   let bodyContext: { saveWeighIn?: (weightKg: number) => Promise<any> } = {};
   try {
@@ -253,23 +251,25 @@ export default function AuthScreen() {
   return (
     <SafeAreaView
       style={[styles.safeArea, { backgroundColor: colors.background }]}
-      edges={['left', 'right', 'bottom']}
+      edges={['top', 'left', 'right', 'bottom']}
     >
       <KeyboardAvoidingView
         style={styles.flex1}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
         <ScrollView
-          contentContainerStyle={[styles.scrollContent, { paddingTop: safeTop }]}
+          contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
-          {/* IronTrack Athletic Branding */}
+          {/* -Frango Athletic Branding */}
           <View style={styles.brandContainer}>
             <View style={[styles.brandLogoCircle, { backgroundColor: colors.primaryMuted }]}>
-              <Text style={[styles.brandLogoText, { color: colors.primary }]}>IT</Text>
+              <Text style={[styles.brandLogoText, { color: colors.primary }]}>-F</Text>
             </View>
-            <Text style={[styles.brandTitle, { color: colors.textPrimary }]}>IronTrack</Text>
+            <Text style={[styles.brandTitle, { color: colors.textPrimary }]}>
+              <Text style={{ color: colors.primary }}>-</Text>Frango
+            </Text>
             <Text style={[styles.brandSubtitle, { color: colors.textSecondary }]}>
               {step === 'auth'
                 ? 'Sua jornada atlética de alta performance começa aqui'
@@ -375,7 +375,7 @@ export default function AuthScreen() {
                       color: colors.textPrimary,
                     },
                   ]}
-                  placeholder="atleta@irontrack.app"
+                  placeholder="atleta@menosfrango.app"
                   placeholderTextColor={colors.textDimmed}
                   value={email}
                   onChangeText={setEmail}
@@ -434,7 +434,7 @@ export default function AuthScreen() {
                   <ActivityIndicator color="#FFFFFF" size="small" />
                 ) : (
                   <Text style={styles.submitBtnText}>
-                    {authMode === 'login' ? 'Entrar no IronTrack' : 'Continuar para Metas ➔'}
+                    {authMode === 'login' ? 'Entrar no -Frango' : 'Continuar para Metas ➔'}
                   </Text>
                 )}
               </TouchableOpacity>
@@ -893,7 +893,7 @@ export default function AuthScreen() {
                 {isOnboardingSubmitting ? (
                   <ActivityIndicator color="#FFFFFF" size="small" />
                 ) : (
-                  <Text style={styles.submitBtnText}>🚀 Concluir e Iniciar IronTrack</Text>
+                  <Text style={styles.submitBtnText}>🚀 Concluir e Iniciar -Frango</Text>
                 )}
               </TouchableOpacity>
             </View>

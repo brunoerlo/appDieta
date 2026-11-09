@@ -69,6 +69,40 @@ describe('Milestone M7: Safe Area, Top Bar, Route Guard and Auth State', () => {
       const padding = useSafeTopPadding(12);
       expect(padding).toBe(59);
     });
+
+    it('empirically verifies live workout modal safe top padding (offset 6) across all iOS and Android profiles', () => {
+      // Scenario A: iPhone 13/14 notch (insets.top = 47) -> 47 + 6 = 53
+      Object.defineProperty(Platform, 'OS', { value: 'ios', configurable: true });
+      mockInsets = { top: 47, left: 0, right: 0, bottom: 34 };
+      expect(useSafeTopPadding(6)).toBe(53);
+
+      // Scenario B: iPhone 15/16 Dynamic Island (insets.top = 59) -> 59 + 6 = 65
+      mockInsets = { top: 59, left: 0, right: 0, bottom: 34 };
+      expect(useSafeTopPadding(6)).toBe(65);
+
+      // Scenario C: iOS fullScreenModal where insets.top reports 0 (fallback 44) -> 44 + 6 = 50
+      mockInsets = { top: 0, left: 0, right: 0, bottom: 0 };
+      expect(useSafeTopPadding(6)).toBe(50);
+
+      // Scenario D: Android standard device (StatusBar = 24, insets.top = 0) -> 24 + 6 = 30
+      Object.defineProperty(Platform, 'OS', { value: 'android', configurable: true });
+      const origHeight = StatusBar.currentHeight;
+      Object.defineProperty(StatusBar, 'currentHeight', { value: 24, configurable: true });
+      mockInsets = { top: 0, left: 0, right: 0, bottom: 0 };
+      expect(useSafeTopPadding(6)).toBe(30);
+
+      // Scenario E: Android with camera cutout (StatusBar = 38, insets.top = 35) -> 38 + 6 = 44
+      Object.defineProperty(StatusBar, 'currentHeight', { value: 38, configurable: true });
+      mockInsets = { top: 35, left: 0, right: 0, bottom: 0 };
+      expect(useSafeTopPadding(6)).toBe(44);
+
+      // Scenario F: Android zero-inset modal fallback (StatusBar = 0, insets.top = 0) -> 24 + 6 = 30
+      Object.defineProperty(StatusBar, 'currentHeight', { value: 0, configurable: true });
+      mockInsets = { top: 0, left: 0, right: 0, bottom: 0 };
+      expect(useSafeTopPadding(6)).toBe(30);
+
+      Object.defineProperty(StatusBar, 'currentHeight', { value: origHeight, configurable: true });
+    });
   });
 
   describe('2. AppTopBar Component Structure', () => {

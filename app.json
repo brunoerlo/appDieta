@@ -1,12 +1,12 @@
 {
   "expo": {
-    "name": "IronTrack",
-    "slug": "irontrack",
+    "name": "-Frango",
+    "slug": "MenosFrango",
     "version": "1.0.0",
     "scheme": "fitnessapp",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "dark",
+    "userInterfaceStyle": "automatic",
     "ios": {
       "supportsTablet": true
     },

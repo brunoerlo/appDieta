@@ -14,11 +14,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useProfile } from '../../hooks/useProfile';
 import { useTheme } from '../../hooks/useTheme';
-import { useSafeTopPadding } from '../../hooks/useSafeTopPadding';
 
 export default function ProfileScreen() {
   const router = useRouter();
-  const safeTop = useSafeTopPadding(8);
   const { colors, toggleTheme, isDark } = useTheme();
   const { profile, updateProfile, logout, isLoading } = useProfile();
   const [loggingOut, setLoggingOut] = useState(false);
@@ -112,7 +110,7 @@ export default function ProfileScreen() {
   const handleLogout = () => {
     Alert.alert(
       'Sair da Conta',
-      'Tem certeza de que deseja sair da sua conta no IronTrack? Seus dados e treinos permanecerão salvos com segurança neste dispositivo.',
+      'Tem certeza de que deseja sair da sua conta no -Frango? Seus dados e treinos permanecerão salvos com segurança neste dispositivo.',
       [
         {
           text: 'Cancelar',
@@ -139,7 +137,7 @@ export default function ProfileScreen() {
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]} edges={['top']}>
       {/* Screen Title */}
-      <View style={[styles.topHeader, { paddingTop: safeTop }]}>
+      <View style={styles.topHeader}>
         <Text style={[styles.screenTitle, { color: colors.textPrimary }]}>Perfil & Metas</Text>
       </View>
 
@@ -165,12 +163,12 @@ export default function ProfileScreen() {
                 style={[styles.athleteEmailInput, { color: colors.textSecondary }]}
                 value={email}
                 onChangeText={setEmail}
-                placeholder="atleta@irontrack.app"
+                placeholder="atleta@menosfrango.app"
                 placeholderTextColor={colors.textDimmed}
                 keyboardType="email-address"
               />
               <View style={[styles.roleBadge, { backgroundColor: colors.surfaceMuted }]}>
-                <Text style={[styles.roleText, { color: colors.primary }]}>⚡ Atleta IronTrack</Text>
+                <Text style={[styles.roleText, { color: colors.primary }]}>⚡ Atleta -Frango</Text>
               </View>
             </View>
           </View>

@@ -405,7 +405,7 @@ describe('Relational Integrity, Atomic Transactions & WAL Concurrency Tests', ()
     it('rolls back schema and version on failed migration transaction', async () => {
       // Test simulated migration failure
       const initialVersion = await db.getFirstAsync<{ user_version: number }>('PRAGMA user_version;');
-      expect(initialVersion?.user_version).toBe(2);
+      expect(initialVersion?.user_version).toBe(3);
 
       // Attempt a transactional migration that fails halfway
       await expect(
@@ -423,9 +423,9 @@ describe('Relational Integrity, Atomic Transactions & WAL Concurrency Tests', ()
       );
       expect(tableCheck).toBeNull();
 
-      // Version remains 2
+      // Version remains 3
       const finalVersion = await db.getFirstAsync<{ user_version: number }>('PRAGMA user_version;');
-      expect(finalVersion?.user_version).toBe(2);
+      expect(finalVersion?.user_version).toBe(3);
     });
   });
 

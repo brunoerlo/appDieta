@@ -1,7 +1,9 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
-import { DarkTheme } from '../../constants/theme';
+import { borderRadius, ThemeColors } from '../../constants/theme';
+import { useTheme } from '../../hooks/useTheme';
 import { DietLogEntry } from '../../types/domain';
+import { isBeverageEntry } from '../../utils/nutrition';
 
 export interface FoodLogRowProps {
   entry: DietLogEntry;
@@ -14,6 +16,12 @@ export const FoodLogRow: React.FC<FoodLogRowProps> = ({
   onEdit,
   onDelete,
 }) => {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
+
+  const isDrink = isBeverageEntry(entry);
+  const unitLabel = isDrink ? 'ml' : 'g';
+
   const handleDelete = () => {
     Alert.alert(
       'Remover alimento',
@@ -33,7 +41,7 @@ export const FoodLogRow: React.FC<FoodLogRowProps> = ({
           {entry.foodName}
         </Text>
         <Text style={styles.macroDetails}>
-          {entry.servingGrams}g •{' '}
+          {entry.servingGrams}{unitLabel} •{' '}
           <Text style={styles.caloriesText}>{Math.round(entry.calories)} kcal</Text> • P:{' '}
           {entry.protein}g C: {entry.carbs}g G: {entry.fat}g
         </Text>
@@ -63,50 +71,52 @@ export const FoodLogRow: React.FC<FoodLogRowProps> = ({
   );
 };
 
-const styles = StyleSheet.create({
-  container: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: DarkTheme.colors.cardBorder,
-  },
-  infoColumn: {
-    flex: 1,
-    marginRight: 12,
-  },
-  foodName: {
-    color: DarkTheme.colors.textPrimary,
-    fontSize: 14,
-    fontWeight: '600',
-    marginBottom: 3,
-  },
-  macroDetails: {
-    color: DarkTheme.colors.textSecondary,
-    fontSize: 12,
-  },
-  caloriesText: {
-    color: DarkTheme.colors.calories,
-    fontWeight: '600',
-  },
-  actionsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  actionBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: DarkTheme.borderRadius.sm,
-    backgroundColor: DarkTheme.colors.surfaceMuted,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  editIcon: {
-    fontSize: 13,
-  },
-  deleteIcon: {
-    fontSize: 13,
-  },
-});
+const createStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    container: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingVertical: 10,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.cardBorder,
+    },
+    infoColumn: {
+      flex: 1,
+      marginRight: 12,
+    },
+    foodName: {
+      color: colors.textPrimary,
+      fontSize: 14,
+      fontWeight: '600',
+      marginBottom: 3,
+    },
+    macroDetails: {
+      color: colors.textSecondary,
+      fontSize: 12,
+    },
+    caloriesText: {
+      color: colors.calories,
+      fontWeight: '600',
+    },
+    actionsRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+    },
+    actionBtn: {
+      width: 32,
+      height: 32,
+      borderRadius: borderRadius.sm,
+      backgroundColor: colors.surfaceMuted,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    editIcon: {
+      fontSize: 13,
+    },
+    deleteIcon: {
+      fontSize: 13,
+    },
+  });
+

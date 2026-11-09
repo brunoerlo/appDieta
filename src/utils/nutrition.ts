@@ -266,3 +266,82 @@ export function calculateSuggestedTargets(input: SuggestedTargetsInput): Suggest
   };
 }
 
+/**
+ * Detects whether a food item or log entry represents a liquid / beverage.
+ * Matches beverage category, drink ID prefix, unit name containing 'ml',
+ * or common beverage keywords in Portuguese (suco, café, leite, etc.).
+ */
+export function isBeverageEntry(entry: {
+  foodId?: string;
+  foodName?: string;
+  id?: string;
+  name?: string;
+  category?: string;
+  servingUnitName?: string;
+}): boolean {
+  if (entry.foodId?.startsWith('drink-') || entry.id?.startsWith('drink-')) {
+    return true;
+  }
+  if (entry.category === 'Bebidas') {
+    return true;
+  }
+  if (entry.servingUnitName && entry.servingUnitName.toLowerCase().includes('ml')) {
+    return true;
+  }
+
+  const rawName = entry.foodName || entry.name || '';
+  if (!rawName) return false;
+
+  const lower = rawName.toLowerCase();
+  const normalized = normalizeFoodText(rawName);
+
+  // Handle solid/canned exceptions (e.g. "Atum em água", "Doce de leite", "Leite em pó")
+  if (/\bem\s+agua\b/.test(normalized)) {
+    return false;
+  }
+  if (/\b(doce de leite|leite em po)\b/.test(normalized)) {
+    return false;
+  }
+
+  // Standalone keywords with word boundaries on normalized text
+  const keywordRegex =
+    /\b(suco|sucos|cafe|cafes|leite|leites|refrigerante|refrigerantes|agua|aguas|cerveja|cervejas|bebida|bebidas|shake|shakes|cha|chas|vitamina|vitaminas|whey|isotonic|isotonico|isotonicos|energetico|energeticos|drink|drinks|kombucha|kombuchas|guarana|coca|cola|pepsi|vinho|vinhos|gatorade|limonada|mate|red bull|cappuccino|espresso|caldo de cana)\b/;
+
+  if (keywordRegex.test(normalized)) {
+    return true;
+  }
+
+  // Match explicit volume notation (e.g., "(300ml)" or "200 ml")
+  if (/\b\d+\s*ml\b/i.test(lower)) {
+    return true;
+  }
+
+  return false;
+}
+
+/**
+ * Returns the source badge label for a food item according to category and source priority.
+ * Bebidas must take precedence over recipe / meal checks.
+ */
+export function getFoodBadgeLabel(item: {
+  category?: string;
+  source: string;
+}): 'Bebida' | 'Refeição' | 'TACO' | 'OFF' | 'Custom' | null {
+  if (item.category === 'Bebidas') {
+    return 'Bebida';
+  }
+  if (item.category === 'Refeições' || item.source === 'recipe') {
+    return 'Refeição';
+  }
+  switch (item.source) {
+    case 'taco':
+      return 'TACO';
+    case 'openfoodfacts':
+      return 'OFF';
+    case 'custom':
+      return 'Custom';
+    default:
+      return null;
+  }
+}
+

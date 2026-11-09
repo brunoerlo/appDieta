@@ -122,4 +122,7 @@ export function getTheme(mode: ThemeMode = 'dark'): Theme {
   return mode === 'light' ? LightTheme : DarkTheme;
 }
 
+export const spacing = DarkTheme.spacing;
+export const borderRadius = DarkTheme.borderRadius;
+
 

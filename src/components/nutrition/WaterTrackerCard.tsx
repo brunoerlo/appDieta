@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
-import { DarkTheme } from '../../constants/theme';
+import { spacing, borderRadius, ThemeColors } from '../../constants/theme';
+import { useTheme } from '../../hooks/useTheme';
 import { Card } from '../ui/Card';
 import { ProgressBar } from '../ui/ProgressBar';
 
@@ -19,6 +20,9 @@ export const WaterTrackerCard: React.FC<WaterTrackerCardProps> = ({
   onDecrement,
   onReset,
 }) => {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
+
   const safeTarget = targetMl > 0 ? targetMl : 2500;
   const progress = Math.max(0, Math.min(1, consumedMl / safeTarget));
   const percentText = `${Math.round(progress * 100)}%`;
@@ -52,8 +56,8 @@ export const WaterTrackerCard: React.FC<WaterTrackerCardProps> = ({
       <View style={styles.progressRow}>
         <ProgressBar
           progress={progress}
-          color={DarkTheme.colors.water}
-          trackColor={DarkTheme.colors.waterTrack}
+          color={colors.water}
+          trackColor={colors.waterTrack}
           height={8}
           style={styles.progressBar}
         />
@@ -104,91 +108,93 @@ export const WaterTrackerCard: React.FC<WaterTrackerCardProps> = ({
   );
 };
 
-const styles = StyleSheet.create({
-  container: {
-    marginHorizontal: DarkTheme.spacing.md,
-    marginVertical: DarkTheme.spacing.sm,
-  },
-  headerRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 10,
-  },
-  titleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  waterIcon: {
-    fontSize: 16,
-    marginRight: 6,
-  },
-  title: {
-    color: DarkTheme.colors.textSecondary,
-    fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 1,
-  },
-  amountText: {
-    color: DarkTheme.colors.textPrimary,
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  targetText: {
-    color: DarkTheme.colors.textDimmed,
-    fontSize: 12,
-    fontWeight: '500',
-  },
-  progressRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    marginBottom: 14,
-  },
-  progressBar: {
-    flex: 1,
-  },
-  percentText: {
-    color: DarkTheme.colors.water,
-    fontSize: 12,
-    fontWeight: '700',
-    width: 36,
-    textAlign: 'right',
-  },
-  buttonsRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: 8,
-  },
-  quickButton: {
-    flex: 1,
-    backgroundColor: DarkTheme.colors.surfaceMuted,
-    borderColor: DarkTheme.colors.cardBorder,
-    borderWidth: 1,
-    borderRadius: DarkTheme.borderRadius.sm,
-    paddingVertical: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  quickButtonText: {
-    color: DarkTheme.colors.textPrimary,
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  undoButton: {
-    backgroundColor: 'rgba(244, 63, 94, 0.1)',
-    borderColor: 'rgba(244, 63, 94, 0.3)',
-  },
-  resetButton: {
-    backgroundColor: DarkTheme.colors.surfaceMuted,
-    borderColor: DarkTheme.colors.cardBorder,
-  },
-  resetButtonText: {
-    color: DarkTheme.colors.textSecondary,
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  disabledText: {
-    color: DarkTheme.colors.textDimmed,
-  },
-});
+const createStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    container: {
+      marginHorizontal: spacing.md,
+      marginVertical: spacing.sm,
+    },
+    headerRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 10,
+    },
+    titleRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+    },
+    waterIcon: {
+      fontSize: 16,
+      marginRight: 6,
+    },
+    title: {
+      color: colors.textSecondary,
+      fontSize: 11,
+      fontWeight: '700',
+      letterSpacing: 1,
+    },
+    amountText: {
+      color: colors.textPrimary,
+      fontSize: 14,
+      fontWeight: '700',
+    },
+    targetText: {
+      color: colors.textDimmed,
+      fontSize: 12,
+      fontWeight: '500',
+    },
+    progressRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+      marginBottom: 14,
+    },
+    progressBar: {
+      flex: 1,
+    },
+    percentText: {
+      color: colors.water,
+      fontSize: 12,
+      fontWeight: '700',
+      width: 36,
+      textAlign: 'right',
+    },
+    buttonsRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      gap: 8,
+    },
+    quickButton: {
+      flex: 1,
+      backgroundColor: colors.surfaceMuted,
+      borderColor: colors.cardBorder,
+      borderWidth: 1,
+      borderRadius: borderRadius.sm,
+      paddingVertical: 8,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    quickButtonText: {
+      color: colors.textPrimary,
+      fontSize: 12,
+      fontWeight: '700',
+    },
+    undoButton: {
+      backgroundColor: colors.dangerMuted,
+      borderColor: colors.danger,
+    },
+    resetButton: {
+      backgroundColor: colors.surfaceMuted,
+      borderColor: colors.cardBorder,
+    },
+    resetButtonText: {
+      color: colors.textSecondary,
+      fontSize: 12,
+      fontWeight: '700',
+    },
+    disabledText: {
+      color: colors.textDimmed,
+    },
+  });
+

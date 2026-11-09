@@ -9,7 +9,8 @@ import {
   StyleProp,
   View,
 } from 'react-native';
-import { DarkTheme } from '../../constants/theme';
+import { borderRadius } from '../../constants/theme';
+import { useTheme } from '../../hooks/useTheme';
 
 export interface ButtonProps {
   title: string;
@@ -34,22 +35,24 @@ export const Button: React.FC<ButtonProps> = ({
   style,
   textStyle,
 }) => {
+  const { colors } = useTheme();
+
   const getContainerStyle = (): ViewStyle => {
     switch (variant) {
       case 'secondary':
         return {
-          backgroundColor: DarkTheme.colors.surfaceMuted,
-          borderColor: DarkTheme.colors.cardBorder,
+          backgroundColor: colors.surfaceMuted,
+          borderColor: colors.cardBorder,
           borderWidth: 1,
         };
       case 'destructive':
         return {
-          backgroundColor: DarkTheme.colors.danger,
+          backgroundColor: colors.danger,
         };
       case 'outline':
         return {
           backgroundColor: 'transparent',
-          borderColor: DarkTheme.colors.primary,
+          borderColor: colors.primary,
           borderWidth: 1,
         };
       case 'ghost':
@@ -59,7 +62,7 @@ export const Button: React.FC<ButtonProps> = ({
       case 'primary':
       default:
         return {
-          backgroundColor: DarkTheme.colors.primary,
+          backgroundColor: colors.primary,
         };
     }
   };
@@ -67,13 +70,13 @@ export const Button: React.FC<ButtonProps> = ({
   const getTextColor = (): string => {
     switch (variant) {
       case 'secondary':
-        return DarkTheme.colors.textPrimary;
+        return colors.textPrimary;
       case 'destructive':
         return '#FFFFFF';
       case 'outline':
-        return DarkTheme.colors.primary;
+        return colors.primary;
       case 'ghost':
-        return DarkTheme.colors.textSecondary;
+        return colors.textSecondary;
       case 'primary':
       default:
         return '#FFFFFF';
@@ -83,12 +86,12 @@ export const Button: React.FC<ButtonProps> = ({
   const getSizeStyle = (): ViewStyle => {
     switch (size) {
       case 'sm':
-        return { paddingVertical: 6, paddingHorizontal: 12, borderRadius: DarkTheme.borderRadius.sm };
+        return { paddingVertical: 6, paddingHorizontal: 12, borderRadius: borderRadius.sm };
       case 'lg':
-        return { paddingVertical: 14, paddingHorizontal: 24, borderRadius: DarkTheme.borderRadius.md };
+        return { paddingVertical: 14, paddingHorizontal: 24, borderRadius: borderRadius.md };
       case 'md':
       default:
-        return { paddingVertical: 10, paddingHorizontal: 16, borderRadius: DarkTheme.borderRadius.md };
+        return { paddingVertical: 10, paddingHorizontal: 16, borderRadius: borderRadius.md };
     }
   };
 

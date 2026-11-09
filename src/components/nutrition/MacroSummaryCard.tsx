@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { DarkTheme } from '../../constants/theme';
+import { spacing, borderRadius, ThemeColors } from '../../constants/theme';
+import { useTheme } from '../../hooks/useTheme';
 import { Card } from '../ui/Card';
 import { ProgressBar } from '../ui/ProgressBar';
 
@@ -20,6 +21,9 @@ export const MacroSummaryCard: React.FC<MacroSummaryCardProps> = ({
   consumed,
   targets,
 }) => {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
+
   const targetCalories = targets.calories > 0 ? targets.calories : 2000;
   const remainingCalories = Number((targetCalories - consumed.calories).toFixed(0));
   const calorieProgress = targetCalories > 0 ? consumed.calories / targetCalories : 0;
@@ -50,8 +54,8 @@ export const MacroSummaryCard: React.FC<MacroSummaryCardProps> = ({
             {
               backgroundColor:
                 remainingCalories >= 0
-                  ? DarkTheme.colors.primaryMuted
-                  : DarkTheme.colors.dangerMuted,
+                  ? colors.primaryMuted
+                  : colors.dangerMuted,
             },
           ]}
         >
@@ -61,8 +65,8 @@ export const MacroSummaryCard: React.FC<MacroSummaryCardProps> = ({
               {
                 color:
                   remainingCalories >= 0
-                    ? DarkTheme.colors.primary
-                    : DarkTheme.colors.danger,
+                    ? colors.primary
+                    : colors.danger,
               },
             ]}
           >
@@ -77,9 +81,10 @@ export const MacroSummaryCard: React.FC<MacroSummaryCardProps> = ({
       <View style={styles.calorieBarContainer}>
         <ProgressBar
           progress={calorieProgress}
-          color={DarkTheme.colors.calories}
-          trackColor={DarkTheme.colors.caloriesTrack}
+          color={colors.calories}
+          trackColor={colors.caloriesTrack}
           height={10}
+          style={styles.calorieProgressBar}
         />
         <Text style={styles.caloriePercentText}>
           {Math.round(calorieProgress * 100)}%
@@ -100,8 +105,8 @@ export const MacroSummaryCard: React.FC<MacroSummaryCardProps> = ({
           </Text>
           <ProgressBar
             progress={proteinProgress}
-            color={DarkTheme.colors.protein}
-            trackColor={DarkTheme.colors.proteinTrack}
+            color={colors.protein}
+            trackColor={colors.proteinTrack}
             height={6}
             style={styles.macroBar}
           />
@@ -119,8 +124,8 @@ export const MacroSummaryCard: React.FC<MacroSummaryCardProps> = ({
           </Text>
           <ProgressBar
             progress={carbsProgress}
-            color={DarkTheme.colors.carbs}
-            trackColor={DarkTheme.colors.carbsTrack}
+            color={colors.carbs}
+            trackColor={colors.carbsTrack}
             height={6}
             style={styles.macroBar}
           />
@@ -138,8 +143,8 @@ export const MacroSummaryCard: React.FC<MacroSummaryCardProps> = ({
           </Text>
           <ProgressBar
             progress={fatProgress}
-            color={DarkTheme.colors.fat}
-            trackColor={DarkTheme.colors.fatTrack}
+            color={colors.fat}
+            trackColor={colors.fatTrack}
             height={6}
             style={styles.macroBar}
           />
@@ -152,97 +157,102 @@ export const MacroSummaryCard: React.FC<MacroSummaryCardProps> = ({
   );
 };
 
-const styles = StyleSheet.create({
-  container: {
-    marginHorizontal: DarkTheme.spacing.md,
-    marginVertical: DarkTheme.spacing.sm,
-  },
-  headerRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-  },
-  eyebrow: {
-    color: DarkTheme.colors.textSecondary,
-    fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 1,
-    marginBottom: 4,
-  },
-  calorieRow: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-  },
-  calorieValue: {
-    color: DarkTheme.colors.textPrimary,
-    fontSize: 26,
-    fontWeight: '800',
-  },
-  calorieTarget: {
-    color: DarkTheme.colors.textDimmed,
-    fontSize: 14,
-    fontWeight: '600',
-    marginLeft: 6,
-  },
-  remainingBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: DarkTheme.borderRadius.full,
-  },
-  remainingText: {
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  calorieBarContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 12,
-    gap: 10,
-  },
-  caloriePercentText: {
-    color: DarkTheme.colors.calories,
-    fontSize: 12,
-    fontWeight: '700',
-    width: 36,
-    textAlign: 'right',
-  },
-  divider: {
-    height: 1,
-    backgroundColor: DarkTheme.colors.cardBorder,
-    marginVertical: 14,
-  },
-  macrosRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: 8,
-  },
-  macroColumn: {
-    flex: 1,
-  },
-  macroTitle: {
-    color: DarkTheme.colors.textSecondary,
-    fontSize: 10,
-    fontWeight: '700',
-    letterSpacing: 0.5,
-  },
-  macroAmount: {
-    color: DarkTheme.colors.textPrimary,
-    fontSize: 13,
-    fontWeight: '700',
-    marginTop: 2,
-    marginBottom: 6,
-  },
-  macroTarget: {
-    color: DarkTheme.colors.textDimmed,
-    fontSize: 11,
-    fontWeight: '500',
-  },
-  macroBar: {
-    marginBottom: 4,
-  },
-  macroPercent: {
-    color: DarkTheme.colors.textSecondary,
-    fontSize: 10,
-    fontWeight: '600',
-  },
-});
+const createStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    container: {
+      marginHorizontal: spacing.md,
+      marginVertical: spacing.sm,
+    },
+    headerRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'flex-start',
+    },
+    eyebrow: {
+      color: colors.textSecondary,
+      fontSize: 11,
+      fontWeight: '700',
+      letterSpacing: 1,
+      marginBottom: 4,
+    },
+    calorieRow: {
+      flexDirection: 'row',
+      alignItems: 'baseline',
+    },
+    calorieValue: {
+      color: colors.textPrimary,
+      fontSize: 26,
+      fontWeight: '800',
+    },
+    calorieTarget: {
+      color: colors.textDimmed,
+      fontSize: 14,
+      fontWeight: '600',
+      marginLeft: 6,
+    },
+    remainingBadge: {
+      paddingHorizontal: 10,
+      paddingVertical: 5,
+      borderRadius: borderRadius.full,
+    },
+    remainingText: {
+      fontSize: 12,
+      fontWeight: '700',
+    },
+    calorieBarContainer: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginTop: 12,
+      gap: 10,
+    },
+    calorieProgressBar: {
+      flex: 1,
+    },
+    caloriePercentText: {
+      color: colors.calories,
+      fontSize: 12,
+      fontWeight: '700',
+      width: 36,
+      textAlign: 'right',
+    },
+    divider: {
+      height: 1,
+      backgroundColor: colors.cardBorder,
+      marginVertical: 14,
+    },
+    macrosRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      gap: 8,
+    },
+    macroColumn: {
+      flex: 1,
+    },
+    macroTitle: {
+      color: colors.textSecondary,
+      fontSize: 10,
+      fontWeight: '700',
+      letterSpacing: 0.5,
+    },
+    macroAmount: {
+      color: colors.textPrimary,
+      fontSize: 13,
+      fontWeight: '700',
+      marginTop: 2,
+      marginBottom: 6,
+    },
+    macroTarget: {
+      color: colors.textDimmed,
+      fontSize: 11,
+      fontWeight: '500',
+    },
+    macroBar: {
+      marginBottom: 4,
+    },
+    macroPercent: {
+      color: colors.textSecondary,
+      fontSize: 10,
+      fontWeight: '600',
+    },
+  });
+

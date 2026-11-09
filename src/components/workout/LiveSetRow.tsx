@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity } from 'react-native';
-import { DarkTheme } from '../../constants/theme';
+import { spacing, borderRadius, ThemeColors } from '../../constants/theme';
+import { useTheme } from '../../hooks/useTheme';
 
 export interface LiveSetRowProps {
   setNumber: number;
@@ -27,6 +28,9 @@ export const LiveSetRow: React.FC<LiveSetRowProps> = ({
   onDelete,
   onCopyPrevious,
 }) => {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
+
   const handleWeightChange = (text: string) => {
     const cleaned = text.replace(',', '.');
     const parsed = parseFloat(cleaned);
@@ -76,7 +80,7 @@ export const LiveSetRow: React.FC<LiveSetRowProps> = ({
           keyboardType="decimal-pad"
           value={weightKg > 0 ? weightKg.toString() : ''}
           placeholder="0"
-          placeholderTextColor={DarkTheme.colors.textDimmed}
+          placeholderTextColor={colors.textDimmed}
           onChangeText={handleWeightChange}
           accessibilityLabel={`Peso da série ${setNumber} em quilogramas`}
         />
@@ -89,7 +93,7 @@ export const LiveSetRow: React.FC<LiveSetRowProps> = ({
           keyboardType="number-pad"
           value={reps > 0 ? reps.toString() : ''}
           placeholder="0"
-          placeholderTextColor={DarkTheme.colors.textDimmed}
+          placeholderTextColor={colors.textDimmed}
           onChangeText={handleRepsChange}
           accessibilityLabel={`Repetições da série ${setNumber}`}
         />
@@ -113,96 +117,98 @@ export const LiveSetRow: React.FC<LiveSetRowProps> = ({
   );
 };
 
-const styles = StyleSheet.create({
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: DarkTheme.colors.card,
-    borderColor: DarkTheme.colors.cardBorder,
-    borderWidth: 1,
-    borderRadius: DarkTheme.borderRadius.md,
-    paddingVertical: 6,
-    paddingHorizontal: DarkTheme.spacing.sm,
-    marginBottom: 6,
-    minHeight: 52,
-  },
-  completedRow: {
-    backgroundColor: 'rgba(16, 185, 129, 0.08)',
-    borderLeftWidth: 3,
-    borderLeftColor: DarkTheme.colors.primary,
-    borderColor: DarkTheme.colors.cardBorder,
-  },
-  setNumberBadge: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: DarkTheme.colors.surfaceMuted,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 6,
-  },
-  completedBadge: {
-    backgroundColor: DarkTheme.colors.primary,
-  },
-  setNumberText: {
-    color: DarkTheme.colors.textSecondary,
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  completedBadgeText: {
-    color: '#FFFFFF',
-  },
-  previousCol: {
-    flex: 1.2,
-    paddingHorizontal: 4,
-    justifyContent: 'center',
-  },
-  previousText: {
-    color: DarkTheme.colors.textDimmed,
-    fontSize: 12,
-    fontWeight: '500',
-  },
-  inputWrapper: {
-    width: 60,
-    marginHorizontal: 4,
-  },
-  input: {
-    backgroundColor: DarkTheme.colors.surfaceMuted,
-    borderColor: DarkTheme.colors.cardBorder,
-    borderWidth: 1,
-    borderRadius: DarkTheme.borderRadius.sm,
-    color: DarkTheme.colors.textPrimary,
-    fontSize: 14,
-    fontWeight: '700',
-    textAlign: 'center',
-    paddingVertical: 6,
-    paddingHorizontal: 4,
-    minHeight: 40,
-  },
-  completedInput: {
-    color: DarkTheme.colors.textSecondary,
-  },
-  checkBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: DarkTheme.colors.surfaceMuted,
-    borderWidth: 1,
-    borderColor: DarkTheme.colors.cardBorder,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginLeft: 4,
-  },
-  checkBtnCompleted: {
-    backgroundColor: DarkTheme.colors.primary,
-    borderColor: DarkTheme.colors.primary,
-  },
-  checkIcon: {
-    color: DarkTheme.colors.textDimmed,
-    fontSize: 18,
-    fontWeight: '700',
-  },
-  checkIconCompleted: {
-    color: '#FFFFFF',
-  },
-});
+const createStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    row: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: colors.card,
+      borderColor: colors.cardBorder,
+      borderWidth: 1,
+      borderRadius: borderRadius.md,
+      paddingVertical: 6,
+      paddingHorizontal: spacing.sm,
+      marginBottom: 6,
+      minHeight: 52,
+    },
+    completedRow: {
+      backgroundColor: colors.primaryMuted,
+      borderLeftWidth: 3,
+      borderLeftColor: colors.primary,
+      borderColor: colors.cardBorder,
+    },
+    setNumberBadge: {
+      width: 28,
+      height: 28,
+      borderRadius: 14,
+      backgroundColor: colors.surfaceMuted,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginRight: 6,
+    },
+    completedBadge: {
+      backgroundColor: colors.primary,
+    },
+    setNumberText: {
+      color: colors.textSecondary,
+      fontSize: 12,
+      fontWeight: '700',
+    },
+    completedBadgeText: {
+      color: '#FFFFFF',
+    },
+    previousCol: {
+      flex: 1.2,
+      paddingHorizontal: 4,
+      justifyContent: 'center',
+    },
+    previousText: {
+      color: colors.textDimmed,
+      fontSize: 12,
+      fontWeight: '500',
+    },
+    inputWrapper: {
+      width: 60,
+      marginHorizontal: 4,
+    },
+    input: {
+      backgroundColor: colors.surfaceMuted,
+      borderColor: colors.cardBorder,
+      borderWidth: 1,
+      borderRadius: borderRadius.sm,
+      color: colors.textPrimary,
+      fontSize: 14,
+      fontWeight: '700',
+      textAlign: 'center',
+      paddingVertical: 6,
+      paddingHorizontal: 4,
+      minHeight: 40,
+    },
+    completedInput: {
+      color: colors.textSecondary,
+    },
+    checkBtn: {
+      width: 44,
+      height: 44,
+      borderRadius: 22,
+      backgroundColor: colors.surfaceMuted,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginLeft: 4,
+    },
+    checkBtnCompleted: {
+      backgroundColor: colors.primary,
+      borderColor: colors.primary,
+    },
+    checkIcon: {
+      color: colors.textDimmed,
+      fontSize: 18,
+      fontWeight: '700',
+    },
+    checkIconCompleted: {
+      color: '#FFFFFF',
+    },
+  });
+

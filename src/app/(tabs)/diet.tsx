@@ -3,7 +3,7 @@ import { ScrollView, StyleSheet, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useDiet } from '../../hooks/useDiet';
-import { DarkTheme } from '../../constants/theme';
+import { useTheme } from '../../hooks/useTheme';
 import { DateSelectorHeader } from '../../components/nutrition/DateSelectorHeader';
 import { MacroSummaryCard } from '../../components/nutrition/MacroSummaryCard';
 import { WaterTrackerCard } from '../../components/nutrition/WaterTrackerCard';
@@ -29,6 +29,7 @@ export default function DietTabScreen() {
     refresh,
   } = useDiet();
 
+  const { colors } = useTheme();
   const [editingEntry, setEditingEntry] = useState<DietLogEntry | null>(null);
   const [portionModalVisible, setPortionModalVisible] = useState(false);
 
@@ -79,7 +80,7 @@ export default function DietTabScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'left', 'right']}>
       {/* Date Stepper Header */}
       <DateSelectorHeader
         selectedDate={selectedDate}
@@ -94,7 +95,7 @@ export default function DietTabScreen() {
           <RefreshControl
             refreshing={isRefreshing}
             onRefresh={refresh}
-            tintColor={DarkTheme.colors.primary}
+            tintColor={colors.primary}
           />
         }
       >
@@ -180,7 +181,6 @@ export default function DietTabScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: DarkTheme.colors.background,
   },
   scrollContent: {
     paddingBottom: 24,

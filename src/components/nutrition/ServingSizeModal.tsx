@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   Modal,
   View,
@@ -10,7 +10,8 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
-import { DarkTheme } from '../../constants/theme';
+import { spacing, borderRadius, ThemeColors } from '../../constants/theme';
+import { useTheme } from '../../hooks/useTheme';
 import { FoodItem, MealType } from '../../types/domain';
 import { MEAL_TYPE_NAMES } from '../../utils/nutrition';
 import { Button } from '../ui/Button';
@@ -49,9 +50,19 @@ const ServingSizeModalContent: React.FC<ServingSizeModalContentProps> = ({
   onClose,
   onConfirm,
 }) => {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
+
   const [grams, setGrams] = useState<number>(initialGrams || food.servingGrams || 100);
   const [selectedMeal, setSelectedMeal] = useState<MealType>(initialMealType);
   const [saving, setSaving] = useState(false);
+
+  const isDrink =
+    food.category === 'Bebidas' ||
+    (food.servingUnitName && food.servingUnitName.includes('ml')) ||
+    food.id.startsWith('drink-');
+  const unitLabel = isDrink ? 'ml' : 'g';
+  const presets = isDrink ? [100, 200, 350, 500] : [50, 100, 150, 200];
 
   const baseGrams = food.servingGrams > 0 ? food.servingGrams : 100;
   const ratio = (grams > 0 ? grams : 0) / baseGrams;
@@ -92,7 +103,7 @@ const ServingSizeModalContent: React.FC<ServingSizeModalContentProps> = ({
           {food.name}
         </Text>
         <Text style={styles.foodSubtitle}>
-          Base: {baseGrams}g • {food.calories} kcal ({food.source.toUpperCase()})
+          Base: {baseGrams}{unitLabel} • {food.calories} kcal ({food.source.toUpperCase()})
         </Text>
 
         {/* Meal Type Selector Chips */}
@@ -133,7 +144,7 @@ const ServingSizeModalContent: React.FC<ServingSizeModalContentProps> = ({
               keyboardType="numeric"
               selectTextOnFocus
             />
-            <Text style={styles.gramSuffix}>g</Text>
+            <Text style={styles.gramSuffix}>{unitLabel}</Text>
           </View>
 
           <TouchableOpacity
@@ -147,7 +158,7 @@ const ServingSizeModalContent: React.FC<ServingSizeModalContentProps> = ({
 
         {/* Preset Chips */}
         <View style={styles.presetRow}>
-          {[50, 100, 150, 200].map((preset) => (
+          {presets.map((preset) => (
             <TouchableOpacity
               key={preset}
               style={[styles.presetChip, grams === preset && styles.presetChipActive]}
@@ -157,7 +168,7 @@ const ServingSizeModalContent: React.FC<ServingSizeModalContentProps> = ({
               <Text
                 style={[styles.presetText, grams === preset && styles.presetTextActive]}
               >
-                {preset}g
+                {preset}{unitLabel}
               </Text>
             </TouchableOpacity>
           ))}
@@ -225,165 +236,167 @@ export const ServingSizeModal: React.FC<ServingSizeModalProps> = ({
   );
 };
 
-const styles = StyleSheet.create({
-  backdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.75)',
-    justifyContent: 'flex-end',
-  },
-  sheetContainer: {
-    backgroundColor: DarkTheme.colors.card,
-    borderTopLeftRadius: DarkTheme.borderRadius.lg,
-    borderTopRightRadius: DarkTheme.borderRadius.lg,
-    borderColor: DarkTheme.colors.cardBorder,
-    borderWidth: 1,
-    padding: DarkTheme.spacing.lg,
-    paddingBottom: Platform.OS === 'ios' ? 36 : 24,
-  },
-  dragHandle: {
-    width: 40,
-    height: 4,
-    backgroundColor: DarkTheme.colors.cardBorder,
-    borderRadius: 2,
-    alignSelf: 'center',
-    marginBottom: 14,
-  },
-  foodTitle: {
-    color: DarkTheme.colors.textPrimary,
-    fontSize: 18,
-    fontWeight: '700',
-  },
-  foodSubtitle: {
-    color: DarkTheme.colors.textSecondary,
-    fontSize: 12,
-    marginTop: 4,
-    marginBottom: 16,
-  },
-  sectionLabel: {
-    color: DarkTheme.colors.textSecondary,
-    fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 0.5,
-    marginBottom: 8,
-  },
-  mealScroll: {
-    flexDirection: 'row',
-    marginBottom: 16,
-  },
-  mealChip: {
-    backgroundColor: DarkTheme.colors.surfaceMuted,
-    borderColor: DarkTheme.colors.cardBorder,
-    borderWidth: 1,
-    borderRadius: DarkTheme.borderRadius.full,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    marginRight: 8,
-  },
-  mealChipActive: {
-    backgroundColor: DarkTheme.colors.primaryMuted,
-    borderColor: DarkTheme.colors.primary,
-  },
-  mealChipText: {
-    color: DarkTheme.colors.textSecondary,
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  mealChipTextActive: {
-    color: DarkTheme.colors.primary,
-  },
-  inputRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    marginBottom: 12,
-  },
-  stepperBtn: {
-    width: 48,
-    height: 46,
-    backgroundColor: DarkTheme.colors.surfaceMuted,
-    borderColor: DarkTheme.colors.cardBorder,
-    borderWidth: 1,
-    borderRadius: DarkTheme.borderRadius.md,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  stepperText: {
-    color: DarkTheme.colors.textPrimary,
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  inputWrapper: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: DarkTheme.colors.surfaceMuted,
-    borderColor: DarkTheme.colors.cardBorder,
-    borderWidth: 1,
-    borderRadius: DarkTheme.borderRadius.md,
-    paddingHorizontal: 12,
-    height: 46,
-  },
-  gramInput: {
-    flex: 1,
-    color: DarkTheme.colors.textPrimary,
-    fontSize: 18,
-    fontWeight: '700',
-    textAlign: 'center',
-  },
-  gramSuffix: {
-    color: DarkTheme.colors.textSecondary,
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  presetRow: {
-    flexDirection: 'row',
-    gap: 8,
-    marginBottom: 16,
-  },
-  presetChip: {
-    flex: 1,
-    backgroundColor: DarkTheme.colors.surfaceMuted,
-    borderColor: DarkTheme.colors.cardBorder,
-    borderWidth: 1,
-    borderRadius: DarkTheme.borderRadius.sm,
-    paddingVertical: 6,
-    alignItems: 'center',
-  },
-  presetChipActive: {
-    borderColor: DarkTheme.colors.primary,
-    backgroundColor: DarkTheme.colors.primaryMuted,
-  },
-  presetText: {
-    color: DarkTheme.colors.textSecondary,
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  presetTextActive: {
-    color: DarkTheme.colors.primary,
-  },
-  nutritionBox: {
-    flexDirection: 'row',
-    backgroundColor: DarkTheme.colors.surfaceMuted,
-    borderRadius: DarkTheme.borderRadius.md,
-    paddingVertical: 12,
-    paddingHorizontal: 8,
-    marginBottom: 16,
-    justifyContent: 'space-around',
-  },
-  macroCell: {
-    alignItems: 'center',
-  },
-  cellVal: {
-    color: DarkTheme.colors.textPrimary,
-    fontSize: 15,
-    fontWeight: '700',
-  },
-  cellLbl: {
-    color: DarkTheme.colors.textDimmed,
-    fontSize: 11,
-    marginTop: 2,
-  },
-  cancelBtn: {
-    marginTop: 6,
-  },
-});
+const createStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    backdrop: {
+      flex: 1,
+      backgroundColor: 'rgba(0, 0, 0, 0.75)',
+      justifyContent: 'flex-end',
+    },
+    sheetContainer: {
+      backgroundColor: colors.card,
+      borderTopLeftRadius: borderRadius.lg,
+      borderTopRightRadius: borderRadius.lg,
+      borderColor: colors.cardBorder,
+      borderWidth: 1,
+      padding: spacing.lg,
+      paddingBottom: Platform.OS === 'ios' ? 36 : 24,
+    },
+    dragHandle: {
+      width: 40,
+      height: 4,
+      backgroundColor: colors.cardBorder,
+      borderRadius: 2,
+      alignSelf: 'center',
+      marginBottom: 14,
+    },
+    foodTitle: {
+      color: colors.textPrimary,
+      fontSize: 18,
+      fontWeight: '700',
+    },
+    foodSubtitle: {
+      color: colors.textSecondary,
+      fontSize: 12,
+      marginTop: 4,
+      marginBottom: 16,
+    },
+    sectionLabel: {
+      color: colors.textSecondary,
+      fontSize: 11,
+      fontWeight: '700',
+      letterSpacing: 0.5,
+      marginBottom: 8,
+    },
+    mealScroll: {
+      flexDirection: 'row',
+      marginBottom: 16,
+    },
+    mealChip: {
+      backgroundColor: colors.surfaceMuted,
+      borderColor: colors.cardBorder,
+      borderWidth: 1,
+      borderRadius: borderRadius.full,
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      marginRight: 8,
+    },
+    mealChipActive: {
+      backgroundColor: colors.primaryMuted,
+      borderColor: colors.primary,
+    },
+    mealChipText: {
+      color: colors.textSecondary,
+      fontSize: 12,
+      fontWeight: '600',
+    },
+    mealChipTextActive: {
+      color: colors.primary,
+    },
+    inputRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+      marginBottom: 12,
+    },
+    stepperBtn: {
+      width: 48,
+      height: 46,
+      backgroundColor: colors.surfaceMuted,
+      borderColor: colors.cardBorder,
+      borderWidth: 1,
+      borderRadius: borderRadius.md,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    stepperText: {
+      color: colors.textPrimary,
+      fontSize: 14,
+      fontWeight: '700',
+    },
+    inputWrapper: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: colors.surfaceMuted,
+      borderColor: colors.cardBorder,
+      borderWidth: 1,
+      borderRadius: borderRadius.md,
+      paddingHorizontal: 12,
+      height: 46,
+    },
+    gramInput: {
+      flex: 1,
+      color: colors.textPrimary,
+      fontSize: 18,
+      fontWeight: '700',
+      textAlign: 'center',
+    },
+    gramSuffix: {
+      color: colors.textSecondary,
+      fontSize: 16,
+      fontWeight: '600',
+    },
+    presetRow: {
+      flexDirection: 'row',
+      gap: 8,
+      marginBottom: 16,
+    },
+    presetChip: {
+      flex: 1,
+      backgroundColor: colors.surfaceMuted,
+      borderColor: colors.cardBorder,
+      borderWidth: 1,
+      borderRadius: borderRadius.sm,
+      paddingVertical: 6,
+      alignItems: 'center',
+    },
+    presetChipActive: {
+      borderColor: colors.primary,
+      backgroundColor: colors.primaryMuted,
+    },
+    presetText: {
+      color: colors.textSecondary,
+      fontSize: 12,
+      fontWeight: '600',
+    },
+    presetTextActive: {
+      color: colors.primary,
+    },
+    nutritionBox: {
+      flexDirection: 'row',
+      backgroundColor: colors.surfaceMuted,
+      borderRadius: borderRadius.md,
+      paddingVertical: 12,
+      paddingHorizontal: 8,
+      marginBottom: 16,
+      justifyContent: 'space-around',
+    },
+    macroCell: {
+      alignItems: 'center',
+    },
+    cellVal: {
+      color: colors.textPrimary,
+      fontSize: 15,
+      fontWeight: '700',
+    },
+    cellLbl: {
+      color: colors.textDimmed,
+      fontSize: 11,
+      marginTop: 2,
+    },
+    cancelBtn: {
+      marginTop: 6,
+    },
+  });
+

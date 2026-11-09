@@ -40,51 +40,50 @@ export const WeightTrendChart: React.FC<WeightTrendChartProps> = ({
 
   return (
     <View style={[styles.container, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
-      {/* Header with Title and Range Chips */}
+      {/* Header with Title */}
       <View style={styles.header}>
-        <View>
-          <Text style={[styles.title, { color: colors.textPrimary }]}>Tendência de Peso</Text>
-          <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-            Pesagem diária vs Média móvel 7D
-          </Text>
-        </View>
+        <Text style={[styles.title, { color: colors.textPrimary }]}>Tendência de Peso</Text>
+        <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
+          Pesagem diária vs Média móvel 7D
+        </Text>
+      </View>
 
-        <View style={styles.rangeChips}>
-          {RANGES.map((r) => {
-            const isSelected = selectedRange === r.key;
-            return (
-              <TouchableOpacity
-                key={r.key}
-                activeOpacity={0.7}
-                onPress={() => onSelectRange(r.key)}
+      {/* Dedicated Row for Range Chips */}
+      <View style={styles.rangeChipsRow}>
+        {RANGES.map((r) => {
+          const isSelected = selectedRange === r.key;
+          return (
+            <TouchableOpacity
+              key={r.key}
+              activeOpacity={0.7}
+              onPress={() => onSelectRange(r.key)}
+              style={[
+                styles.rangeChip,
+                {
+                  backgroundColor: isSelected ? colors.primary : colors.surfaceMuted,
+                  borderColor: isSelected ? colors.primary : colors.cardBorder,
+                },
+              ]}
+            >
+              <Text
                 style={[
-                  styles.rangeChip,
+                  styles.rangeText,
                   {
-                    backgroundColor: isSelected ? colors.primary : colors.surfaceMuted,
-                    borderColor: isSelected ? colors.primary : colors.cardBorder,
+                    color: isSelected ? '#FFFFFF' : colors.textSecondary,
+                    fontWeight: isSelected ? '700' : '500',
                   },
                 ]}
               >
-                <Text
-                  style={[
-                    styles.rangeText,
-                    {
-                      color: isSelected ? '#FFFFFF' : colors.textSecondary,
-                      fontWeight: isSelected ? '700' : '500',
-                    },
-                  ]}
-                >
-                  {r.label}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
+                {r.label}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
       </View>
 
       {/* Metrics Row */}
       {hasData && (
-        <View style={styles.metricsRow}>
+        <View style={[styles.metricsRow, { borderBottomColor: colors.cardBorder }]}>
           <View style={styles.metricItem}>
             <Text style={[styles.metricLabel, { color: colors.textDimmed }]}>Último Peso</Text>
             <Text style={[styles.metricValue, { color: colors.textPrimary }]}>
@@ -122,8 +121,8 @@ export const WeightTrendChart: React.FC<WeightTrendChartProps> = ({
 
           <View style={styles.metricItem}>
             <Text style={[styles.metricLabel, { color: colors.textDimmed }]}>Tendência</Text>
-            <View style={styles.trendBadge}>
-              <Text style={styles.trendText}>
+            <View style={[styles.trendBadge, { backgroundColor: colors.surfaceMuted }]}>
+              <Text style={[styles.trendText, { color: colors.textPrimary }]}>
                 {trendDirection === 'down'
                   ? '📉 Queda'
                   : trendDirection === 'up'
@@ -247,10 +246,7 @@ const styles = StyleSheet.create({
     marginVertical: 8,
   },
   header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 12,
+    marginBottom: 8,
   },
   title: {
     fontSize: 16,
@@ -260,13 +256,17 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginTop: 2,
   },
-  rangeChips: {
+  rangeChipsRow: {
     flexDirection: 'row',
-    gap: 4,
+    justifyContent: 'space-between',
+    marginBottom: 12,
+    gap: 6,
   },
   rangeChip: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 6,
     borderRadius: 8,
     borderWidth: 1,
   },
@@ -278,7 +278,6 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingVertical: 10,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#232730',
     marginBottom: 12,
   },
   metricItem: {
@@ -298,7 +297,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 6,
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
   },
   trendText: {
     fontSize: 12,

@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, StyleSheet, ViewStyle, StyleProp } from 'react-native';
-import { DarkTheme } from '../../constants/theme';
+import { spacing, borderRadius } from '../../constants/theme';
 import { useTheme } from '../../hooks/useTheme';
 
 export interface CardProps {
@@ -29,8 +29,8 @@ export const Card: React.FC<CardProps> = ({ children, style }) => {
 const styles = StyleSheet.create({
   card: {
     borderWidth: 1,
-    borderRadius: DarkTheme.borderRadius.lg,
-    padding: DarkTheme.spacing.lg,
+    borderRadius: borderRadius.lg,
+    padding: spacing.lg,
   },
 });
 

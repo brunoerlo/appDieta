@@ -5,10 +5,10 @@ import { SQLiteProvider, useSQLiteContext } from 'expo-sqlite';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { migrateDbIfNeeded } from '../database/connection';
-import { SqliteDietRepository } from '../database/repositories/SqliteDietRepository';
-import { SqliteAuthRepository } from '../database/repositories/SqliteAuthRepository';
-import { SqliteWorkoutRepository } from '../database/repositories/SqliteWorkoutRepository';
-import { SqliteBodyRepository } from '../database/repositories/SqliteBodyRepository';
+import { SupabaseDietRepository } from '../database/repositories/SupabaseDietRepository';
+import { SupabaseAuthRepository } from '../database/repositories/SupabaseAuthRepository';
+import { SupabaseWorkoutRepository } from '../database/repositories/SupabaseWorkoutRepository';
+import { SupabaseBodyRepository } from '../database/repositories/SupabaseBodyRepository';
 import { DietProvider } from '../context/DietContext';
 import { WorkoutProvider } from '../context/WorkoutContext';
 import { ThemeProvider } from '../context/ThemeContext';
@@ -154,23 +154,47 @@ function NavContainer() {
   );
 }
 
+function DataProviders({
+  authRepo,
+  dietRepo,
+  workoutRepo,
+  bodyRepo,
+}: {
+  authRepo: SupabaseAuthRepository;
+  dietRepo: SupabaseDietRepository;
+  workoutRepo: SupabaseWorkoutRepository;
+  bodyRepo: SupabaseBodyRepository;
+}) {
+  const { profile } = useProfile();
+  const userKey = profile?.isLoggedIn && profile?.id ? profile.id : 'guest';
+
+  return (
+    <DietProvider key={`diet-${userKey}`} dietRepo={dietRepo} authRepo={authRepo}>
+      <WorkoutProvider key={`workout-${userKey}`} workoutRepo={workoutRepo}>
+        <BodyProvider key={`body-${userKey}`} bodyRepo={bodyRepo}>
+          <NavContainer />
+        </BodyProvider>
+      </WorkoutProvider>
+    </DietProvider>
+  );
+}
+
 function AppContent() {
   const db = useSQLiteContext();
-  const dietRepo = useMemo(() => new SqliteDietRepository(db), [db]);
-  const authRepo = useMemo(() => new SqliteAuthRepository(db), [db]);
-  const workoutRepo = useMemo(() => new SqliteWorkoutRepository(db), [db]);
-  const bodyRepo = useMemo(() => new SqliteBodyRepository(db), [db]);
+  const dietRepo = useMemo(() => new SupabaseDietRepository(undefined, db), [db]);
+  const authRepo = useMemo(() => new SupabaseAuthRepository(), []);
+  const workoutRepo = useMemo(() => new SupabaseWorkoutRepository(), []);
+  const bodyRepo = useMemo(() => new SupabaseBodyRepository(), []);
 
   return (
     <ThemeProvider authRepo={authRepo}>
       <ProfileProvider authRepo={authRepo}>
-        <DietProvider dietRepo={dietRepo} authRepo={authRepo}>
-          <WorkoutProvider workoutRepo={workoutRepo}>
-            <BodyProvider bodyRepo={bodyRepo}>
-              <NavContainer />
-            </BodyProvider>
-          </WorkoutProvider>
-        </DietProvider>
+        <DataProviders
+          authRepo={authRepo}
+          dietRepo={dietRepo}
+          workoutRepo={workoutRepo}
+          bodyRepo={bodyRepo}
+        />
       </ProfileProvider>
     </ThemeProvider>
   );

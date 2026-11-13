@@ -19,13 +19,11 @@ import { WeighInModal } from '../../components/body/WeighInModal';
 import { MeasurementsModal } from '../../components/body/MeasurementsModal';
 import { PhotoCaptureModal } from '../../components/body/PhotoCaptureModal';
 import { BeforeAfterViewerModal } from '../../components/body/BeforeAfterViewerModal';
-import { useSQLiteContext } from 'expo-sqlite';
-import { SqliteBodyRepository } from '../../database/repositories/SqliteBodyRepository';
+import { SupabaseBodyRepository } from '../../database/repositories/SupabaseBodyRepository';
 
 export default function BodyScreen() {
   const { colors } = useTheme();
-  const db = useSQLiteContext();
-  const bodyRepo = React.useMemo(() => new SqliteBodyRepository(db), [db]);
+  const bodyRepo = React.useMemo(() => new SupabaseBodyRepository(), []);
 
   const {
     selectedDate,

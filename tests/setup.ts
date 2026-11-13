@@ -1,3 +1,8 @@
+// Mock AsyncStorage for Supabase auth storage in Jest
+jest.mock('@react-native-async-storage/async-storage', () =>
+  require('@react-native-async-storage/async-storage/jest/async-storage-mock')
+);
+
 // Mock expo-haptics (virtual mock until installed in M3)
 jest.mock(
   'expo-haptics',

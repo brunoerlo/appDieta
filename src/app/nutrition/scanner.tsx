@@ -15,7 +15,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
 import { ThemeColors } from '../../constants/theme';
 import { useTheme } from '../../hooks/useTheme';
-import { SqliteDietRepository } from '../../database/repositories/SqliteDietRepository';
+import { SupabaseDietRepository } from '../../database/repositories/SupabaseDietRepository';
 import { openFoodFactsService } from '../../services/OpenFoodFactsService';
 import { ServingSizeModal } from '../../components/nutrition/ServingSizeModal';
 import { FoodItem, MealType } from '../../types/domain';
@@ -31,7 +31,7 @@ export default function BarcodeScannerScreen() {
   const mealType = params.mealType || 'snack';
 
   const db = useSQLiteContext();
-  const dietRepo = useMemo(() => new SqliteDietRepository(db), [db]);
+  const dietRepo = useMemo(() => new SupabaseDietRepository(undefined, db), [db]);
   const { addFoodLog } = useDiet();
 
   const [permission, requestPermission] = useCameraPermissions();

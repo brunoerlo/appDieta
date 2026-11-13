@@ -10,3 +10,8 @@ try {
   void globalThis.structuredClone;
   void globalThis.fetch;
 } catch (_) {}
+
+process.env.EXPO_PUBLIC_SUPABASE_URL =
+  process.env.EXPO_PUBLIC_SUPABASE_URL || 'https://test-project.supabase.co';
+process.env.EXPO_PUBLIC_SUPABASE_KEY =
+  process.env.EXPO_PUBLIC_SUPABASE_KEY || 'test-publishable-key';

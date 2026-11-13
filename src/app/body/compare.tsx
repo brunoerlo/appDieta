@@ -3,18 +3,16 @@ import { StyleSheet } from 'react-native';
 
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { useSQLiteContext } from 'expo-sqlite';
 import { useBody } from '../../hooks/useBody';
 import { useTheme } from '../../hooks/useTheme';
-import { SqliteBodyRepository } from '../../database/repositories/SqliteBodyRepository';
+import { SupabaseBodyRepository } from '../../database/repositories/SupabaseBodyRepository';
 import { BeforeAfterViewerModal } from '../../components/body/BeforeAfterViewerModal';
 
 export default function BodyCompareScreen() {
   const router = useRouter();
   const { colors } = useTheme();
   const { photos } = useBody();
-  const db = useSQLiteContext();
-  const bodyRepo = React.useMemo(() => new SqliteBodyRepository(db), [db]);
+  const bodyRepo = React.useMemo(() => new SupabaseBodyRepository(), []);
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>

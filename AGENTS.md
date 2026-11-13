@@ -45,3 +45,7 @@ Docs: https://docs.expo.dev/eas/index.md
 - **Safe Area Inset Rule**: Screens and modals must respect device top insets (status bar/clock area). Use `useSafeTopPadding` or `SafeAreaView` with proper edges (`['top']` or `AppTopBar`) to prevent interactive elements and buttons from being clipped or rendered underneath the status bar clock.
 - **Optimistic State & RefreshControl Decoupling**: Never bind `RefreshControl`'s `refreshing` prop directly to background mutation states (`isLoading`). Decouple user-initiated pull-to-refresh (`isRefreshing`) from fast, optimistic micro-actions (e.g. water quick-add/decrement, food logs) to prevent screen jitter and UI flickering.
 - **Context Memoization Invariant**: In React Context providers managing mutable store states with versioning (e.g., `WorkoutContext`), always include the state version/trigger in the `useMemo` dependency array to ensure consumer screens re-render immediately upon store mutations.
+
+## Supabase Auth Roadmap (Pending)
+
+- **Email Verification (Deferred)**: Currently, Supabase Auth is configured for immediate sign-up without mandatory email confirmation to keep mobile onboarding frictionless during initial development. Before production release, enable **Confirm email** in Supabase Auth, configure the deep-link redirect (`fitnessapp://` in `app.json`), and add a "verify your email" state/flow in `src/app/auth.tsx`.

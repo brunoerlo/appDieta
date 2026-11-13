@@ -12,10 +12,8 @@ import {
 } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { useSQLiteContext } from 'expo-sqlite';
 import { ThemeColors } from '../../constants/theme';
 import { useTheme } from '../../hooks/useTheme';
-import { SupabaseDietRepository } from '../../database/repositories/SupabaseDietRepository';
 import { openFoodFactsService } from '../../services/OpenFoodFactsService';
 import { ServingSizeModal } from '../../components/nutrition/ServingSizeModal';
 import { FoodItem, MealType } from '../../types/domain';
@@ -30,9 +28,7 @@ export default function BarcodeScannerScreen() {
   const params = useLocalSearchParams<{ mealType?: MealType; date?: string }>();
   const mealType = params.mealType || 'snack';
 
-  const db = useSQLiteContext();
-  const dietRepo = useMemo(() => new SupabaseDietRepository(undefined, db), [db]);
-  const { addFoodLog } = useDiet();
+  const { addFoodLog, getFoodByBarcode, createFood } = useDiet();
 
   const [permission, requestPermission] = useCameraPermissions();
   const [scanned, setScanned] = useState(false);
@@ -52,7 +48,7 @@ export default function BarcodeScannerScreen() {
 
     try {
       // 1. Search Local SQLite database first
-      const localFood = await dietRepo.getFoodByBarcode(clean);
+      const localFood = await getFoodByBarcode(clean);
       if (localFood) {
         setSelectedFood(localFood);
         setModalVisible(true);
@@ -65,7 +61,7 @@ export default function BarcodeScannerScreen() {
       if (remoteFood) {
         // Cache to local SQLite so subsequent scans are offline and instantaneous
         try {
-          await dietRepo.createFood(remoteFood);
+          await createFood(remoteFood);
         } catch {
           // Ignore unique collision
         }

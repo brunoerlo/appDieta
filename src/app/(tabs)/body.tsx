@@ -19,11 +19,9 @@ import { WeighInModal } from '../../components/body/WeighInModal';
 import { MeasurementsModal } from '../../components/body/MeasurementsModal';
 import { PhotoCaptureModal } from '../../components/body/PhotoCaptureModal';
 import { BeforeAfterViewerModal } from '../../components/body/BeforeAfterViewerModal';
-import { SupabaseBodyRepository } from '../../database/repositories/SupabaseBodyRepository';
 
 export default function BodyScreen() {
   const { colors } = useTheme();
-  const bodyRepo = React.useMemo(() => new SupabaseBodyRepository(), []);
 
   const {
     selectedDate,
@@ -42,6 +40,7 @@ export default function BodyScreen() {
     savePhoto,
     deletePhoto,
     refresh,
+    getBodyLog,
   } = useBody();
 
   const [weighInVisible, setWeighInVisible] = useState(false);
@@ -172,7 +171,7 @@ export default function BodyScreen() {
       <BeforeAfterViewerModal
         visible={compareVisible}
         photos={photos}
-        getBodyLog={(d) => bodyRepo.getBodyLog(d)}
+        getBodyLog={getBodyLog}
         onClose={() => setCompareVisible(false)}
       />
     </SafeAreaView>

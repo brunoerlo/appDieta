@@ -12,10 +12,8 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { useSQLiteContext } from 'expo-sqlite';
 import { spacing, borderRadius, ThemeColors } from '../../constants/theme';
 import { useTheme } from '../../hooks/useTheme';
-import { SupabaseDietRepository } from '../../database/repositories/SupabaseDietRepository';
 import { openFoodFactsService } from '../../services/OpenFoodFactsService';
 import { ServingSizeModal } from '../../components/nutrition/ServingSizeModal';
 import { FoodItem, MealType } from '../../types/domain';
@@ -31,9 +29,7 @@ export default function FoodSearchScreen() {
   const params = useLocalSearchParams<{ mealType?: MealType; date?: string }>();
   const mealType: MealType = params.mealType || 'lunch';
 
-  const db = useSQLiteContext();
-  const dietRepo = useMemo(() => new SupabaseDietRepository(undefined, db), [db]);
-  const { addFoodLog } = useDiet();
+  const { addFoodLog, searchFoods, createFood } = useDiet();
 
   const [query, setQuery] = useState('');
   const [activeTab, setActiveTab] = useState<FilterTab>('all');
@@ -49,20 +45,20 @@ export default function FoodSearchScreen() {
   // Initial load of common TACO foods and ready meals
   useEffect(() => {
     let active = true;
-    dietRepo.searchFoods('', 100).then((foods) => {
+    searchFoods('', 100).then((foods) => {
       if (active) setLocalResults(foods);
     });
     return () => {
       active = false;
     };
-  }, [dietRepo]);
+  }, [searchFoods]);
 
   // Handle Query Changes with immediate local search & debounced remote search
   const handleQueryChange = (text: string) => {
     setQuery(text);
 
     // Immediate local search
-    dietRepo.searchFoods(text, 50).then((foods) => {
+    searchFoods(text, 50).then((foods) => {
       setLocalResults(foods);
     });
 
@@ -137,7 +133,7 @@ export default function FoodSearchScreen() {
     // If food is from Open Food Facts and not in local DB, cache it
     if (entry.food.source === 'openfoodfacts') {
       try {
-        await dietRepo.createFood(entry.food);
+        await createFood(entry.food);
       } catch {
         // Already cached or ignored
       }

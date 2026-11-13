@@ -45,6 +45,7 @@ export interface BodyContextValue {
   savePhoto: (photoUri: string, date?: string) => Promise<string[]>;
   deletePhoto: (photoUri: string, date?: string) => Promise<string[]>;
   refresh: () => Promise<void>;
+  getBodyLog: (date: string) => Promise<BodyLog | null>;
 }
 
 export const BodyContext = createContext<BodyContextValue | null>(null);
@@ -243,6 +244,10 @@ export class BodyStateManager {
       this.isRefreshing = false;
       this.notify();
     }
+  }
+
+  public async getBodyLog(date: string): Promise<BodyLog | null> {
+    return this.bodyRepo.getBodyLog(date);
   }
 }
 
@@ -445,6 +450,13 @@ export const BodyProvider: React.FC<BodyProviderProps> = ({
     }
   }, [loadData, selectedDate, chartRange]);
 
+  const getBodyLog = useCallback(
+    async (date: string) => {
+      return bodyRepo.getBodyLog(date);
+    },
+    [bodyRepo]
+  );
+
   const currentComposition = useMemo(() => {
     if (!currentBodyLog || currentBodyLog.weightKg <= 0) return null;
     return calculateBodyComposition(currentBodyLog.weightKg, currentBodyLog.bodyFatPct);
@@ -472,6 +484,7 @@ export const BodyProvider: React.FC<BodyProviderProps> = ({
       savePhoto,
       deletePhoto,
       refresh,
+      getBodyLog,
     }),
     [
       selectedDate,
@@ -494,6 +507,7 @@ export const BodyProvider: React.FC<BodyProviderProps> = ({
       savePhoto,
       deletePhoto,
       refresh,
+      getBodyLog,
     ]
   );
 

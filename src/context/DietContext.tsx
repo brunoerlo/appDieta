@@ -42,6 +42,7 @@ export interface DietContextValue {
   refresh: () => Promise<void>;
   createFood: (food: Omit<FoodItem, 'id' | 'createdAt'>) => Promise<FoodItem>;
   searchFoods: (query: string, limit?: number) => Promise<FoodItem[]>;
+  getFoodByBarcode: (barcode: string) => Promise<FoodItem | null>;
 }
 
 export const DietContext = createContext<DietContextValue | null>(null);
@@ -253,6 +254,10 @@ export class DietStateManager {
 
   public async searchFoods(query: string, limit = 50): Promise<FoodItem[]> {
     return this.dietRepo.searchFoods(query, limit);
+  }
+
+  public async getFoodByBarcode(barcode: string): Promise<FoodItem | null> {
+    return this.dietRepo.getFoodByBarcode(barcode);
   }
 
   public getMealsSummary(): Record<MealType, MealGroupSummary> {
@@ -489,6 +494,13 @@ export const DietProvider: React.FC<DietProviderProps> = ({
     [dietRepo]
   );
 
+  const getFoodByBarcode = useCallback(
+    async (barcode: string) => {
+      return dietRepo.getFoodByBarcode(barcode);
+    },
+    [dietRepo]
+  );
+
   const mealsSummary = useMemo(() => {
     const allLogs = Object.values(dailySummary.meals).flat();
     return summarizeDietLogs(allLogs).meals;
@@ -518,6 +530,7 @@ export const DietProvider: React.FC<DietProviderProps> = ({
       refresh,
       createFood,
       searchFoods,
+      getFoodByBarcode,
     }),
     [
       selectedDate,
@@ -542,6 +555,7 @@ export const DietProvider: React.FC<DietProviderProps> = ({
       refresh,
       createFood,
       searchFoods,
+      getFoodByBarcode,
     ]
   );
 

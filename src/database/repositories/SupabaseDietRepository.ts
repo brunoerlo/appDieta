@@ -173,18 +173,24 @@ export class SupabaseDietRepository implements IDietRepository {
       );
     }
 
-    const [remoteRes, localItems] = await Promise.all([
-      remoteQuery.returns<FoodRow[]>(),
-      this.localFoodRepo ? this.localFoodRepo.searchFoods(query, limit) : Promise.resolve([]),
-    ]);
+    const remotePromise = (async () => {
+      try {
+        const remoteRes = await remoteQuery.returns<FoodRow[]>();
+        if (!remoteRes.error && remoteRes.data) {
+          return remoteRes.data.map((r) => this.mapFoodRow(r));
+        }
+        return [];
+      } catch {
+        return [];
+      }
+    })();
 
-    if (remoteRes.error) {
-      // If offline or remote fails, still return local TACO results
-      if (localItems.length > 0) return localItems.slice(0, limit);
-      throw new Error(remoteRes.error.message);
-    }
+    const localPromise = this.localFoodRepo
+      ? this.localFoodRepo.searchFoods(query, limit).catch(() => [] as FoodItem[])
+      : Promise.resolve([] as FoodItem[]);
 
-    const remoteItems = (remoteRes.data ?? []).map((r) => this.mapFoodRow(r));
+    const [remoteItems, localItems] = await Promise.all([remotePromise, localPromise]);
+
     const seen = new Set<string>();
     const merged: FoodItem[] = [];
 

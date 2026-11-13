@@ -15,10 +15,8 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { useSQLiteContext } from 'expo-sqlite';
 import { spacing, borderRadius, ThemeColors } from '../../constants/theme';
 import { useTheme } from '../../hooks/useTheme';
-import { SupabaseDietRepository } from '../../database/repositories/SupabaseDietRepository';
 import { Button } from '../../components/ui/Button';
 import { FoodItem, MealType } from '../../types/domain';
 import {
@@ -55,9 +53,7 @@ export default function CustomFoodScreen() {
 
   const mealType: MealType = params.mealType || 'lunch';
 
-  const db = useSQLiteContext();
-  const dietRepo = useMemo(() => new SupabaseDietRepository(undefined, db), [db]);
-  const { addFoodLog } = useDiet();
+  const { addFoodLog, searchFoods, createFood } = useDiet();
 
   // Main Segmented: Food vs Meal/Dish
   const [creationType, setCreationType] = useState<CreationType>('food');
@@ -155,7 +151,7 @@ export default function CustomFoodScreen() {
   useEffect(() => {
     if (!isPickerVisible) return;
     let active = true;
-    dietRepo.searchFoods(pickerSearch, 30).then((foods) => {
+    searchFoods(pickerSearch, 30).then((foods) => {
       if (active) {
         setPickerFoods(foods);
         setIsPickerLoading(false);
@@ -164,7 +160,7 @@ export default function CustomFoodScreen() {
     return () => {
       active = false;
     };
-  }, [dietRepo, isPickerVisible, pickerSearch]);
+  }, [searchFoods, isPickerVisible, pickerSearch]);
 
   const handleOpenIngredientPicker = () => {
     setPickerSearch('');
@@ -348,7 +344,7 @@ export default function CustomFoodScreen() {
     setSaving(true);
     try {
       const itemToSave = creationType === 'meal' ? getNormalizedMeal() : getNormalizedFood();
-      await dietRepo.createFood(itemToSave);
+      await createFood(itemToSave);
       const typeLabel = creationType === 'meal' ? 'Prato' : creationType === 'drink' ? 'Bebida' : 'Alimento';
       Alert.alert(
         'Sucesso',
@@ -369,7 +365,7 @@ export default function CustomFoodScreen() {
     setSaving(true);
     try {
       const itemToSave = creationType === 'meal' ? getNormalizedMeal() : getNormalizedFood();
-      const created = await dietRepo.createFood(itemToSave);
+      const created = await createFood(itemToSave);
 
       let gramsToLog: number;
       if (creationType === 'meal') {

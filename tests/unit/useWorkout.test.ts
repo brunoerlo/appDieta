@@ -73,7 +73,7 @@ describe('Unit: WorkoutStateManager & Workout Progression Logic', () => {
     expect(deleted).toBeNull();
   });
 
-  it('3. startWorkout initializes active session with exercises and pre-fills sets', async () => {
+  it('3. startWorkout initializes active session with exercises and pre-fills sets as completed by default', async () => {
     const routineA = manager.routines.find((r) => r.id === 'routine-abc-a')!;
     await manager.startWorkout(routineA);
 
@@ -83,11 +83,11 @@ describe('Unit: WorkoutStateManager & Workout Progression Logic', () => {
 
     const firstEx = manager.activeSession!.exercises[0];
     expect(firstEx.sets.length).toBe(firstEx.targetSets);
-    expect(firstEx.sets[0].completed).toBe(false);
+    expect(firstEx.sets[0].completed).toBe(true);
     expect(firstEx.sets[0].previousLoadDisplay).toBe('—');
   });
 
-  it('4. startWorkout loads previous session loads if available', async () => {
+  it('4. startWorkout loads previous session loads if available (with fallback to last set)', async () => {
     // First save a session for Supino Reto com Barra
     await workoutRepo.saveWorkoutSession(
       {
@@ -125,6 +125,10 @@ describe('Unit: WorkoutStateManager & Workout Progression Logic', () => {
     expect(supino.sets[1].weightKg).toBe(85);
     expect(supino.sets[1].reps).toBe(8);
     expect(supino.sets[1].previousLoadDisplay).toBe('85kg × 8');
+    // Set 3 falls back to last recorded set (85kg x 8)
+    expect(supino.sets[2].weightKg).toBe(85);
+    expect(supino.sets[2].reps).toBe(8);
+    expect(supino.sets.every((s) => s.completed)).toBe(true);
   });
 
   it('5. startFreestyleWorkout creates empty session and allows dynamic exercises', async () => {
@@ -297,5 +301,119 @@ describe('Unit: WorkoutStateManager & Workout Progression Logic', () => {
 
     expect(failManager.error).toBe('Falha no banco');
     expect(failManager.isLoading).toBe(false);
+  });
+
+  it('16. direct workout sheet saves immediately without calling completeSet, with custom date and 0 duration', async () => {
+    const routineA = manager.routines.find((r) => r.id === 'routine-abc-a')!;
+    await manager.startWorkout(routineA);
+
+    // Edit loads directly without toggling completeSet
+    manager.updateSet(0, 0, { weightKg: 80, reps: 10 });
+    manager.updateSet(0, 1, { weightKg: 80, reps: 10 });
+    manager.updateSet(0, 2, { weightKg: 85, reps: 8 });
+    manager.updateSet(0, 3, { weightKg: 85, reps: 8 });
+
+    // Select yesterday's date and add draft notes
+    manager.setWorkoutDate('2026-11-08');
+    manager.setWorkoutNotes('Subi carga na 3ª e 4ª série');
+
+    expect(manager.activeSession?.date).toBe('2026-11-08');
+    expect(manager.activeSession?.notes).toBe('Subi carga na 3ª e 4ª série');
+
+    const saved = await manager.finishWorkout(undefined, {
+      date: manager.activeSession?.date,
+      durationMinutes: 0,
+    });
+
+    expect(saved.date).toBe('2026-11-08');
+    expect(saved.durationMinutes).toBe(0);
+    expect(saved.notes).toBe('Subi carga na 3ª e 4ª série');
+    // 80*10 + 80*10 + 85*8 + 85*8 = 800 + 800 + 680 + 680 = 2960
+    expect(saved.totalVolumeKg).toBe(2960);
+    expect(manager.activeSession).toBeNull();
+  });
+
+  it('17. mutations create a new activeSession reference so React useMemo hooks recompute', async () => {
+    manager.startFreestyleWorkout('Rascunho Teste');
+    await manager.addExerciseToActiveWorkout({ name: 'Rosca Direta', targetSets: 2 });
+
+    const ref1 = manager.activeSession;
+    manager.updateSet(0, 0, { weightKg: 35, reps: 10 });
+    const ref2 = manager.activeSession;
+    expect(ref2).not.toBe(ref1);
+    expect(ref2?.exercises).not.toBe(ref1?.exercises);
+
+    manager.setWorkoutDate('2026-11-05');
+    const ref3 = manager.activeSession;
+    expect(ref3).not.toBe(ref2);
+    expect(ref3?.date).toBe('2026-11-05');
+
+    manager.setWorkoutNotes('Rascunho salvo');
+    const ref4 = manager.activeSession;
+    expect(ref4).not.toBe(ref3);
+    expect(ref4?.notes).toBe('Rascunho salvo');
+  });
+
+  it('18. startWorkout preserves user weight/reps edits made while previous sets query is still resolving', async () => {
+    const resolvers: ((val: any[]) => void)[] = [];
+    jest.spyOn(workoutRepo, 'getPreviousExerciseSets').mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolvers.push(resolve);
+        })
+    );
+
+    const routineA = manager.routines.find((r) => r.id === 'routine-abc-a')!;
+    const startPromise = manager.startWorkout(routineA);
+
+    // User immediately edits set 1 of exercise 0 before DB queries finish
+    expect(manager.activeSession).not.toBeNull();
+    manager.updateSet(0, 0, { weightKg: 92.5, reps: 12 });
+
+    // Now all DB queries resolve with older historical weight (80kg x 10)
+    for (const resolve of resolvers) {
+      resolve([
+        {
+          id: 'prev-1',
+          sessionId: 'sess-1',
+          exerciseName: routineA.exercises![0].name,
+          setNumber: 1,
+          weightKg: 80,
+          reps: 10,
+          completed: true,
+          createdAt: '2026-11-01T10:00:00Z',
+        },
+      ]);
+    }
+    await startPromise;
+
+    // User's edit on set 1 (92.5kg x 12) must be preserved, while set 2 gets pre-filled (80kg x 10)
+    const ex0 = manager.activeSession!.exercises[0];
+    expect(ex0.sets[0].weightKg).toBe(92.5);
+    expect(ex0.sets[0].reps).toBe(12);
+    expect(ex0.sets[0].previousLoadDisplay).toBe('80kg × 10');
+    expect(ex0.sets[1].weightKg).toBe(80);
+    expect(ex0.sets[1].reps).toBe(10);
+  });
+
+  it('19. startWorkout does not start a 1-second stopwatch interval and date utilities use local timezone', async () => {
+    const routineA = manager.routines.find((r) => r.id === 'routine-abc-a')!;
+    await manager.startWorkout(routineA);
+
+    jest.useFakeTimers();
+    try {
+      const listener = jest.fn();
+      manager.subscribe(listener);
+
+      jest.advanceTimersByTime(5000);
+      // No stopwatch tick notifications should have fired for routine load monitoring
+      expect(listener).not.toHaveBeenCalled();
+      expect(manager.activeSession?.elapsedSeconds).toBe(0);
+    } finally {
+      jest.useRealTimers();
+    }
+
+    const saved = await manager.finishWorkout();
+    expect(saved.durationMinutes).toBe(0);
   });
 });

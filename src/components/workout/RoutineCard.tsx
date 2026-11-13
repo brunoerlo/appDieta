@@ -32,10 +32,6 @@ export const RoutineCard: React.FC<RoutineCardProps> = ({
     return exercises.reduce((acc, curr) => acc + (curr.targetSets || 3), 0);
   }, [exercises]);
 
-  const estimatedMinutes = useMemo(() => {
-    return Math.max(20, Math.round(totalTargetSets * 2.5));
-  }, [totalTargetSets]);
-
   const categoryTag = useMemo(() => {
     const nameLower = routine.name.toLowerCase();
     if (nameLower.includes('treino a') || nameLower.includes('treino b') || nameLower.includes('treino c')) {
@@ -120,9 +116,6 @@ export const RoutineCard: React.FC<RoutineCardProps> = ({
         <View style={styles.metricChip}>
           <Text style={styles.metricText}>🔁 {totalTargetSets} séries</Text>
         </View>
-        <View style={styles.metricChip}>
-          <Text style={styles.metricText}>⏱️ ~{estimatedMinutes} min</Text>
-        </View>
       </View>
 
       {/* Exercise Preview List */}
@@ -145,13 +138,13 @@ export const RoutineCard: React.FC<RoutineCardProps> = ({
         </View>
       )}
 
-      {/* Iniciar Treino CTA */}
+      {/* Registrar Treino CTA */}
       <Button
-        title="Iniciar Treino"
+        title={isActive ? 'Continuar Rascunho' : 'Registrar Treino'}
         onPress={() => onStartWorkout(routine)}
         variant="primary"
         size="md"
-        icon={<Text style={styles.btnIcon}>▶</Text>}
+        icon={<Text style={styles.btnIcon}>{isActive ? '📝' : '▶'}</Text>}
         style={styles.startBtn}
       />
     </Card>

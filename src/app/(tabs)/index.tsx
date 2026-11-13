@@ -18,7 +18,7 @@ import { useWorkout } from '../../hooks/useWorkout';
 import { useProfile } from '../../hooks/useProfile';
 import { useBody } from '../../hooks/useBody';
 import { useTheme } from '../../hooks/useTheme';
-import { formatElapsedSeconds } from '../../utils/workout';
+import { formatDatePortuguese } from '../../utils/date';
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -197,7 +197,7 @@ export default function HomeScreen() {
           </View>
         </Card>
 
-        {/* 3. Workout of the Day or Active Session */}
+        {/* 3. Workout of the Day or Open Draft */}
         <Card
           style={[
             styles.card,
@@ -207,7 +207,7 @@ export default function HomeScreen() {
           <View style={styles.cardHeader}>
             <View>
               <Text style={[styles.cardTag, activeSession ? { color: colors.primary } : { color: colors.textSecondary }]}>
-                {activeSession ? 'TREINO EM ANDAMENTO ⏱' : 'TREINO DO DIA 🏋️'}
+                {activeSession ? 'RASCUNHO DE TREINO 📝' : 'TREINO DO DIA 🏋️'}
               </Text>
               <Text style={[styles.cardRoutineTitle, { color: colors.textPrimary }]}>
                 {activeSession ? activeSession.routineName : suggestedRoutine ? suggestedRoutine.name : 'Treino Livre'}
@@ -215,19 +215,19 @@ export default function HomeScreen() {
             </View>
             {activeSession && (
               <Text style={[styles.activeElapsedTimer, { color: colors.primary }]}>
-                {formatElapsedSeconds(activeSession.elapsedSeconds)}
+                📅 {formatDatePortuguese(activeSession.date)}
               </Text>
             )}
           </View>
 
           <Text style={[styles.workoutDescText, { color: colors.textSecondary }]}>
             {activeSession
-              ? `${activeSession.exercises.reduce((acc, e) => acc + e.sets.filter((s) => s.completed).length, 0)} séries concluídas`
+              ? `${activeSession.exercises.length} exercícios • ${activeSession.exercises.reduce((acc, e) => acc + e.sets.length, 0)} séries preenchidas`
               : suggestedRoutine?.description || `${suggestedRoutine?.exercises?.length || 0} exercícios planejados`}
           </Text>
 
           <Button
-            title={activeSession ? '▶ Retomar Treino' : '▶ Iniciar Treino'}
+            title={activeSession ? 'Continuar Rascunho' : 'Registrar Treino'}
             onPress={handleStartWorkout}
             variant="primary"
             size="md"

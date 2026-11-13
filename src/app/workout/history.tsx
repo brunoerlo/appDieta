@@ -13,9 +13,9 @@ import { ThemeColors, spacing, borderRadius } from '../../constants/theme';
 import { useTheme } from '../../hooks/useTheme';
 import { useWorkout } from '../../hooks/useWorkout';
 import {
-  formatDurationMinutes,
   mapExerciseHistoryToChart,
 } from '../../utils/workout';
+import { formatDatePortuguese } from '../../utils/date';
 import { Card } from '../../components/ui/Card';
 import { Badge } from '../../components/ui/Badge';
 
@@ -39,8 +39,11 @@ export default function WorkoutHistoryScreen() {
     return historySessions.reduce((acc, s) => acc + (s.totalVolumeKg || 0), 0);
   }, [historySessions]);
 
-  const totalDurationMinutesAll = useMemo(() => {
-    return historySessions.reduce((acc, s) => acc + (s.durationMinutes || 0), 0);
+  const totalSetsAllSessions = useMemo(() => {
+    return historySessions.reduce(
+      (acc, s) => acc + (s.sets?.filter((st) => st.completed).length || 0),
+      0
+    );
   }, [historySessions]);
 
   // Extract distinct exercises performed across history
@@ -121,9 +124,9 @@ export default function WorkoutHistoryScreen() {
         </View>
         <View style={styles.statDivider} />
         <View style={styles.statBox}>
-          <Text style={styles.statLabel}>TEMPO TOTAL</Text>
+          <Text style={styles.statLabel}>SÉRIES REGISTRADAS</Text>
           <Text style={styles.statValue}>
-            {formatDurationMinutes(totalDurationMinutesAll)}
+            {totalSetsAllSessions}
           </Text>
         </View>
       </View>
@@ -179,7 +182,6 @@ export default function WorkoutHistoryScreen() {
           renderItem={({ item }) => {
             const completedCount =
               item.sets?.filter((s) => s.completed).length || 0;
-            const totalSets = item.sets?.length || 0;
 
             // Group sets by exercise
             const grouped = new Map<string, string[]>();
@@ -196,9 +198,11 @@ export default function WorkoutHistoryScreen() {
             return (
               <Card style={styles.sessionCard}>
                 <View style={styles.sessionHeaderRow}>
-                  <Text style={styles.sessionDate}>{item.date}</Text>
+                  <Text style={styles.sessionDate}>
+                    📅 {formatDatePortuguese(item.date)} ({item.date})
+                  </Text>
                   <Badge
-                    label={formatDurationMinutes(item.durationMinutes)}
+                    label={`${completedCount} ${completedCount === 1 ? 'série' : 'séries'}`}
                     color={colors.primary}
                     backgroundColor={colors.primaryMuted}
                   />
@@ -208,11 +212,11 @@ export default function WorkoutHistoryScreen() {
 
                 <View style={styles.sessionMetricsRow}>
                   <Text style={styles.sessionMetricText}>
-                    Volume: <Text style={styles.metricHighlight}>{item.totalVolumeKg} kg</Text>
+                    Volume: <Text style={styles.metricHighlight}>{(item.totalVolumeKg || 0).toLocaleString('pt-BR')} kg</Text>
                   </Text>
                   <Text style={styles.metricDot}>•</Text>
                   <Text style={styles.sessionMetricText}>
-                    {completedCount} de {totalSets} séries
+                    {grouped.size} {grouped.size === 1 ? 'exercício' : 'exercícios'}
                   </Text>
                 </View>
 

@@ -10,6 +10,7 @@ import {
 } from '../types/domain';
 import { IWorkoutRepository } from '../database/repositories/interfaces';
 import { calculateWorkoutVolume, formatPreviousLoad } from '../utils/workout';
+import { getTodayDateString } from '../utils/nutrition';
 
 export interface ActiveLiveSet {
   id: string;
@@ -49,6 +50,11 @@ export interface RestTimerState {
   remainingSeconds: number;
   exerciseName?: string;
   setNumber?: number;
+}
+
+export interface FinishWorkoutOptions {
+  date?: string;
+  durationMinutes?: number;
 }
 
 export interface HapticsServiceInterface {
@@ -112,6 +118,17 @@ export class WorkoutStateManager {
     }
   }
 
+  private refreshActiveSessionReference(): void {
+    if (!this.activeSession) return;
+    this.activeSession = {
+      ...this.activeSession,
+      exercises: this.activeSession.exercises.map((ex) => ({
+        ...ex,
+        sets: [...ex.sets],
+      })),
+    };
+  }
+
   // --- Routine Catalog Actions ---
   public async loadRoutines(): Promise<void> {
     this.isLoading = true;
@@ -173,34 +190,97 @@ export class WorkoutStateManager {
     await this.loadRoutines();
   }
 
-  // --- Live Workout Session Lifecycle ---
-  public async startWorkout(routine?: WorkoutRoutine): Promise<void> {
+  // --- Workout Session / Load Monitoring Lifecycle ---
+  public async startWorkout(routine?: WorkoutRoutine, date?: string): Promise<void> {
+    this.stopElapsedTicker();
+    this.stopRestTimer();
+
     const now = new Date();
-    const dateStr = now.toISOString().split('T')[0];
+    const dateStr = date || getTodayDateString();
     const timeStr = now.toTimeString().split(' ')[0];
 
-    const activeExercises: ActiveLiveExercise[] = [];
+    const placeholderExercises: ActiveLiveExercise[] = (routine?.exercises || []).map(
+      (ex, i) => ({
+        id: ex.id,
+        name: ex.name,
+        muscleGroup: ex.muscleGroup,
+        targetSets: ex.targetSets,
+        defaultRestSeconds: ex.defaultRestSeconds || 60,
+        sets: Array.from({ length: ex.targetSets }, (_, sIdx) => ({
+          id: `set-live-${Date.now()}-${i}-${sIdx + 1}`,
+          exerciseId: ex.id,
+          exerciseName: ex.name,
+          setNumber: sIdx + 1,
+          weightKg: 0,
+          reps: 10,
+          completed: true,
+          previousLoadDisplay: '—',
+        })),
+      })
+    );
 
-    if (routine && routine.exercises) {
+    const sessionStartTimestamp = Date.now();
+    const sessionRef: ActiveWorkoutSession = {
+      routineId: routine?.id,
+      routineName: routine?.name || 'Treino Livre',
+      date: dateStr,
+      startTime: timeStr,
+      startTimestamp: sessionStartTimestamp,
+      elapsedSeconds: 0,
+      isPaused: false,
+      exercises: placeholderExercises,
+    };
+
+    this.activeSession = sessionRef;
+    this.notify();
+
+    if (routine && routine.exercises && routine.exercises.length > 0) {
       const prevLoads = await Promise.all(
-        routine.exercises.map((ex) => this.workoutRepo.getPreviousExerciseSets(ex.name, ex.targetSets))
+        routine.exercises.map((ex) =>
+          this.workoutRepo.getPreviousExerciseSets(ex.name, ex.targetSets)
+        )
       );
 
+      // Guard if session was discarded or replaced while awaiting previous sets
+      if (
+        !this.activeSession ||
+        this.activeSession.startTimestamp !== sessionStartTimestamp
+      ) {
+        return;
+      }
+
+      const activeExercises: ActiveLiveExercise[] = [];
       for (let i = 0; i < routine.exercises.length; i++) {
         const ex = routine.exercises[i];
         const prevSets = prevLoads[i] || [];
+        const currentEx = this.activeSession.exercises[i];
         const sets: ActiveLiveSet[] = [];
 
         for (let s = 1; s <= ex.targetSets; s++) {
-          const prevSet = prevSets.find((p) => p.setNumber === s);
+          const prevSet =
+            prevSets.find((p) => p.setNumber === s) ??
+            (prevSets.length > 0 ? prevSets[prevSets.length - 1] : undefined);
+          const currentSet = currentEx?.sets[s - 1];
+          // Preserve user edits if they already changed weightKg or reps before SQLite resolved
+          const userEditedWeight = currentSet && currentSet.weightKg !== 0;
+          const userEditedReps = currentSet && currentSet.reps !== 10;
+
           sets.push({
-            id: `set-live-${Date.now()}-${i}-${s}`,
+            id: currentSet?.id || `set-live-${Date.now()}-${i}-${s}`,
             exerciseId: ex.id,
             exerciseName: ex.name,
             setNumber: s,
-            weightKg: prevSet ? prevSet.weightKg : 0,
-            reps: prevSet ? prevSet.reps : 10,
-            completed: false,
+            weightKg: userEditedWeight
+              ? currentSet.weightKg
+              : prevSet
+              ? prevSet.weightKg
+              : 0,
+            reps: userEditedReps
+              ? currentSet.reps
+              : prevSet
+              ? prevSet.reps
+              : 10,
+            completed: currentSet ? currentSet.completed : true,
             previousLoadDisplay: formatPreviousLoad(prevSets, s),
           });
         }
@@ -214,28 +294,25 @@ export class WorkoutStateManager {
           sets,
         });
       }
+
+      // Preserve any extra exercises added while awaiting
+      const extraExercises = this.activeSession.exercises.slice(routine.exercises.length);
+
+      this.activeSession = {
+        ...this.activeSession,
+        exercises: [...activeExercises, ...extraExercises],
+      };
+      this.notify();
     }
-
-    this.activeSession = {
-      routineId: routine?.id,
-      routineName: routine?.name || 'Treino Livre',
-      date: dateStr,
-      startTime: timeStr,
-      startTimestamp: Date.now(),
-      elapsedSeconds: 0,
-      isPaused: false,
-      exercises: activeExercises,
-    };
-
-    this.startElapsedTicker();
-    this.notify();
   }
 
-  public startFreestyleWorkout(name = 'Treino Livre'): void {
+  public startFreestyleWorkout(name = 'Treino Livre', date?: string): void {
+    this.stopElapsedTicker();
+    this.stopRestTimer();
     const now = new Date();
     this.activeSession = {
       routineName: name,
-      date: now.toISOString().split('T')[0],
+      date: date || getTodayDateString(),
       startTime: now.toTimeString().split(' ')[0],
       startTimestamp: Date.now(),
       elapsedSeconds: 0,
@@ -243,6 +320,20 @@ export class WorkoutStateManager {
       exercises: [],
     };
     this.startElapsedTicker();
+    this.notify();
+  }
+
+  public setWorkoutDate(date: string): void {
+    if (!this.activeSession) return;
+    this.activeSession.date = date;
+    this.refreshActiveSessionReference();
+    this.notify();
+  }
+
+  public setWorkoutNotes(notes: string): void {
+    if (!this.activeSession) return;
+    this.activeSession.notes = notes;
+    this.refreshActiveSessionReference();
     this.notify();
   }
 
@@ -257,16 +348,20 @@ export class WorkoutStateManager {
     const defaultRestSeconds = exercise.defaultRestSeconds || 60;
     const prevSets = await this.workoutRepo.getPreviousExerciseSets(exercise.name, targetSets);
 
+    if (!this.activeSession) return;
+
     const sets: ActiveLiveSet[] = [];
     for (let s = 1; s <= targetSets; s++) {
-      const prev = prevSets.find((p) => p.setNumber === s);
+      const prev =
+        prevSets.find((p) => p.setNumber === s) ??
+        (prevSets.length > 0 ? prevSets[prevSets.length - 1] : undefined);
       sets.push({
         id: `set-live-${Date.now()}-${this.activeSession.exercises.length}-${s}`,
         exerciseName: exercise.name,
         setNumber: s,
         weightKg: prev ? prev.weightKg : 0,
         reps: prev ? prev.reps : 10,
-        completed: false,
+        completed: true,
         previousLoadDisplay: formatPreviousLoad(prevSets, s),
       });
     }
@@ -279,6 +374,7 @@ export class WorkoutStateManager {
       defaultRestSeconds,
       sets,
     });
+    this.refreshActiveSessionReference();
     this.notify();
   }
 
@@ -286,6 +382,7 @@ export class WorkoutStateManager {
     if (!this.activeSession) return;
     if (exerciseIndex >= 0 && exerciseIndex < this.activeSession.exercises.length) {
       this.activeSession.exercises.splice(exerciseIndex, 1);
+      this.refreshActiveSessionReference();
       this.notify();
     }
   }
@@ -302,6 +399,7 @@ export class WorkoutStateManager {
     if (!set) return;
 
     Object.assign(set, updates);
+    this.refreshActiveSessionReference();
     this.notify();
   }
 
@@ -319,9 +417,10 @@ export class WorkoutStateManager {
       setNumber: newSetNumber,
       weightKg: lastSet ? lastSet.weightKg : 0,
       reps: lastSet ? lastSet.reps : 10,
-      completed: false,
-      previousLoadDisplay: '—',
+      completed: true,
+      previousLoadDisplay: lastSet?.previousLoadDisplay || '—',
     });
+    this.refreshActiveSessionReference();
     this.notify();
   }
 
@@ -334,6 +433,7 @@ export class WorkoutStateManager {
     ex.sets.forEach((s, idx) => {
       s.setNumber = idx + 1;
     });
+    this.refreshActiveSessionReference();
     this.notify();
   }
 
@@ -345,6 +445,7 @@ export class WorkoutStateManager {
     if (!set) return;
 
     set.completed = true;
+    this.refreshActiveSessionReference();
     if (this.hapticsService) {
       await this.hapticsService.triggerSetComplete();
     }
@@ -361,6 +462,7 @@ export class WorkoutStateManager {
     if (!set) return;
 
     set.completed = false;
+    this.refreshActiveSessionReference();
     this.notify();
   }
 
@@ -458,13 +560,23 @@ export class WorkoutStateManager {
     this.notify();
   }
 
-  public async finishWorkout(notes?: string): Promise<WorkoutSession> {
+  public async finishWorkout(
+    notes?: string,
+    options?: FinishWorkoutOptions
+  ): Promise<WorkoutSession> {
     if (!this.activeSession) {
       throw new Error('Nenhuma sessão de treino ativa para finalizar.');
     }
 
     const endTime = new Date().toTimeString().split(' ')[0];
-    const durationMinutes = Math.max(1, Math.round(this.activeSession.elapsedSeconds / 60));
+    const durationMinutes =
+      options?.durationMinutes !== undefined
+        ? options.durationMinutes
+        : this.activeSession.elapsedSeconds >= 60
+        ? Math.round(this.activeSession.elapsedSeconds / 60)
+        : 0;
+    const sessionDate = options?.date || this.activeSession.date || getTodayDateString();
+    const sessionNotes = notes !== undefined ? notes : this.activeSession.notes;
 
     const allSets: Omit<SetLog, 'id' | 'sessionId' | 'createdAt'>[] = [];
     for (const ex of this.activeSession.exercises) {
@@ -475,7 +587,7 @@ export class WorkoutStateManager {
           setNumber: s.setNumber,
           weightKg: Number(s.weightKg) || 0,
           reps: Number(s.reps) || 0,
-          completed: s.completed,
+          completed: s.completed !== false,
         });
       }
     }
@@ -486,12 +598,12 @@ export class WorkoutStateManager {
       {
         routineId: this.activeSession.routineId,
         routineName: this.activeSession.routineName,
-        date: this.activeSession.date,
+        date: sessionDate,
         startTime: this.activeSession.startTime,
         endTime,
         durationMinutes,
         totalVolumeKg,
-        notes: notes || this.activeSession.notes,
+        notes: sessionNotes,
         sets: allSets,
       },
       allSets
@@ -559,10 +671,12 @@ export interface WorkoutContextValue {
     data: Omit<CustomExercise, 'id' | 'createdAt'>
   ) => Promise<CustomExercise>;
 
-  // Active Live Workout Session
+  // Active Workout Draft / Load Monitoring Session
   activeSession: ActiveWorkoutSession | null;
-  startWorkout: (routine?: WorkoutRoutine) => Promise<void>;
-  startFreestyleWorkout: (name?: string) => void;
+  startWorkout: (routine?: WorkoutRoutine, date?: string) => Promise<void>;
+  startFreestyleWorkout: (name?: string, date?: string) => void;
+  setWorkoutDate: (date: string) => void;
+  setWorkoutNotes: (notes: string) => void;
   addExerciseToActiveWorkout: (exercise: {
     name: string;
     muscleGroup?: string;
@@ -582,7 +696,7 @@ export interface WorkoutContextValue {
   pauseWorkout: () => void;
   resumeWorkout: () => void;
   discardWorkout: () => void;
-  finishWorkout: (notes?: string) => Promise<WorkoutSession>;
+  finishWorkout: (notes?: string, options?: FinishWorkoutOptions) => Promise<WorkoutSession>;
 
   // Rest Timer
   restTimer: RestTimerState;
@@ -640,47 +754,49 @@ export const WorkoutProvider: React.FC<WorkoutProviderProps> = ({
       void version;
       return {
         routines: manager.routines,
-      isLoadingRoutines: manager.isLoading,
-      refreshRoutines: () => manager.loadRoutines(),
-      createRoutine: (routine, exercises) => manager.createRoutine(routine, exercises),
-      updateRoutine: (id, routine, exercises) => manager.updateRoutine(id, routine, exercises),
-      deleteRoutine: (id) => manager.deleteRoutine(id),
-      getRoutineById: (id) => manager.getRoutineById(id),
+        isLoadingRoutines: manager.isLoading,
+        refreshRoutines: () => manager.loadRoutines(),
+        createRoutine: (routine, exercises) => manager.createRoutine(routine, exercises),
+        updateRoutine: (id, routine, exercises) => manager.updateRoutine(id, routine, exercises),
+        deleteRoutine: (id) => manager.deleteRoutine(id),
+        getRoutineById: (id) => manager.getRoutineById(id),
 
-      // Custom Exercises
-      customExercises: manager.customExercises,
-      loadCustomExercises: () => manager.loadCustomExercises(),
-      createCustomExercise: (data) => manager.createCustomExercise(data),
+        // Custom Exercises
+        customExercises: manager.customExercises,
+        loadCustomExercises: () => manager.loadCustomExercises(),
+        createCustomExercise: (data) => manager.createCustomExercise(data),
 
-      activeSession: manager.activeSession,
-      startWorkout: (routine) => manager.startWorkout(routine),
-      startFreestyleWorkout: (name) => manager.startFreestyleWorkout(name),
-      addExerciseToActiveWorkout: (ex) => manager.addExerciseToActiveWorkout(ex),
-      removeExerciseFromActiveWorkout: (idx) => manager.removeExerciseFromActiveWorkout(idx),
-      updateSet: (exIdx, setIdx, updates) => manager.updateSet(exIdx, setIdx, updates),
-      addSet: (exIdx) => manager.addSet(exIdx),
-      removeSet: (exIdx, setIdx) => manager.removeSet(exIdx, setIdx),
-      completeSet: (exIdx, setIdx) => manager.completeSet(exIdx, setIdx),
-      uncompleteSet: (exIdx, setIdx) => manager.uncompleteSet(exIdx, setIdx),
-      pauseWorkout: () => manager.pauseWorkout(),
-      resumeWorkout: () => manager.resumeWorkout(),
-      discardWorkout: () => manager.discardWorkout(),
-      finishWorkout: (notes) => manager.finishWorkout(notes),
+        activeSession: manager.activeSession,
+        startWorkout: (routine, date) => manager.startWorkout(routine, date),
+        startFreestyleWorkout: (name, date) => manager.startFreestyleWorkout(name, date),
+        setWorkoutDate: (date) => manager.setWorkoutDate(date),
+        setWorkoutNotes: (notes) => manager.setWorkoutNotes(notes),
+        addExerciseToActiveWorkout: (ex) => manager.addExerciseToActiveWorkout(ex),
+        removeExerciseFromActiveWorkout: (idx) => manager.removeExerciseFromActiveWorkout(idx),
+        updateSet: (exIdx, setIdx, updates) => manager.updateSet(exIdx, setIdx, updates),
+        addSet: (exIdx) => manager.addSet(exIdx),
+        removeSet: (exIdx, setIdx) => manager.removeSet(exIdx, setIdx),
+        completeSet: (exIdx, setIdx) => manager.completeSet(exIdx, setIdx),
+        uncompleteSet: (exIdx, setIdx) => manager.uncompleteSet(exIdx, setIdx),
+        pauseWorkout: () => manager.pauseWorkout(),
+        resumeWorkout: () => manager.resumeWorkout(),
+        discardWorkout: () => manager.discardWorkout(),
+        finishWorkout: (notes, options) => manager.finishWorkout(notes, options),
 
-      restTimer: manager.restTimer,
-      startRestTimer: (s, name, num) => manager.startRestTimer(s, name, num),
-      adjustRestTimer: (delta) => manager.adjustRestTimer(delta),
-      skipRestTimer: () => manager.skipRestTimer(),
+        restTimer: manager.restTimer,
+        startRestTimer: (s, name, num) => manager.startRestTimer(s, name, num),
+        adjustRestTimer: (delta) => manager.adjustRestTimer(delta),
+        skipRestTimer: () => manager.skipRestTimer(),
 
-      historySessions: manager.historySessions,
-      selectedExerciseHistory: manager.selectedExerciseHistory,
-      loadHistory: (lim, off) => manager.loadHistory(lim, off),
-      loadExerciseHistory: (name) => manager.loadExerciseHistory(name),
+        historySessions: manager.historySessions,
+        selectedExerciseHistory: manager.selectedExerciseHistory,
+        loadHistory: (lim, off) => manager.loadHistory(lim, off),
+        loadExerciseHistory: (name) => manager.loadExerciseHistory(name),
 
-      isLoading: manager.isLoading,
-      error: manager.error,
-    };
-  },
+        isLoading: manager.isLoading,
+        error: manager.error,
+      };
+    },
     [manager, version]
   );
 

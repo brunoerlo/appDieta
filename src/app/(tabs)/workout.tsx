@@ -6,6 +6,7 @@ import {
   ScrollView,
   TouchableOpacity,
   RefreshControl,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -16,7 +17,7 @@ import { WorkoutRoutine } from '../../types/domain';
 import { RoutineCard } from '../../components/workout/RoutineCard';
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
-import { formatElapsedSeconds } from '../../utils/workout';
+import { formatDatePortuguese } from '../../utils/date';
 
 const FILTER_CATEGORIES = [
   'Todas',
@@ -31,10 +32,10 @@ export default function WorkoutTabScreen() {
   const styles = useMemo(() => createStyles(colors), [colors]);
   const {
     routines,
-    isLoadingRoutines,
     refreshRoutines,
     deleteRoutine,
     startWorkout,
+    discardWorkout,
     activeSession,
   } = useWorkout();
 
@@ -80,7 +81,35 @@ export default function WorkoutTabScreen() {
   }, [routines, selectedFilter]);
 
   const handleStartRoutine = (routine: WorkoutRoutine) => {
-    startWorkout(routine);
+    if (activeSession && activeSession.routineId !== routine.id) {
+      Alert.alert(
+        'Rascunho em Aberto',
+        `Você já possui um rascunho de "${activeSession.routineName}" em aberto. Deseja substituí-lo por "${routine.name}"?`,
+        [
+          {
+            text: 'Continuar Atual',
+            style: 'cancel',
+            onPress: () => router.push('/workout/live'),
+          },
+          {
+            text: 'Substituir Rascunho',
+            style: 'destructive',
+            onPress: () => {
+              startWorkout(routine);
+              router.push({
+                pathname: '/workout/live',
+                params: { routineId: routine.id },
+              });
+            },
+          },
+        ]
+      );
+      return;
+    }
+
+    if (!activeSession) {
+      startWorkout(routine);
+    }
     router.push({
       pathname: '/workout/live',
       params: { routineId: routine.id },
@@ -128,22 +157,22 @@ export default function WorkoutTabScreen() {
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
-            refreshing={isRefreshing || isLoadingRoutines}
+            refreshing={isRefreshing}
             onRefresh={onRefresh}
             tintColor={colors.primary}
           />
         }
       >
-        {/* Active Session Resume Card (if active) */}
+        {/* Active Draft Resume Card (if open draft exists) */}
         {activeSession && (
           <Card style={styles.activeSessionCard}>
             <View style={styles.activeHeaderRow}>
               <View style={styles.activeBadge}>
                 <View style={styles.pulsingDot} />
-                <Text style={styles.activeBadgeText}>TREINO EM ANDAMENTO</Text>
+                <Text style={styles.activeBadgeText}>RASCUNHO EM ABERTO</Text>
               </View>
               <Text style={styles.activeTimerText}>
-                ⏱ {formatElapsedSeconds(activeSession.elapsedSeconds)}
+                📅 {formatDatePortuguese(activeSession.date)}
               </Text>
             </View>
 
@@ -152,22 +181,38 @@ export default function WorkoutTabScreen() {
             </Text>
 
             <Text style={styles.activeSetsInfo}>
-              {activeSession.exercises.reduce(
-                (sum, e) => sum + e.sets.filter((s) => s.completed).length,
-                0
-              )}{' '}
-              de{' '}
+              {activeSession.exercises.length} exercícios •{' '}
               {activeSession.exercises.reduce((sum, e) => sum + e.sets.length, 0)}{' '}
-              séries concluídas
+              séries •{' '}
+              {activeSession.exercises
+                .reduce(
+                  (sum, e) =>
+                    sum +
+                    e.sets.reduce(
+                      (sSum, s) => sSum + (s.weightKg || 0) * (s.reps || 0),
+                      0
+                    ),
+                  0
+                )
+                .toLocaleString('pt-BR')}{' '}
+              kg
             </Text>
 
-            <Button
-              title="▶ Retomar Treino"
-              onPress={handleResumeWorkout}
-              variant="primary"
-              size="md"
-              style={styles.resumeBtn}
-            />
+            <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+              <Button
+                title="Continuar Preenchendo"
+                onPress={handleResumeWorkout}
+                variant="primary"
+                size="md"
+                style={{ flex: 1 }}
+              />
+              <Button
+                title="Descartar"
+                onPress={discardWorkout}
+                variant="secondary"
+                size="md"
+              />
+            </View>
           </Card>
         )}
 

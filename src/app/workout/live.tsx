@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   View,
   Text,
@@ -12,14 +12,21 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { ThemeColors, spacing, borderRadius } from '../../constants/theme';
 import { useTheme } from '../../hooks/useTheme';
 import { useWorkout } from '../../hooks/useWorkout';
-import { formatElapsedSeconds, calculate1RM } from '../../utils/workout';
+import { calculate1RM } from '../../utils/workout';
+import {
+  formatDatePortuguese,
+  getTodayDateString,
+  shiftDateString,
+} from '../../utils/date';
 import { LiveSetRow } from '../../components/workout/LiveSetRow';
-import { RestTimerBar, RestTimerModal } from '../../components/workout/RestTimerModal';
 import {
   WorkoutSummaryModal,
   WorkoutSummaryData,
 } from '../../components/workout/WorkoutSummaryModal';
-import { ExercisePickerModal, ExercisePickerResult } from '../../components/workout/ExercisePickerModal';
+import {
+  ExercisePickerModal,
+  ExercisePickerResult,
+} from '../../components/workout/ExercisePickerModal';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
 import { useSafeTopPadding } from '../../hooks/useSafeTopPadding';
@@ -34,52 +41,51 @@ export default function LiveWorkoutScreen() {
     routines,
     activeSession,
     startWorkout,
-    startFreestyleWorkout,
     addExerciseToActiveWorkout,
     removeExerciseFromActiveWorkout,
     updateSet,
     addSet,
     removeSet,
-    completeSet,
-    uncompleteSet,
+    setWorkoutDate,
+    setWorkoutNotes,
     discardWorkout,
     finishWorkout,
-    restTimer,
-    startRestTimer,
-    adjustRestTimer,
-    skipRestTimer,
   } = useWorkout();
 
-  const [isRestModalVisible, setIsRestModalVisible] = useState(false);
   const [isSummaryVisible, setIsSummaryVisible] = useState(false);
   const [isPickerVisible, setIsPickerVisible] = useState(false);
-  const [notes, setNotes] = useState('');
   const [isFinishing, setIsFinishing] = useState(false);
+  const hasInitializedRef = useRef(false);
 
-  // Initialize active workout if not already started
+  // Initialize active workout draft once on screen entry if not already open
   useEffect(() => {
+    if (hasInitializedRef.current) return;
     if (!activeSession) {
+      hasInitializedRef.current = true;
       if (routineId) {
         const found = routines.find((r) => r.id === routineId);
         if (found) {
           startWorkout(found);
         } else {
-          startFreestyleWorkout('Treino Livre');
+          startWorkout();
         }
       } else {
-        startFreestyleWorkout('Treino Livre');
+        startWorkout();
       }
+    } else {
+      hasInitializedRef.current = true;
     }
-  }, [routineId, routines, activeSession, startWorkout, startFreestyleWorkout]);
+  }, [routineId, routines, activeSession, startWorkout]);
 
-  // Aggregate metrics
+  // Aggregate metrics across all active sets
   const allSets = useMemo(() => {
     if (!activeSession) return [];
     return activeSession.exercises.flatMap((e) => e.sets);
   }, [activeSession]);
 
   const completedSets = useMemo(() => {
-    return allSets.filter((s) => s.completed);
+    const marked = allSets.filter((s) => s.completed);
+    return marked.length > 0 ? marked : allSets;
   }, [allSets]);
 
   const currentVolumeKg = useMemo(() => {
@@ -89,12 +95,16 @@ export default function LiveWorkoutScreen() {
     );
   }, [completedSets]);
 
+  const handleBackKeepDraft = () => {
+    router.back();
+  };
+
   const handleDiscardPress = () => {
     Alert.alert(
-      'Descartar Treino',
-      'Deseja descartar o treino em andamento? Todo o progresso não salvo será perdido.',
+      'Descartar Rascunho',
+      'Deseja descartar este rascunho de treino? As alterações não salvas serão perdidas.',
       [
-        { text: 'Continuar Treinando', style: 'cancel' },
+        { text: 'Manter Rascunho', style: 'cancel' },
         {
           text: 'Descartar',
           style: 'destructive',
@@ -108,21 +118,11 @@ export default function LiveWorkoutScreen() {
   };
 
   const handleFinishPress = () => {
-    if (completedSets.length === 0) {
+    if (allSets.length === 0) {
       Alert.alert(
-        'Nenhuma série concluída',
-        'Você não concluiu nenhuma série neste treino. Deseja descartar?',
-        [
-          { text: 'Continuar Treinando', style: 'cancel' },
-          {
-            text: 'Descartar',
-            style: 'destructive',
-            onPress: () => {
-              discardWorkout();
-              router.back();
-            },
-          },
-        ]
+        'Nenhum exercício na ficha',
+        'Adicione pelo menos um exercício com séries para salvar o treino.',
+        [{ text: 'OK', style: 'default' }]
       );
       return;
     }
@@ -133,10 +133,7 @@ export default function LiveWorkoutScreen() {
     if (!activeSession) {
       return {
         routineName: 'Treino',
-        date: new Date().toISOString().split('T')[0],
-        startTime: '00:00:00',
-        endTime: '00:00:00',
-        durationMinutes: 1,
+        date: getTodayDateString(),
         totalVolumeKg: 0,
         completedSetsCount: 0,
         totalSetsCount: 0,
@@ -144,16 +141,17 @@ export default function LiveWorkoutScreen() {
       };
     }
 
-    const durationMinutes = Math.max(1, Math.round(activeSession.elapsedSeconds / 60));
-    const nowTime = new Date().toTimeString().split(' ')[0];
-
     const exerciseSummaries = activeSession.exercises.map((e) => {
-      const comp = e.sets.filter((s) => s.completed);
-      const vol = comp.reduce((sum, s) => sum + (s.weightKg || 0) * (s.reps || 0), 0);
+      const activeExSets = e.sets.filter((s) => s.completed);
+      const setsToSummarize = activeExSets.length > 0 ? activeExSets : e.sets;
+      const vol = setsToSummarize.reduce(
+        (sum, s) => sum + (s.weightKg || 0) * (s.reps || 0),
+        0
+      );
 
       let topSet: { weightKg: number; reps: number } | undefined;
-      let max1RM = 0;
-      for (const s of comp) {
+      let max1RM = -1;
+      for (const s of setsToSummarize) {
         const est = calculate1RM(s.weightKg, s.reps);
         if (est > max1RM) {
           max1RM = est;
@@ -161,22 +159,24 @@ export default function LiveWorkoutScreen() {
         }
       }
 
+      const setsDetail = setsToSummarize.map(
+        (s, idx) => `Série ${idx + 1}: ${s.weightKg}kg × ${s.reps}`
+      );
+
       return {
         name: e.name,
         muscleGroup: e.muscleGroup,
-        completedSets: comp.length,
+        completedSets: setsToSummarize.length,
         totalSets: e.sets.length,
         volumeKg: vol,
         topSet,
+        setsDetail,
       };
     });
 
     return {
       routineName: activeSession.routineName,
       date: activeSession.date,
-      startTime: activeSession.startTime,
-      endTime: nowTime,
-      durationMinutes,
       totalVolumeKg: currentVolumeKg,
       completedSetsCount: completedSets.length,
       totalSetsCount: allSets.length,
@@ -185,13 +185,17 @@ export default function LiveWorkoutScreen() {
   }, [activeSession, completedSets, allSets, currentVolumeKg]);
 
   const handleSaveWorkout = async () => {
+    if (!activeSession) return;
     setIsFinishing(true);
     try {
-      await finishWorkout(notes);
+      await finishWorkout(activeSession.notes, {
+        date: activeSession.date,
+        durationMinutes: 0,
+      });
       setIsSummaryVisible(false);
       router.replace('/workout/history');
     } catch (err: any) {
-      Alert.alert('Erro ao salvar', err?.message || 'Falha ao finalizar o treino.');
+      Alert.alert('Erro ao salvar', err?.message || 'Falha ao salvar o treino.');
     } finally {
       setIsFinishing(false);
     }
@@ -210,31 +214,32 @@ export default function LiveWorkoutScreen() {
     return (
       <SafeAreaView style={styles.container} edges={['bottom', 'left', 'right']}>
         <View style={[styles.loadingContainer, { paddingTop: safeTop }]}>
-          <Text style={styles.loadingText}>Carregando treino...</Text>
+          <Text style={styles.loadingText}>Carregando ficha de treino...</Text>
         </View>
       </SafeAreaView>
     );
   }
+
+  const todayStr = getTodayDateString();
+  const isToday = activeSession.date === todayStr;
 
   return (
     <SafeAreaView style={styles.container} edges={['bottom', 'left', 'right']}>
       {/* Top Header */}
       <View style={[styles.topHeader, { paddingTop: safeTop }]}>
         <TouchableOpacity
-          onPress={handleDiscardPress}
+          onPress={handleBackKeepDraft}
           style={styles.headerBtn}
           accessibilityRole="button"
-          accessibilityLabel="Descartar treino"
+          accessibilityLabel="Voltar mantendo rascunho"
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
         >
-          <Text style={styles.discardHeaderLink} numberOfLines={1}>✕ Descartar</Text>
+          <Text style={styles.backHeaderLink} numberOfLines={1}>‹ Voltar</Text>
         </TouchableOpacity>
 
-        {/* Stopwatch indicator */}
-        <View style={styles.timerBadge}>
-          <View style={styles.pulsingDot} />
-          <Text style={styles.timerText} numberOfLines={1}>
-            {formatElapsedSeconds(activeSession.elapsedSeconds)}
+        <View style={styles.sheetHeaderBadge}>
+          <Text style={styles.sheetHeaderBadgeText} numberOfLines={1}>
+            FICHA DE CARGAS
           </Text>
         </View>
 
@@ -245,33 +250,78 @@ export default function LiveWorkoutScreen() {
           accessibilityLabel="Finalizar treino"
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
         >
-          <Text style={styles.finishBtnText} numberOfLines={1}>Finalizar</Text>
+          <Text style={styles.finishBtnText} numberOfLines={1}>Salvar Treino</Text>
         </TouchableOpacity>
       </View>
 
-      {/* Routine Banner */}
+      {/* Routine & Date Selector Banner */}
       <View style={styles.bannerCard}>
-        <Text style={styles.routineNameText}>{activeSession.routineName}</Text>
-        <View style={styles.bannerMetricsRow}>
-          <Text style={styles.bannerMetric}>
-            Volume: <Text style={styles.emeraldMetric}>{currentVolumeKg} kg</Text>
-          </Text>
-          <Text style={styles.bannerMetricDivider}>•</Text>
-          <Text style={styles.bannerMetric}>
-            Séries: {completedSets.length}/{allSets.length}
-          </Text>
+        <View style={styles.bannerTopRow}>
+          <View style={styles.bannerTitleCol}>
+            <Text style={styles.routineNameText}>{activeSession.routineName}</Text>
+            <View style={styles.bannerMetricsRow}>
+              <Text style={styles.bannerMetric}>
+                Volume Total:{' '}
+                <Text style={styles.emeraldMetric}>
+                  {currentVolumeKg.toLocaleString('pt-BR')} kg
+                </Text>
+              </Text>
+              <Text style={styles.bannerMetricDivider}>•</Text>
+              <Text style={styles.bannerMetric}>
+                {activeSession.exercises.length} exercícios ({allSets.length} séries)
+              </Text>
+            </View>
+          </View>
+        </View>
+
+        {/* Workout Date Selector */}
+        <View style={styles.dateBar}>
+          <TouchableOpacity
+            onPress={() => setWorkoutDate(shiftDateString(activeSession.date, -1))}
+            style={styles.dateStepBtn}
+            accessibilityRole="button"
+            accessibilityLabel="Dia anterior"
+          >
+            <Text style={styles.dateStepBtnText}>‹</Text>
+          </TouchableOpacity>
+
+          <View style={styles.dateDisplayBox}>
+            <Text style={styles.dateDisplayLabel}>
+              📅 Data: <Text style={styles.dateDisplayValue}>{formatDatePortuguese(activeSession.date)}</Text>
+            </Text>
+            {!isToday && (
+              <TouchableOpacity
+                onPress={() => setWorkoutDate(todayStr)}
+                style={styles.resetTodayBtn}
+                accessibilityRole="button"
+                accessibilityLabel="Alterar data para hoje"
+              >
+                <Text style={styles.resetTodayText}>Ir para Hoje</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+
+          <TouchableOpacity
+            onPress={() => setWorkoutDate(shiftDateString(activeSession.date, 1))}
+            style={styles.dateStepBtn}
+            accessibilityRole="button"
+            accessibilityLabel="Próximo dia"
+          >
+            <Text style={styles.dateStepBtnText}>›</Text>
+          </TouchableOpacity>
         </View>
       </View>
 
       {/* Exercises ScrollView */}
       <ScrollView
-        contentContainerStyle={[
-          styles.scrollContent,
-          restTimer.isActive && styles.scrollPaddingForRestBar,
-        ]}
+        contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
+        <Text style={styles.helperBannerText}>
+          As cargas do último treino já vêm preenchidas. Altere apenas o que mudou e clique em Salvar Treino.
+        </Text>
+
         {activeSession.exercises.map((exercise, exIdx) => (
           <View key={exercise.id || `${exercise.name}-${exIdx}`} style={styles.exerciseCard}>
             {/* Exercise Header */}
@@ -286,8 +336,8 @@ export default function LiveWorkoutScreen() {
                       backgroundColor={colors.primaryMuted}
                     />
                   )}
-                  <Text style={styles.restLabel}>
-                    Descanso: {exercise.defaultRestSeconds}s
+                  <Text style={styles.setsCountLabel}>
+                    {exercise.sets.length} {exercise.sets.length === 1 ? 'série' : 'séries'}
                   </Text>
                 </View>
               </View>
@@ -305,11 +355,13 @@ export default function LiveWorkoutScreen() {
 
             {/* Table Header Row */}
             <View style={styles.tableHeaderRow}>
-              <Text style={[styles.thText, styles.thSet]}>SET</Text>
+              <Text style={[styles.thText, styles.thSet]}>SÉRIE</Text>
               <Text style={[styles.thText, styles.thPrev]}>ANTERIOR</Text>
               <Text style={[styles.thText, styles.thKg]}>KG</Text>
               <Text style={[styles.thText, styles.thReps]}>REPS</Text>
-              <Text style={[styles.thText, styles.thCheck]}>✓</Text>
+              {exercise.sets.length > 1 && (
+                <Text style={[styles.thText, styles.thDelete]} />
+              )}
             </View>
 
             {/* Set Rows */}
@@ -321,17 +373,11 @@ export default function LiveWorkoutScreen() {
                 reps={set.reps}
                 previousLoadDisplay={set.previousLoadDisplay}
                 completed={set.completed}
+                canDelete={exercise.sets.length > 1}
                 onWeightChange={(weight) =>
                   updateSet(exIdx, setIdx, { weightKg: weight })
                 }
                 onRepsChange={(reps) => updateSet(exIdx, setIdx, { reps })}
-                onToggleComplete={() => {
-                  if (set.completed) {
-                    uncompleteSet(exIdx, setIdx);
-                  } else {
-                    completeSet(exIdx, setIdx);
-                  }
-                }}
                 onCopyPrevious={() => {
                   if (set.previousLoadDisplay && set.previousLoadDisplay !== '—') {
                     const match = set.previousLoadDisplay.match(/(\d+(\.\d+)?)kg\s*×\s*(\d+)/);
@@ -367,34 +413,34 @@ export default function LiveWorkoutScreen() {
           size="md"
           style={styles.addExerciseBtn}
         />
+
+        {/* Primary Bottom Save Button */}
+        <Button
+          title="Salvar Treino"
+          onPress={handleFinishPress}
+          variant="primary"
+          size="lg"
+          style={styles.bottomSaveBtn}
+        />
+
+        {/* Discard Draft Action */}
+        <TouchableOpacity
+          onPress={handleDiscardPress}
+          style={styles.discardDraftFooterBtn}
+          accessibilityRole="button"
+          accessibilityLabel="Descartar treino"
+        >
+          <Text style={styles.discardDraftFooterText}>Descartar Rascunho</Text>
+        </TouchableOpacity>
       </ScrollView>
 
-      {/* Docked Rest Timer Bar */}
-      <RestTimerBar
-        timer={restTimer}
-        onAddSeconds={(sec) => adjustRestTimer(sec)}
-        onSubtractSeconds={(sec) => adjustRestTimer(-sec)}
-        onSkip={skipRestTimer}
-        onExpand={() => setIsRestModalVisible(true)}
-      />
-
-      {/* Expanded Rest Timer Modal */}
-      <RestTimerModal
-        visible={isRestModalVisible}
-        timer={restTimer}
-        onAddSeconds={(sec) => adjustRestTimer(sec)}
-        onSubtractSeconds={(sec) => adjustRestTimer(-sec)}
-        onSetSeconds={(sec) => startRestTimer(sec, restTimer.exerciseName)}
-        onSkip={skipRestTimer}
-        onClose={() => setIsRestModalVisible(false)}
-      />
-
-      {/* Workout Summary & Save Modal */}
+      {/* Workout Summary & Confirmation Modal */}
       <WorkoutSummaryModal
         visible={isSummaryVisible}
         summary={summaryData}
-        notes={notes}
-        onNotesChange={setNotes}
+        notes={activeSession.notes || ''}
+        onNotesChange={setWorkoutNotes}
+        onDateChange={setWorkoutDate}
         onSave={handleSaveWorkout}
         onContinueWorkout={() => setIsSummaryVisible(false)}
         onDiscard={() => {
@@ -443,31 +489,22 @@ const createStyles = (colors: ThemeColors) =>
       minHeight: 44,
       justifyContent: 'center',
     },
-    discardHeaderLink: {
-      color: colors.danger,
-      fontSize: 14,
-      fontWeight: '600',
+    backHeaderLink: {
+      color: colors.primary,
+      fontSize: 15,
+      fontWeight: '700',
     },
-    timerBadge: {
-      flexDirection: 'row',
-      alignItems: 'center',
+    sheetHeaderBadge: {
       backgroundColor: colors.surfaceMuted,
       paddingHorizontal: 12,
       paddingVertical: 6,
       borderRadius: borderRadius.full,
-      gap: 6,
     },
-    pulsingDot: {
-      width: 8,
-      height: 8,
-      borderRadius: 4,
-      backgroundColor: colors.primary,
-    },
-    timerText: {
-      color: colors.textPrimary,
-      fontSize: 14,
-      fontWeight: '700',
-      fontVariant: ['tabular-nums'],
+    sheetHeaderBadgeText: {
+      color: colors.textSecondary,
+      fontSize: 11,
+      fontWeight: '800',
+      letterSpacing: 0.6,
     },
     finishBtn: {
       backgroundColor: colors.primary,
@@ -490,6 +527,15 @@ const createStyles = (colors: ThemeColors) =>
       backgroundColor: colors.card,
       borderBottomWidth: 1,
       borderBottomColor: colors.cardBorder,
+      gap: spacing.sm,
+    },
+    bannerTopRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+    },
+    bannerTitleCol: {
+      flex: 1,
     },
     routineNameText: {
       color: colors.textPrimary,
@@ -513,12 +559,65 @@ const createStyles = (colors: ThemeColors) =>
       color: colors.primary,
       fontWeight: '700',
     },
+    dateBar: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      backgroundColor: colors.surfaceMuted,
+      borderRadius: borderRadius.md,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+      paddingHorizontal: 6,
+      paddingVertical: 4,
+    },
+    dateStepBtn: {
+      minWidth: 40,
+      minHeight: 38,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderRadius: borderRadius.sm,
+    },
+    dateStepBtnText: {
+      color: colors.primary,
+      fontSize: 20,
+      fontWeight: '700',
+    },
+    dateDisplayBox: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 8,
+    },
+    dateDisplayLabel: {
+      color: colors.textSecondary,
+      fontSize: 13,
+      fontWeight: '600',
+    },
+    dateDisplayValue: {
+      color: colors.textPrimary,
+      fontWeight: '700',
+    },
+    resetTodayBtn: {
+      backgroundColor: colors.primaryMuted,
+      paddingHorizontal: 8,
+      paddingVertical: 3,
+      borderRadius: borderRadius.full,
+    },
+    resetTodayText: {
+      color: colors.primary,
+      fontSize: 11,
+      fontWeight: '700',
+    },
     scrollContent: {
       padding: spacing.lg,
       paddingBottom: spacing.xxl,
     },
-    scrollPaddingForRestBar: {
-      paddingBottom: 80,
+    helperBannerText: {
+      color: colors.textSecondary,
+      fontSize: 12,
+      lineHeight: 17,
+      marginBottom: spacing.md,
     },
     exerciseCard: {
       backgroundColor: colors.card,
@@ -548,7 +647,7 @@ const createStyles = (colors: ThemeColors) =>
       alignItems: 'center',
       gap: 8,
     },
-    restLabel: {
+    setsCountLabel: {
       color: colors.textDimmed,
       fontSize: 12,
     },
@@ -575,7 +674,7 @@ const createStyles = (colors: ThemeColors) =>
       textTransform: 'uppercase',
     },
     thSet: {
-      width: 28,
+      width: 34,
       textAlign: 'center',
       marginRight: 6,
     },
@@ -584,19 +683,18 @@ const createStyles = (colors: ThemeColors) =>
       paddingHorizontal: 4,
     },
     thKg: {
-      width: 60,
+      width: 68,
       textAlign: 'center',
       marginHorizontal: 4,
     },
     thReps: {
-      width: 60,
+      width: 68,
       textAlign: 'center',
       marginHorizontal: 4,
     },
-    thCheck: {
-      width: 44,
-      textAlign: 'center',
-      marginLeft: 4,
+    thDelete: {
+      width: 32,
+      marginLeft: 2,
     },
     addSetBtn: {
       paddingVertical: 10,
@@ -614,6 +712,22 @@ const createStyles = (colors: ThemeColors) =>
     },
     addExerciseBtn: {
       width: '100%',
-      marginBottom: spacing.lg,
+      marginBottom: spacing.md,
+    },
+    bottomSaveBtn: {
+      width: '100%',
+      marginBottom: spacing.sm,
+    },
+    discardDraftFooterBtn: {
+      minHeight: 44,
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingVertical: 8,
+    },
+    discardDraftFooterText: {
+      color: colors.danger,
+      fontSize: 13,
+      fontWeight: '600',
     },
   });
+

@@ -23,8 +23,6 @@ export interface ExerciseConfigRowProps {
   onMoveDown?: () => void;
 }
 
-const COMMON_REST_OPTIONS = [45, 60, 75, 90, 120];
-
 export const ExerciseConfigRow: React.FC<ExerciseConfigRowProps> = ({
   exercise,
   index,
@@ -40,11 +38,6 @@ export const ExerciseConfigRow: React.FC<ExerciseConfigRowProps> = ({
   const handleSetsChange = (delta: number) => {
     const next = Math.max(1, Math.min(10, exercise.targetSets + delta));
     onUpdate({ targetSets: next });
-  };
-
-  const handleRestChange = (delta: number) => {
-    const next = Math.max(30, Math.min(300, exercise.defaultRestSeconds + delta));
-    onUpdate({ defaultRestSeconds: next });
   };
 
   const isFirst = index === 0;
@@ -82,11 +75,10 @@ export const ExerciseConfigRow: React.FC<ExerciseConfigRowProps> = ({
         </TouchableOpacity>
       </View>
 
-      {/* Steppers: Sets & Rest */}
+      {/* Stepper: Target Sets */}
       <View style={styles.controlsRow}>
-        {/* Sets Stepper */}
         <View style={styles.controlSection}>
-          <Text style={styles.controlLabel}>Séries Alvo</Text>
+          <Text style={styles.controlLabel}>Séries na Ficha</Text>
           <View style={styles.stepperContainer}>
             <TouchableOpacity
               onPress={() => handleSetsChange(-1)}
@@ -113,71 +105,6 @@ export const ExerciseConfigRow: React.FC<ExerciseConfigRowProps> = ({
             </TouchableOpacity>
           </View>
         </View>
-
-        {/* Rest Interval Stepper */}
-        <View style={[styles.controlSection, styles.restSection]}>
-          <Text style={styles.controlLabel}>Descanso Padrão</Text>
-          <View style={styles.stepperContainer}>
-            <TouchableOpacity
-              onPress={() => handleRestChange(-15)}
-              style={styles.stepperBtn}
-              disabled={exercise.defaultRestSeconds <= 30}
-              accessibilityLabel="Diminuir 15 segundos"
-              accessibilityRole="button"
-            >
-              <Text
-                style={[
-                  styles.stepperText,
-                  exercise.defaultRestSeconds <= 30 && styles.disabledText,
-                ]}
-              >
-                -
-              </Text>
-            </TouchableOpacity>
-            <Text style={styles.stepperValue}>{exercise.defaultRestSeconds}s</Text>
-            <TouchableOpacity
-              onPress={() => handleRestChange(15)}
-              style={styles.stepperBtn}
-              disabled={exercise.defaultRestSeconds >= 300}
-              accessibilityLabel="Aumentar 15 segundos"
-              accessibilityRole="button"
-            >
-              <Text
-                style={[
-                  styles.stepperText,
-                  exercise.defaultRestSeconds >= 300 && styles.disabledText,
-                ]}
-              >
-                +
-              </Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </View>
-
-      {/* Quick Rest Pills */}
-      <View style={styles.pillsRow}>
-        {COMMON_REST_OPTIONS.map((seconds) => (
-          <TouchableOpacity
-            key={seconds}
-            onPress={() => onUpdate({ defaultRestSeconds: seconds })}
-            style={[
-              styles.restPill,
-              exercise.defaultRestSeconds === seconds && styles.restPillActive,
-            ]}
-            accessibilityLabel={`Definir descanso ${seconds} segundos`}
-            accessibilityRole="button"
-          >
-            <Text
-              style={[
-                styles.restPillText,
-                exercise.defaultRestSeconds === seconds && styles.restPillTextActive,
-              ]}
-            >
-              {seconds}s
-            </Text>
-          </TouchableOpacity>
-        ))}
       </View>
 
       {/* Footer: Reorder Controls */}

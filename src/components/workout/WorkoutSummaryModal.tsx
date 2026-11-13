@@ -13,7 +13,7 @@ import { spacing, borderRadius, ThemeColors } from '../../constants/theme';
 import { useTheme } from '../../hooks/useTheme';
 import { Button } from '../ui/Button';
 import { Card } from '../ui/Card';
-import { formatDurationMinutes } from '../../utils/workout';
+import { formatDatePortuguese, getTodayDateString, shiftDateString } from '../../utils/date';
 
 export interface ExerciseSummaryItem {
   name: string;
@@ -22,14 +22,15 @@ export interface ExerciseSummaryItem {
   totalSets: number;
   volumeKg: number;
   topSet?: { weightKg: number; reps: number };
+  setsDetail?: string[];
 }
 
 export interface WorkoutSummaryData {
   routineName: string;
   date: string;
-  startTime: string;
-  endTime: string;
-  durationMinutes: number;
+  startTime?: string;
+  endTime?: string;
+  durationMinutes?: number;
   totalVolumeKg: number;
   completedSetsCount: number;
   totalSetsCount: number;
@@ -41,6 +42,7 @@ export interface WorkoutSummaryModalProps {
   summary: WorkoutSummaryData;
   notes: string;
   onNotesChange: (notes: string) => void;
+  onDateChange?: (newDate: string) => void;
   onSave: () => Promise<void>;
   onContinueWorkout: () => void;
   onDiscard: () => void;
@@ -52,6 +54,7 @@ export const WorkoutSummaryModal: React.FC<WorkoutSummaryModalProps> = ({
   summary,
   notes,
   onNotesChange,
+  onDateChange,
   onSave,
   onContinueWorkout,
   onDiscard,
@@ -59,6 +62,8 @@ export const WorkoutSummaryModal: React.FC<WorkoutSummaryModalProps> = ({
 }) => {
   const { colors } = useTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
+  const todayStr = getTodayDateString();
+  const isToday = summary.date === todayStr;
 
   return (
     <Modal
@@ -75,63 +80,114 @@ export const WorkoutSummaryModal: React.FC<WorkoutSummaryModalProps> = ({
         >
           {/* Header */}
           <View style={styles.header}>
-            <Text style={styles.trophyIcon}>🏆</Text>
-            <Text style={styles.title}>TREINO CONCLUÍDO!</Text>
+            <Text style={styles.trophyIcon}>📋</Text>
+            <Text style={styles.title}>RESUMO DO TREINO</Text>
             <Text style={styles.routineName}>{summary.routineName}</Text>
             <Text style={styles.dateText}>
-              {summary.date} • {summary.startTime} - {summary.endTime}
+              Confira as cargas e o volume total antes de salvar
             </Text>
           </View>
 
-          {/* Metrics 2x2 Grid */}
+          {/* Date Selector in Summary */}
+          {onDateChange && (
+            <View style={styles.dateSelectorCard}>
+              <TouchableOpacity
+                onPress={() => onDateChange(shiftDateString(summary.date, -1))}
+                style={styles.dateArrowBtn}
+                accessibilityRole="button"
+                accessibilityLabel="Dia anterior"
+              >
+                <Text style={styles.dateArrowText}>‹</Text>
+              </TouchableOpacity>
+
+              <View style={styles.dateCenter}>
+                <Text style={styles.dateLabelSmall}>DATA DO TREINO</Text>
+                <Text style={styles.dateValueText}>
+                  {formatDatePortuguese(summary.date)}
+                </Text>
+                {!isToday && (
+                  <TouchableOpacity
+                    onPress={() => onDateChange(todayStr)}
+                    style={styles.todayChip}
+                    accessibilityRole="button"
+                    accessibilityLabel="Ir para hoje"
+                  >
+                    <Text style={styles.todayChipText}>Ir para Hoje</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+
+              <TouchableOpacity
+                onPress={() => onDateChange(shiftDateString(summary.date, 1))}
+                style={styles.dateArrowBtn}
+                accessibilityRole="button"
+                accessibilityLabel="Próximo dia"
+              >
+                <Text style={styles.dateArrowText}>›</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {/* Metrics 2x2 Grid (No Duration!) */}
           <View style={styles.grid}>
             <Card style={styles.metricCard}>
               <Text style={styles.metricLabel}>VOLUME TOTAL</Text>
-              <Text style={styles.metricValue}>
+              <Text style={[styles.metricValue, styles.statusEmerald]}>
                 {summary.totalVolumeKg.toLocaleString('pt-BR')} kg
               </Text>
             </Card>
 
             <Card style={styles.metricCard}>
-              <Text style={styles.metricLabel}>DURAÇÃO</Text>
+              <Text style={styles.metricLabel}>DATA DO TREINO</Text>
               <Text style={styles.metricValue}>
-                {formatDurationMinutes(summary.durationMinutes)}
+                {formatDatePortuguese(summary.date)}
               </Text>
             </Card>
 
             <Card style={styles.metricCard}>
-              <Text style={styles.metricLabel}>SÉRIES CONCLUÍDAS</Text>
+              <Text style={styles.metricLabel}>EXERCÍCIOS</Text>
               <Text style={styles.metricValue}>
-                {summary.completedSetsCount} / {summary.totalSetsCount}
+                {summary.exercises.length}
               </Text>
             </Card>
 
             <Card style={styles.metricCard}>
-              <Text style={styles.metricLabel}>STATUS</Text>
-              <Text style={[styles.metricValue, styles.statusEmerald]}>
-                {summary.completedSetsCount === summary.totalSetsCount
-                  ? '100% Completo'
-                  : 'Parcial'}
+              <Text style={styles.metricLabel}>SÉRIES REGISTRADAS</Text>
+              <Text style={styles.metricValue}>
+                {summary.completedSetsCount}
               </Text>
             </Card>
           </View>
 
           {/* Exercise Breakdown */}
-          <Text style={styles.sectionTitle}>RESUMO POR EXERCÍCIO</Text>
+          <Text style={styles.sectionTitle}>CARGAS POR EXERCÍCIO</Text>
           <View style={styles.exerciseList}>
             {summary.exercises.map((ex, idx) => (
-              <View key={`${ex.name}-${idx}`} style={styles.exerciseRow}>
+              <View
+                key={`${ex.name}-${idx}`}
+                style={[
+                  styles.exerciseRow,
+                  idx === summary.exercises.length - 1 && styles.exerciseRowLast,
+                ]}
+              >
                 <View style={styles.exerciseHeader}>
                   <Text style={styles.exName}>{ex.name}</Text>
-                  <Text style={styles.exVolume}>{ex.volumeKg} kg</Text>
+                  <Text style={styles.exVolume}>
+                    {ex.volumeKg.toLocaleString('pt-BR')} kg
+                  </Text>
                 </View>
+                {ex.setsDetail && ex.setsDetail.length > 0 ? (
+                  <Text style={styles.exSetsDetailText}>
+                    {ex.setsDetail.join('  •  ')}
+                  </Text>
+                ) : null}
                 <View style={styles.exMetaRow}>
                   <Text style={styles.exMetaSets}>
-                    {ex.completedSets} de {ex.totalSets} séries
+                    {ex.completedSets} {ex.completedSets === 1 ? 'série' : 'séries'}
                   </Text>
                   {ex.topSet && (
                     <Text style={styles.exTopSet}>
-                      Top: {ex.topSet.weightKg}kg × {ex.topSet.reps}
+                      Maior carga: {ex.topSet.weightKg}kg × {ex.topSet.reps}
                     </Text>
                   )}
                 </View>
@@ -143,7 +199,7 @@ export const WorkoutSummaryModal: React.FC<WorkoutSummaryModalProps> = ({
           <Text style={styles.sectionTitle}>NOTAS / OBSERVAÇÕES</Text>
           <TextInput
             style={styles.notesInput}
-            placeholder="Ex: Boa progressão no supino, energia alta..."
+            placeholder="Ex: Boa progressão no supino, subi 2kg..."
             placeholderTextColor={colors.textDimmed}
             value={notes}
             onChangeText={onNotesChange}
@@ -155,7 +211,7 @@ export const WorkoutSummaryModal: React.FC<WorkoutSummaryModalProps> = ({
           {/* Action CTAs */}
           <View style={styles.actionsContainer}>
             <Button
-              title="Salvar Treino no Histórico"
+              title="Confirmar e Salvar Treino"
               onPress={onSave}
               variant="primary"
               size="lg"
@@ -164,7 +220,7 @@ export const WorkoutSummaryModal: React.FC<WorkoutSummaryModalProps> = ({
             />
 
             <Button
-              title="Continuar Treinando"
+              title="Voltar e Editar Cargas"
               onPress={onContinueWorkout}
               variant="secondary"
               size="md"
@@ -179,7 +235,7 @@ export const WorkoutSummaryModal: React.FC<WorkoutSummaryModalProps> = ({
               accessibilityRole="button"
               accessibilityLabel="Descartar treino"
             >
-              <Text style={styles.discardText}>Descartar Treino</Text>
+              <Text style={styles.discardText}>Descartar Rascunho</Text>
             </TouchableOpacity>
           </View>
         </ScrollView>
@@ -200,15 +256,15 @@ const createStyles = (colors: ThemeColors) =>
     },
     header: {
       alignItems: 'center',
-      marginBottom: spacing.xl,
+      marginBottom: spacing.lg,
     },
     trophyIcon: {
-      fontSize: 48,
+      fontSize: 44,
       marginBottom: 8,
     },
     title: {
       color: colors.primary,
-      fontSize: 20,
+      fontSize: 19,
       fontWeight: '800',
       letterSpacing: 1,
       marginBottom: 4,
@@ -223,6 +279,61 @@ const createStyles = (colors: ThemeColors) =>
     dateText: {
       color: colors.textSecondary,
       fontSize: 13,
+      textAlign: 'center',
+    },
+    dateSelectorCard: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      backgroundColor: colors.card,
+      borderColor: colors.cardBorder,
+      borderWidth: 1,
+      borderRadius: borderRadius.md,
+      paddingHorizontal: spacing.sm,
+      paddingVertical: spacing.sm,
+      marginBottom: spacing.md,
+    },
+    dateArrowBtn: {
+      minWidth: 44,
+      minHeight: 44,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderRadius: borderRadius.sm,
+      backgroundColor: colors.surfaceMuted,
+    },
+    dateArrowText: {
+      color: colors.primary,
+      fontSize: 22,
+      fontWeight: '700',
+    },
+    dateCenter: {
+      alignItems: 'center',
+      flex: 1,
+      paddingHorizontal: spacing.sm,
+    },
+    dateLabelSmall: {
+      color: colors.textDimmed,
+      fontSize: 10,
+      fontWeight: '700',
+      letterSpacing: 0.8,
+      marginBottom: 2,
+    },
+    dateValueText: {
+      color: colors.textPrimary,
+      fontSize: 15,
+      fontWeight: '700',
+    },
+    todayChip: {
+      marginTop: 4,
+      backgroundColor: colors.primaryMuted,
+      paddingHorizontal: 10,
+      paddingVertical: 3,
+      borderRadius: borderRadius.full,
+    },
+    todayChipText: {
+      color: colors.primary,
+      fontSize: 11,
+      fontWeight: '700',
     },
     grid: {
       flexDirection: 'row',
@@ -248,11 +359,13 @@ const createStyles = (colors: ThemeColors) =>
     },
     metricValue: {
       color: colors.textPrimary,
-      fontSize: 18,
+      fontSize: 16,
       fontWeight: '800',
+      textAlign: 'center',
     },
     statusEmerald: {
       color: colors.primary,
+      fontSize: 18,
     },
     sectionTitle: {
       color: colors.textDimmed,
@@ -272,7 +385,10 @@ const createStyles = (colors: ThemeColors) =>
     exerciseRow: {
       borderBottomWidth: 1,
       borderBottomColor: colors.cardBorder,
-      paddingVertical: 8,
+      paddingVertical: 10,
+    },
+    exerciseRowLast: {
+      borderBottomWidth: 0,
     },
     exerciseHeader: {
       flexDirection: 'row',
@@ -283,7 +399,7 @@ const createStyles = (colors: ThemeColors) =>
     exName: {
       color: colors.textPrimary,
       fontSize: 14,
-      fontWeight: '600',
+      fontWeight: '700',
       flex: 1,
     },
     exVolume: {
@@ -291,12 +407,18 @@ const createStyles = (colors: ThemeColors) =>
       fontSize: 13,
       fontWeight: '700',
     },
+    exSetsDetailText: {
+      color: colors.textSecondary,
+      fontSize: 12,
+      fontWeight: '600',
+      marginBottom: 4,
+    },
     exMetaRow: {
       flexDirection: 'row',
       justifyContent: 'space-between',
     },
     exMetaSets: {
-      color: colors.textSecondary,
+      color: colors.textDimmed,
       fontSize: 12,
     },
     exTopSet: {
@@ -332,3 +454,4 @@ const createStyles = (colors: ThemeColors) =>
       fontWeight: '600',
     },
   });
+

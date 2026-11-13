@@ -8,10 +8,11 @@ export interface LiveSetRowProps {
   weightKg: number;
   reps: number;
   previousLoadDisplay?: string;
-  completed: boolean;
+  completed?: boolean;
+  canDelete?: boolean;
   onWeightChange: (weight: number) => void;
   onRepsChange: (reps: number) => void;
-  onToggleComplete: () => void;
+  onToggleComplete?: () => void;
   onDelete?: () => void;
   onCopyPrevious?: () => void;
 }
@@ -21,22 +22,38 @@ export const LiveSetRow: React.FC<LiveSetRowProps> = ({
   weightKg,
   reps,
   previousLoadDisplay,
-  completed,
+  canDelete = false,
   onWeightChange,
   onRepsChange,
-  onToggleComplete,
   onDelete,
   onCopyPrevious,
 }) => {
   const { colors } = useTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
 
+  const [weightInputText, setWeightInputText] = React.useState<string | null>(null);
+
+  const parsedLocalWeight =
+    weightInputText !== null ? parseFloat(weightInputText.replace(',', '.')) : NaN;
+  const localMatchesProp =
+    weightInputText !== null &&
+    ((weightKg === 0 && (weightInputText === '' || weightInputText === '0' || weightInputText === '0.' || weightInputText === '0,')) ||
+      (!isNaN(parsedLocalWeight) && Math.round(parsedLocalWeight * 10) / 10 === weightKg));
+
+  const displayedWeightText = localMatchesProp
+    ? weightInputText!
+    : weightKg > 0
+    ? weightKg.toString()
+    : '';
+
   const handleWeightChange = (text: string) => {
-    const cleaned = text.replace(',', '.');
+    const filtered = text.replace(/[^0-9.,]/g, '');
+    setWeightInputText(filtered);
+    const cleaned = filtered.replace(',', '.');
     const parsed = parseFloat(cleaned);
     if (!isNaN(parsed) && parsed >= 0) {
       onWeightChange(Math.min(999.5, Math.round(parsed * 10) / 10));
-    } else if (text === '' || text === '0') {
+    } else if (filtered === '' || filtered === '0') {
       onWeightChange(0);
     }
   };
@@ -46,18 +63,16 @@ export const LiveSetRow: React.FC<LiveSetRowProps> = ({
     const parsed = parseInt(cleaned, 10);
     if (!isNaN(parsed) && parsed >= 0) {
       onRepsChange(Math.min(999, parsed));
-    } else if (text === '' || text === '0') {
+    } else if (cleaned === '' || cleaned === '0') {
       onRepsChange(0);
     }
   };
 
   return (
-    <View style={[styles.row, completed && styles.completedRow]}>
+    <View style={styles.row}>
       {/* Set Number Badge */}
-      <View style={[styles.setNumberBadge, completed && styles.completedBadge]}>
-        <Text style={[styles.setNumberText, completed && styles.completedBadgeText]}>
-          {setNumber}
-        </Text>
+      <View style={styles.setNumberBadge}>
+        <Text style={styles.setNumberText}>{setNumber}ª</Text>
       </View>
 
       {/* Previous Load Column */}
@@ -76,12 +91,14 @@ export const LiveSetRow: React.FC<LiveSetRowProps> = ({
       {/* Weight Input (KG) */}
       <View style={styles.inputWrapper}>
         <TextInput
-          style={[styles.input, completed && styles.completedInput]}
+          style={styles.input}
           keyboardType="decimal-pad"
-          value={weightKg > 0 ? weightKg.toString() : ''}
+          value={displayedWeightText}
           placeholder="0"
           placeholderTextColor={colors.textDimmed}
           onChangeText={handleWeightChange}
+          onBlur={() => setWeightInputText(null)}
+          selectTextOnFocus
           accessibilityLabel={`Peso da série ${setNumber} em quilogramas`}
         />
       </View>
@@ -89,30 +106,31 @@ export const LiveSetRow: React.FC<LiveSetRowProps> = ({
       {/* Reps Input */}
       <View style={styles.inputWrapper}>
         <TextInput
-          style={[styles.input, completed && styles.completedInput]}
+          style={styles.input}
           keyboardType="number-pad"
           value={reps > 0 ? reps.toString() : ''}
           placeholder="0"
           placeholderTextColor={colors.textDimmed}
           onChangeText={handleRepsChange}
+          selectTextOnFocus
           accessibilityLabel={`Repetições da série ${setNumber}`}
         />
       </View>
 
-      {/* Complete Checkbox Button (44x44 minimum) */}
-      <TouchableOpacity
-        style={[styles.checkBtn, completed && styles.checkBtnCompleted]}
-        onPress={onToggleComplete}
-        accessibilityLabel={
-          completed ? `Desmarcar série ${setNumber}` : `Concluir série ${setNumber}`
-        }
-        accessibilityRole="checkbox"
-        accessibilityState={{ checked: completed }}
-      >
-        <Text style={[styles.checkIcon, completed && styles.checkIconCompleted]}>
-          {completed ? '✓' : '○'}
-        </Text>
-      </TouchableOpacity>
+      {/* Optional Remove Set Button */}
+      {onDelete && canDelete ? (
+        <TouchableOpacity
+          style={styles.deleteBtn}
+          onPress={onDelete}
+          accessibilityLabel={`Remover série ${setNumber}`}
+          accessibilityRole="button"
+          hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+        >
+          <Text style={styles.deleteIcon}>✕</Text>
+        </TouchableOpacity>
+      ) : (
+        <View style={styles.deletePlaceholder} />
+      )}
     </View>
   );
 };
@@ -124,38 +142,28 @@ const createStyles = (colors: ThemeColors) =>
       alignItems: 'center',
       backgroundColor: colors.card,
       borderColor: colors.cardBorder,
+      borderLeftWidth: 3,
+      borderLeftColor: colors.primary,
       borderWidth: 1,
       borderRadius: borderRadius.md,
       paddingVertical: 6,
       paddingHorizontal: spacing.sm,
       marginBottom: 6,
-      minHeight: 52,
-    },
-    completedRow: {
-      backgroundColor: colors.primaryMuted,
-      borderLeftWidth: 3,
-      borderLeftColor: colors.primary,
-      borderColor: colors.cardBorder,
+      minHeight: 50,
     },
     setNumberBadge: {
-      width: 28,
+      width: 32,
       height: 28,
-      borderRadius: 14,
-      backgroundColor: colors.surfaceMuted,
+      borderRadius: borderRadius.sm,
+      backgroundColor: colors.primaryMuted,
       alignItems: 'center',
       justifyContent: 'center',
       marginRight: 6,
     },
-    completedBadge: {
-      backgroundColor: colors.primary,
-    },
     setNumberText: {
-      color: colors.textSecondary,
+      color: colors.primary,
       fontSize: 12,
-      fontWeight: '700',
-    },
-    completedBadgeText: {
-      color: '#FFFFFF',
+      fontWeight: '800',
     },
     previousCol: {
       flex: 1.2,
@@ -163,12 +171,12 @@ const createStyles = (colors: ThemeColors) =>
       justifyContent: 'center',
     },
     previousText: {
-      color: colors.textDimmed,
+      color: colors.textSecondary,
       fontSize: 12,
-      fontWeight: '500',
+      fontWeight: '600',
     },
     inputWrapper: {
-      width: 60,
+      width: 68,
       marginHorizontal: 4,
     },
     input: {
@@ -184,31 +192,22 @@ const createStyles = (colors: ThemeColors) =>
       paddingHorizontal: 4,
       minHeight: 40,
     },
-    completedInput: {
-      color: colors.textSecondary,
-    },
-    checkBtn: {
-      width: 44,
-      height: 44,
-      borderRadius: 22,
-      backgroundColor: colors.surfaceMuted,
-      borderWidth: 1,
-      borderColor: colors.cardBorder,
+    deleteBtn: {
+      width: 32,
+      height: 32,
+      borderRadius: 16,
       alignItems: 'center',
       justifyContent: 'center',
-      marginLeft: 4,
+      marginLeft: 2,
     },
-    checkBtnCompleted: {
-      backgroundColor: colors.primary,
-      borderColor: colors.primary,
+    deletePlaceholder: {
+      width: 32,
+      marginLeft: 2,
     },
-    checkIcon: {
+    deleteIcon: {
       color: colors.textDimmed,
-      fontSize: 18,
+      fontSize: 13,
       fontWeight: '700',
-    },
-    checkIconCompleted: {
-      color: '#FFFFFF',
     },
   });
 

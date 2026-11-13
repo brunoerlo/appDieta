@@ -151,7 +151,7 @@ export const ExercisePickerModal: React.FC<ExercisePickerModalProps> = ({
   const [newName, setNewName] = useState('');
   const [newCategory, setNewCategory] = useState<ExerciseCategory>('Peito');
   const [newSets, setNewSets] = useState(3);
-  const [newRestSeconds, setNewRestSeconds] = useState(60);
+  const newRestSeconds = 60;
   const [isSaving, setIsSaving] = useState(false);
   const [nameError, setNameError] = useState(false);
   const { colors } = useTheme();
@@ -201,7 +201,6 @@ export const ExercisePickerModal: React.FC<ExercisePickerModalProps> = ({
       setNewCategory('Peito');
     }
     setNewSets(3);
-    setNewRestSeconds(60);
     setViewMode('create');
   };
 
@@ -330,7 +329,7 @@ export const ExercisePickerModal: React.FC<ExercisePickerModalProps> = ({
                   <View>
                     <Text style={styles.createBannerTitle}>Criar Novo Exercício</Text>
                     <Text style={styles.createBannerSubtitle}>
-                      Personalize nome, categoria, séries e descanso
+                      Personalize nome, categoria e séries padrão
                     </Text>
                   </View>
                 </View>
@@ -367,9 +366,6 @@ export const ExercisePickerModal: React.FC<ExercisePickerModalProps> = ({
                         color={colors.primary}
                         backgroundColor={colors.primaryMuted}
                       />
-                      <Text style={styles.metaRest}>
-                        • Descanso: {item.defaultRestSeconds}s
-                      </Text>
                       {item.targetSets !== undefined && (
                         <Text style={styles.metaRest}>
                           • {item.targetSets} séries
@@ -532,56 +528,6 @@ export const ExercisePickerModal: React.FC<ExercisePickerModalProps> = ({
                         ]}
                       >
                         {count} séries
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </View>
-
-              {/* Tempo de Descanso Padrão */}
-              <View style={styles.formGroup}>
-                <Text style={styles.formLabel}>Tempo de Descanso Padrão</Text>
-                <View style={styles.stepperRow}>
-                  <TouchableOpacity
-                    style={styles.stepperBtn}
-                    onPress={() => setNewRestSeconds((r) => Math.max(15, r - 15))}
-                    accessibilityRole="button"
-                    accessibilityLabel="Diminuir descanso em 15 segundos"
-                  >
-                    <Text style={styles.stepperBtnText}>−15s</Text>
-                  </TouchableOpacity>
-                  <View style={styles.stepperValueContainer}>
-                    <Text style={styles.stepperValueText}>{newRestSeconds}s</Text>
-                    <Text style={styles.stepperUnitText}>descanso</Text>
-                  </View>
-                  <TouchableOpacity
-                    style={styles.stepperBtn}
-                    onPress={() => setNewRestSeconds((r) => Math.min(300, r + 15))}
-                    accessibilityRole="button"
-                    accessibilityLabel="Aumentar descanso em 15 segundos"
-                  >
-                    <Text style={styles.stepperBtnText}>+15s</Text>
-                  </TouchableOpacity>
-                </View>
-
-                {/* Quick Rest Presets */}
-                <View style={styles.presetChipsRow}>
-                  {[45, 60, 90, 120].map((sec) => (
-                    <TouchableOpacity
-                      key={sec}
-                      onPress={() => setNewRestSeconds(sec)}
-                      style={[
-                        styles.quickPresetChip,
-                        newRestSeconds === sec && styles.quickPresetChipActive,
-                      ]}
-                    >
-                      <Text
-                        style={[
-                          styles.quickPresetText,
-                          newRestSeconds === sec && styles.quickPresetTextActive,
-                        ]}
-                      >
-                        {sec}s
                       </Text>
                     </TouchableOpacity>
                   ))}

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Modal,
   View,
@@ -44,6 +44,7 @@ export const MeasurementsModal: React.FC<MeasurementsModalProps> = ({
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const isSubmittingRef = useRef(false);
 
   useEffect(() => {
     let active = true;
@@ -65,23 +66,41 @@ export const MeasurementsModal: React.FC<MeasurementsModalProps> = ({
 
 
   const parseVal = (str: string): number | undefined => {
-    if (!str.trim()) return undefined;
-    const v = parseFloat(str.replace(',', '.'));
-    return isNaN(v) ? undefined : Number(v.toFixed(1));
+    const trimmed = str.trim().replace(',', '.');
+    if (!trimmed) return undefined;
+    const v = Number(trimmed);
+    return Number.isFinite(v) ? Number(v.toFixed(1)) : NaN;
   };
 
   const handleSave = async () => {
+    if (isSubmittingRef.current) return;
+
     const bf = parseVal(bodyFatStr);
     const waist = parseVal(waistStr);
     const chest = parseVal(chestStr);
     const arms = parseVal(armsStr);
     const legs = parseVal(legsStr);
 
-    if (bf !== undefined && (bf < 2 || bf > 70)) {
+    if (bf !== undefined && (!Number.isFinite(bf) || bf < 2 || bf > 70)) {
       setError('Percentual de gordura deve estar entre 2% e 70%');
       return;
     }
 
+    const circumferences = [
+      { label: 'Cintura', val: waist },
+      { label: 'Tórax / Peito', val: chest },
+      { label: 'Braço', val: arms },
+      { label: 'Coxa', val: legs },
+    ];
+
+    for (const item of circumferences) {
+      if (item.val !== undefined && (!Number.isFinite(item.val) || item.val < 10 || item.val > 300)) {
+        setError(`A medida de ${item.label} deve estar entre 10 e 300 cm`);
+        return;
+      }
+    }
+
+    isSubmittingRef.current = true;
     setSaving(true);
     try {
       await onSave({
@@ -95,6 +114,7 @@ export const MeasurementsModal: React.FC<MeasurementsModalProps> = ({
     } catch (err: any) {
       setError(err?.message || 'Falha ao salvar medidas');
     } finally {
+      isSubmittingRef.current = false;
       setSaving(false);
     }
   };
@@ -103,7 +123,7 @@ export const MeasurementsModal: React.FC<MeasurementsModalProps> = ({
   const dateFormatted = parts.length === 3 ? `${parts[2]}/${parts[1]}/${parts[0]}` : date;
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={() => { if (!saving) onClose(); }}>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={styles.overlay}
@@ -115,7 +135,7 @@ export const MeasurementsModal: React.FC<MeasurementsModalProps> = ({
               <Text style={[styles.title, { color: colors.textPrimary }]}>Medidas & Composição</Text>
               <Text style={[styles.dateText, { color: colors.textSecondary }]}>{dateFormatted}</Text>
             </View>
-            <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
+            <TouchableOpacity onPress={onClose} disabled={saving} style={styles.closeBtn}>
               <Text style={[styles.closeBtnText, { color: colors.textDimmed }]}>✕</Text>
             </TouchableOpacity>
           </View>
@@ -142,6 +162,7 @@ export const MeasurementsModal: React.FC<MeasurementsModalProps> = ({
                   keyboardType="decimal-pad"
                   placeholder="Ex: 15.0"
                   placeholderTextColor={colors.textDimmed}
+                  maxLength={10}
                 />
                 <Text style={[styles.unit, { color: colors.fat }]}>%</Text>
               </View>
@@ -164,10 +185,14 @@ export const MeasurementsModal: React.FC<MeasurementsModalProps> = ({
                 <TextInput
                   style={[styles.input, { color: colors.textPrimary }]}
                   value={waistStr}
-                  onChangeText={setWaistStr}
+                  onChangeText={(t) => {
+                    setWaistStr(t);
+                    setError(null);
+                  }}
                   keyboardType="decimal-pad"
                   placeholder="Ex: 82.0"
                   placeholderTextColor={colors.textDimmed}
+                  maxLength={10}
                 />
                 <Text style={[styles.unit, { color: colors.textSecondary }]}>cm</Text>
               </View>
@@ -185,10 +210,14 @@ export const MeasurementsModal: React.FC<MeasurementsModalProps> = ({
                 <TextInput
                   style={[styles.input, { color: colors.textPrimary }]}
                   value={chestStr}
-                  onChangeText={setChestStr}
+                  onChangeText={(t) => {
+                    setChestStr(t);
+                    setError(null);
+                  }}
                   keyboardType="decimal-pad"
                   placeholder="Ex: 104.0"
                   placeholderTextColor={colors.textDimmed}
+                  maxLength={10}
                 />
                 <Text style={[styles.unit, { color: colors.textSecondary }]}>cm</Text>
               </View>
@@ -206,10 +235,14 @@ export const MeasurementsModal: React.FC<MeasurementsModalProps> = ({
                 <TextInput
                   style={[styles.input, { color: colors.textPrimary }]}
                   value={armsStr}
-                  onChangeText={setArmsStr}
+                  onChangeText={(t) => {
+                    setArmsStr(t);
+                    setError(null);
+                  }}
                   keyboardType="decimal-pad"
                   placeholder="Ex: 38.5"
                   placeholderTextColor={colors.textDimmed}
+                  maxLength={10}
                 />
                 <Text style={[styles.unit, { color: colors.textSecondary }]}>cm</Text>
               </View>
@@ -227,10 +260,14 @@ export const MeasurementsModal: React.FC<MeasurementsModalProps> = ({
                 <TextInput
                   style={[styles.input, { color: colors.textPrimary }]}
                   value={legsStr}
-                  onChangeText={setLegsStr}
+                  onChangeText={(t) => {
+                    setLegsStr(t);
+                    setError(null);
+                  }}
                   keyboardType="decimal-pad"
                   placeholder="Ex: 58.0"
                   placeholderTextColor={colors.textDimmed}
+                  maxLength={10}
                 />
                 <Text style={[styles.unit, { color: colors.textSecondary }]}>cm</Text>
               </View>
@@ -243,6 +280,7 @@ export const MeasurementsModal: React.FC<MeasurementsModalProps> = ({
           <View style={styles.buttonRow}>
             <TouchableOpacity
               onPress={onClose}
+              disabled={saving}
               style={[styles.cancelBtn, { borderColor: colors.cardBorder }]}
             >
               <Text style={[styles.cancelText, { color: colors.textSecondary }]}>Cancelar</Text>

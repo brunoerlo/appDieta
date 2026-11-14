@@ -2,6 +2,7 @@ import { SupabaseClient } from '@supabase/supabase-js';
 import { IBodyRepository } from './interfaces';
 import { supabase as defaultSupabase } from '../../services/supabaseClient';
 import { BodyLog, WeightHistoryPoint } from '../../types/domain';
+import { PhotoStorageService } from '../../services/PhotoStorageService';
 
 interface BodyLogRow {
   id: string;
@@ -18,6 +19,23 @@ interface BodyLogRow {
 
 const BUCKET_NAME = 'body-photos';
 const SIGNED_URL_TTL_SECONDS = 3600;
+const MAX_PHOTO_BYTES = 5 * 1024 * 1024; // 5 MB
+
+function detectImageMimeType(uri: string): 'image/jpeg' | 'image/png' | 'image/webp' {
+  const clean = uri.split('?')[0].toLowerCase();
+  if (clean.endsWith('.png')) return 'image/png';
+  if (clean.endsWith('.webp')) return 'image/webp';
+  if (
+    clean.endsWith('.exe') ||
+    clean.endsWith('.sh') ||
+    clean.endsWith('.html') ||
+    clean.endsWith('.svg') ||
+    clean.endsWith('.js')
+  ) {
+    throw new Error('Formato de imagem não suportado.');
+  }
+  return 'image/jpeg';
+}
 
 export class SupabaseBodyRepository implements IBodyRepository {
   constructor(private client: SupabaseClient = defaultSupabase) {}
@@ -32,7 +50,11 @@ export class SupabaseBodyRepository implements IBodyRepository {
     if (idx === -1) return uriOrPath;
     const afterBucket = uriOrPath.slice(idx + marker.length);
     const queryIdx = afterBucket.indexOf('?');
-    return decodeURIComponent(queryIdx === -1 ? afterBucket : afterBucket.slice(0, queryIdx));
+    try {
+      return decodeURIComponent(queryIdx === -1 ? afterBucket : afterBucket.slice(0, queryIdx));
+    } catch {
+      return '';
+    }
   }
 
   private isStoragePath(value: string): boolean {
@@ -41,7 +63,8 @@ export class SupabaseBodyRepository implements IBodyRepository {
       !value.startsWith('http://') &&
       !value.startsWith('https://') &&
       !value.startsWith('file://') &&
-      !value.startsWith('data:')
+      !value.startsWith('data:') &&
+      !value.includes('..')
     );
   }
 
@@ -98,7 +121,9 @@ export class SupabaseBodyRepository implements IBodyRepository {
   }
 
   async saveBodyLog(log: Omit<BodyLog, 'id' | 'createdAt'>): Promise<BodyLog> {
-    const storedPaths = (log.photoUris ?? []).map((u) => this.extractStoragePath(u));
+    const storedPaths = (log.photoUris ?? [])
+      .map((u) => this.extractStoragePath(u))
+      .filter(Boolean);
 
     const { data: sessionData } = await this.client.auth.getSession();
     const userId = sessionData.session?.user?.id;
@@ -136,9 +161,21 @@ export class SupabaseBodyRepository implements IBodyRepository {
   }
 
   async calculateMovingAverage(date: string, windowDays = 7): Promise<number | null> {
+    if (!date || typeof date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      return null;
+    }
+
     const target = new Date(`${date}T00:00:00Z`);
+    if (Number.isNaN(target.getTime())) {
+      return null;
+    }
+
+    const safeWindow = Math.max(1, Math.min(365, Math.floor(Number(windowDays) || 7)));
     const start = new Date(target);
-    start.setUTCDate(start.getUTCDate() - (windowDays - 1));
+    start.setUTCDate(start.getUTCDate() - (safeWindow - 1));
+    if (Number.isNaN(start.getTime())) {
+      return null;
+    }
     const startDate = start.toISOString().slice(0, 10);
 
     const { data, error } = await this.client
@@ -197,28 +234,47 @@ export class SupabaseBodyRepository implements IBodyRepository {
       throw new Error('Usuário não autenticado.');
     }
 
+    if (!photoUri || typeof photoUri !== 'string') {
+      throw new Error('URI de foto inválida.');
+    }
+
     let storagePath = this.extractStoragePath(photoUri);
+    let uploadedToStorage = false;
 
     // Upload local file to private Supabase Storage bucket
     if (photoUri.startsWith('file://') || photoUri.startsWith('content://')) {
+      const contentType = detectImageMimeType(photoUri);
       const safeDate = String(date).replace(/[^0-9-]/g, '');
       const rawFilename = photoUri.split('/').pop() || `${safeDate}_${Date.now()}.jpg`;
-      const cleanFilename = rawFilename.replace(/[^a-zA-Z0-9._-]/g, '_');
+      const cleanFilename = rawFilename
+        .replace(/\.\.+/g, '_')
+        .replace(/[^a-zA-Z0-9._-]/g, '_');
       storagePath = `${userId}/${safeDate}_${Date.now()}_${cleanFilename}`;
 
       const response = await fetch(photoUri);
       const arrayBuffer = await response.arrayBuffer();
 
+      if (arrayBuffer && arrayBuffer.byteLength > MAX_PHOTO_BYTES) {
+        throw new Error('A imagem excede o limite máximo de 5 MB.');
+      }
+
       const { error: uploadError } = await this.client.storage
         .from(BUCKET_NAME)
         .upload(storagePath, arrayBuffer, {
-          contentType: 'image/jpeg',
+          contentType,
           upsert: true,
         });
 
       if (uploadError) {
         throw new Error(uploadError.message);
       }
+      uploadedToStorage = true;
+    } else if (
+      storagePath.includes('..') ||
+      storagePath.includes('\0') ||
+      storagePath.includes('\\')
+    ) {
+      throw new Error('URI de foto inválida.');
     }
 
     const { data: existingRow } = await this.client
@@ -235,20 +291,31 @@ export class SupabaseBodyRepository implements IBodyRepository {
       currentPaths.push(storagePath);
     }
 
-    if (existingRow) {
-      const { error: updateError } = await this.client
-        .from('body_logs')
-        .update({ photo_uris: currentPaths })
-        .eq('id', existingRow.id);
-      if (updateError) throw new Error(updateError.message);
-    } else {
-      const { error: insertError } = await this.client.from('body_logs').insert({
-        user_id: userId,
-        date,
-        weight_kg: 0,
-        photo_uris: currentPaths,
-      });
-      if (insertError) throw new Error(insertError.message);
+    try {
+      if (existingRow) {
+        const { error: updateError } = await this.client
+          .from('body_logs')
+          .update({ photo_uris: currentPaths })
+          .eq('id', existingRow.id);
+        if (updateError) throw new Error(updateError.message);
+      } else {
+        const { error: insertError } = await this.client.from('body_logs').insert({
+          user_id: userId,
+          date,
+          weight_kg: 0,
+          photo_uris: currentPaths,
+        });
+        if (insertError) throw new Error(insertError.message);
+      }
+    } catch (dbErr) {
+      if (uploadedToStorage && storagePath) {
+        try {
+          await this.client.storage.from(BUCKET_NAME).remove([storagePath]);
+        } catch {
+          // Best-effort storage rollback
+        }
+      }
+      throw dbErr;
     }
 
     return this.resolvePhotoUrls(currentPaths);
@@ -307,6 +374,10 @@ export class SupabaseBodyRepository implements IBodyRepository {
 
     if (this.isStoragePath(targetPath)) {
       await this.client.storage.from(BUCKET_NAME).remove([targetPath]);
+    }
+
+    if (photoUri && photoUri.startsWith('file://')) {
+      await PhotoStorageService.deletePhotoFile(photoUri);
     }
 
     return this.resolvePhotoUrls(updatedPaths);

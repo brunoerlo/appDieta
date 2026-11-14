@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import {
   View,
   Text,
@@ -9,7 +9,9 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
+  Linking,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { ThemeColors } from '../../constants/theme';
@@ -20,13 +22,19 @@ import { FoodItem, MealType } from '../../types/domain';
 import { useDiet } from '../../hooks/useDiet';
 import { useSafeTopPadding } from '../../hooks/useSafeTopPadding';
 
+const VALID_MEAL_TYPES: MealType[] = ['breakfast', 'lunch', 'snack', 'dinner', 'supper'];
+
 export default function BarcodeScannerScreen() {
   const router = useRouter();
   const { colors } = useTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const safeTop = useSafeTopPadding(10);
+  const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{ mealType?: MealType; date?: string }>();
-  const mealType = params.mealType || 'snack';
+  const mealType: MealType =
+    params.mealType && VALID_MEAL_TYPES.includes(params.mealType)
+      ? params.mealType
+      : 'lunch';
 
   const { addFoodLog, getFoodByBarcode, createFood } = useDiet();
 
@@ -35,14 +43,24 @@ export default function BarcodeScannerScreen() {
   const [loading, setLoading] = useState(false);
   const [torch, setTorch] = useState(false);
   const [manualCode, setManualCode] = useState('');
+  const isProcessingRef = useRef(false);
 
   const [selectedFood, setSelectedFood] = useState<FoodItem | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
 
   const processBarcode = async (barcode: string) => {
     const clean = barcode.trim();
-    if (!clean || loading) return;
+    if (!clean || loading || isProcessingRef.current) return;
 
+    if (!/^\d{8,32}$/.test(clean)) {
+      Alert.alert(
+        'Código Inválido',
+        'Informe um código de barras numérico válido (8 a 32 dígitos).'
+      );
+      return;
+    }
+
+    isProcessingRef.current = true;
     setLoading(true);
     setScanned(true);
 
@@ -52,7 +70,6 @@ export default function BarcodeScannerScreen() {
       if (localFood) {
         setSelectedFood(localFood);
         setModalVisible(true);
-        setLoading(false);
         return;
       }
 
@@ -67,7 +84,6 @@ export default function BarcodeScannerScreen() {
         }
         setSelectedFood(remoteFood);
         setModalVisible(true);
-        setLoading(false);
         return;
       }
 
@@ -92,6 +108,7 @@ export default function BarcodeScannerScreen() {
       Alert.alert('Erro', 'Não foi possível consultar o código de barras.');
       setScanned(false);
     } finally {
+      isProcessingRef.current = false;
       setLoading(false);
     }
   };
@@ -105,13 +122,18 @@ export default function BarcodeScannerScreen() {
     carbs: number;
     fat: number;
   }) => {
-    await addFoodLog({
-      mealType: entry.mealType,
-      food: entry.food,
-      servingGrams: entry.servingGrams,
-    });
-    setModalVisible(false);
-    router.back();
+    try {
+      await addFoodLog({
+        mealType: entry.mealType,
+        food: entry.food,
+        servingGrams: entry.servingGrams,
+      });
+      setModalVisible(false);
+      router.back();
+    } catch (err: any) {
+      Alert.alert('Erro', err?.message || 'Não foi possível registrar o alimento.');
+      throw err;
+    }
   };
 
   return (
@@ -134,9 +156,18 @@ export default function BarcodeScannerScreen() {
           <Text style={styles.permissionText}>
             O -Frango precisa de acesso à câmera para ler códigos de barras de alimentos.
           </Text>
-          <TouchableOpacity style={styles.btnPerm} onPress={requestPermission}>
-            <Text style={styles.btnPermText}>Permitir Câmera</Text>
-          </TouchableOpacity>
+          {permission && !permission.granted && permission.canAskAgain === false ? (
+            <TouchableOpacity
+              style={styles.btnPerm}
+              onPress={() => Linking.openSettings()}
+            >
+              <Text style={styles.btnPermText}>Abrir Configurações</Text>
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity style={styles.btnPerm} onPress={requestPermission}>
+              <Text style={styles.btnPermText}>Permitir Câmera</Text>
+            </TouchableOpacity>
+          )}
         </View>
       )}
 
@@ -182,7 +213,7 @@ export default function BarcodeScannerScreen() {
       {/* Manual / Simulator Barcode Input HUD */}
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        style={styles.bottomHud}
+        style={[styles.bottomHud, { bottom: Math.max(24, insets.bottom + 12) }]}
       >
         <View style={styles.manualCard}>
           <Text style={styles.manualTitle}>⌨️ Digitar código de barras:</Text>
@@ -194,10 +225,12 @@ export default function BarcodeScannerScreen() {
               value={manualCode}
               onChangeText={setManualCode}
               keyboardType="numeric"
+              maxLength={32}
             />
             <TouchableOpacity
               style={styles.btnSearch}
               onPress={() => processBarcode(manualCode)}
+              disabled={loading}
               activeOpacity={0.7}
             >
               <Text style={styles.btnSearchText}>Buscar</Text>
@@ -205,21 +238,23 @@ export default function BarcodeScannerScreen() {
           </View>
 
           {/* Quick Simulation Chips */}
-          <View style={styles.simChipsRow}>
-            <TouchableOpacity
-              style={styles.simChip}
-              onPress={() => processBarcode('7898215150014')}
-            >
-              <Text style={styles.simChipText}>Simular Leite (7898215150014)</Text>
-            </TouchableOpacity>
+          {__DEV__ && (
+            <View style={styles.simChipsRow}>
+              <TouchableOpacity
+                style={styles.simChip}
+                onPress={() => processBarcode('7898215150014')}
+              >
+                <Text style={styles.simChipText}>Simular Leite (7898215150014)</Text>
+              </TouchableOpacity>
 
-            <TouchableOpacity
-              style={styles.simChip}
-              onPress={() => processBarcode('9999000011112')}
-            >
-              <Text style={styles.simChipText}>Simular Desconhecido</Text>
-            </TouchableOpacity>
-          </View>
+              <TouchableOpacity
+                style={styles.simChip}
+                onPress={() => processBarcode('9999000011112')}
+              >
+                <Text style={styles.simChipText}>Simular Desconhecido</Text>
+              </TouchableOpacity>
+            </View>
+          )}
         </View>
       </KeyboardAvoidingView>
 

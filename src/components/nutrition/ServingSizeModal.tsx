@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import {
   Modal,
   View,
@@ -9,6 +9,7 @@ import {
   ScrollView,
   KeyboardAvoidingView,
   Platform,
+  Alert,
 } from 'react-native';
 import { spacing, borderRadius, ThemeColors } from '../../constants/theme';
 import { useTheme } from '../../hooks/useTheme';
@@ -53,9 +54,19 @@ const ServingSizeModalContent: React.FC<ServingSizeModalContentProps> = ({
   const { colors } = useTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
 
-  const [grams, setGrams] = useState<number>(initialGrams || food.servingGrams || 100);
-  const [selectedMeal, setSelectedMeal] = useState<MealType>(initialMealType);
+  const initialVal = initialGrams || food.servingGrams || 100;
+  const [gramsInput, setGramsInput] = useState<string>(String(initialVal));
+  const [selectedMeal, setSelectedMeal] = useState<MealType>(
+    ALL_MEALS.includes(initialMealType) ? initialMealType : 'lunch'
+  );
   const [saving, setSaving] = useState(false);
+  const isSubmittingRef = useRef(false);
+
+  const parsedGrams = Number(gramsInput.trim().replace(',', '.'));
+  const grams =
+    gramsInput.trim() !== '' && Number.isFinite(parsedGrams) && parsedGrams > 0
+      ? Math.min(10000, parsedGrams)
+      : 0;
 
   const isDrink =
     food.category === 'Bebidas' ||
@@ -72,21 +83,40 @@ const ServingSizeModalContent: React.FC<ServingSizeModalContentProps> = ({
   const liveCarbs = Number((food.carbs * ratio).toFixed(1));
   const liveFat = Number((food.fat * ratio).toFixed(1));
 
+  const handleGramsTextChange = (t: string) => {
+    const cleaned = t.replace(',', '.').replace(/[^0-9.]/g, '');
+    const parts = cleaned.split('.');
+    const normalized = parts.length > 2 ? `${parts[0]}.${parts.slice(1).join('')}` : cleaned;
+    setGramsInput(normalized);
+  };
+
   const handleConfirm = async () => {
-    if (grams <= 0 || saving) return;
+    if (isSubmittingRef.current || saving) return;
+    if (!Number.isFinite(parsedGrams) || parsedGrams < 0.1 || parsedGrams > 10000) {
+      Alert.alert(
+        'Quantidade inválida',
+        `Informe uma quantidade válida entre 0,1 e 10.000 ${unitLabel}.`
+      );
+      return;
+    }
+
+    isSubmittingRef.current = true;
     setSaving(true);
     try {
       await onConfirm({
         food,
         mealType: selectedMeal,
-        servingGrams: grams,
+        servingGrams: Number(parsedGrams.toFixed(1)),
         calories: liveCalories,
         protein: liveProtein,
         carbs: liveCarbs,
         fat: liveFat,
       });
       onClose();
+    } catch (err: any) {
+      Alert.alert('Erro', err?.message || 'Não foi possível adicionar o alimento.');
     } finally {
+      isSubmittingRef.current = false;
       setSaving(false);
     }
   };
@@ -130,7 +160,10 @@ const ServingSizeModalContent: React.FC<ServingSizeModalContentProps> = ({
         <View style={styles.inputRow}>
           <TouchableOpacity
             style={styles.stepperBtn}
-            onPress={() => setGrams((g) => Math.max(1, g - 10))}
+            onPress={() => {
+              const next = Math.max(0.1, Number((grams - 10).toFixed(1)));
+              setGramsInput(String(next));
+            }}
             activeOpacity={0.7}
           >
             <Text style={styles.stepperText}>-10</Text>
@@ -139,17 +172,21 @@ const ServingSizeModalContent: React.FC<ServingSizeModalContentProps> = ({
           <View style={styles.inputWrapper}>
             <TextInput
               style={styles.gramInput}
-              value={String(grams || '')}
-              onChangeText={(t) => setGrams(Number(t.replace(/[^0-9]/g, '')) || 0)}
-              keyboardType="numeric"
+              value={gramsInput}
+              onChangeText={handleGramsTextChange}
+              keyboardType="decimal-pad"
               selectTextOnFocus
+              maxLength={10}
             />
             <Text style={styles.gramSuffix}>{unitLabel}</Text>
           </View>
 
           <TouchableOpacity
             style={styles.stepperBtn}
-            onPress={() => setGrams((g) => g + 10)}
+            onPress={() => {
+              const next = Math.min(10000, Number((grams + 10).toFixed(1)));
+              setGramsInput(String(next));
+            }}
             activeOpacity={0.7}
           >
             <Text style={styles.stepperText}>+10</Text>
@@ -162,7 +199,7 @@ const ServingSizeModalContent: React.FC<ServingSizeModalContentProps> = ({
             <TouchableOpacity
               key={preset}
               style={[styles.presetChip, grams === preset && styles.presetChipActive]}
-              onPress={() => setGrams(preset)}
+              onPress={() => setGramsInput(String(preset))}
               activeOpacity={0.7}
             >
               <Text
@@ -204,6 +241,7 @@ const ServingSizeModalContent: React.FC<ServingSizeModalContentProps> = ({
         <Button
           title="Cancelar"
           onPress={onClose}
+          disabled={saving}
           variant="ghost"
           style={styles.cancelBtn}
         />

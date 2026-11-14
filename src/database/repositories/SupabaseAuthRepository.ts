@@ -104,7 +104,7 @@ export class SupabaseAuthRepository implements IAuthRepository {
         {
           id: userId,
           email,
-          name: name || 'Atleta',
+          name: (name || 'Atleta').trim().slice(0, 120) || 'Atleta',
           onboarding_completed: false,
           target_calories: 2000,
           target_protein: 150,
@@ -148,21 +148,44 @@ export class SupabaseAuthRepository implements IAuthRepository {
       updated_at: now,
     };
 
-    if (profile.name !== undefined) payload.name = profile.name;
-    if (profile.email !== undefined) payload.email = profile.email;
-    if (profile.heightCm !== undefined) payload.height_cm = profile.heightCm ?? null;
-    if (profile.targetWeightKg !== undefined) payload.target_weight_kg = profile.targetWeightKg ?? null;
+    if (profile.name !== undefined) {
+      const cleanName = profile.name.trim().slice(0, 120);
+      if (cleanName) payload.name = cleanName;
+    }
+    // Note: email is strictly managed by Supabase Auth and never updated directly on public.profiles
+    if (profile.heightCm !== undefined) {
+      payload.height_cm =
+        profile.heightCm !== null && Number.isFinite(profile.heightCm) ? profile.heightCm : null;
+    }
+    if (profile.targetWeightKg !== undefined) {
+      payload.target_weight_kg =
+        profile.targetWeightKg !== null && Number.isFinite(profile.targetWeightKg)
+          ? profile.targetWeightKg
+          : null;
+    }
     if (profile.trainingGoal !== undefined) payload.training_goal = profile.trainingGoal ?? null;
     if (profile.activityLevel !== undefined) payload.activity_level = profile.activityLevel ?? null;
     if (profile.onboardingCompleted !== undefined) {
-      payload.onboarding_completed = profile.onboardingCompleted;
+      payload.onboarding_completed = Boolean(profile.onboardingCompleted);
     }
-    if (profile.targetCalories !== undefined) payload.target_calories = profile.targetCalories;
-    if (profile.targetProtein !== undefined) payload.target_protein = profile.targetProtein;
-    if (profile.targetCarbs !== undefined) payload.target_carbs = profile.targetCarbs;
-    if (profile.targetFat !== undefined) payload.target_fat = profile.targetFat;
-    if (profile.targetWaterMl !== undefined) payload.target_water_ml = profile.targetWaterMl;
-    if (profile.theme !== undefined) payload.theme = profile.theme;
+    if (profile.targetCalories !== undefined && Number.isFinite(profile.targetCalories)) {
+      payload.target_calories = profile.targetCalories;
+    }
+    if (profile.targetProtein !== undefined && Number.isFinite(profile.targetProtein)) {
+      payload.target_protein = profile.targetProtein;
+    }
+    if (profile.targetCarbs !== undefined && Number.isFinite(profile.targetCarbs)) {
+      payload.target_carbs = profile.targetCarbs;
+    }
+    if (profile.targetFat !== undefined && Number.isFinite(profile.targetFat)) {
+      payload.target_fat = profile.targetFat;
+    }
+    if (profile.targetWaterMl !== undefined && Number.isFinite(profile.targetWaterMl)) {
+      payload.target_water_ml = Math.round(profile.targetWaterMl);
+    }
+    if (profile.theme !== undefined && (profile.theme === 'dark' || profile.theme === 'light')) {
+      payload.theme = profile.theme;
+    }
 
     const { data, error } = await this.client
       .from('profiles')
@@ -180,7 +203,7 @@ export class SupabaseAuthRepository implements IAuthRepository {
 
   async registerUser(input: RegisterUserInput): Promise<UserProfile> {
     const trimmedEmail = input.email.trim().toLowerCase();
-    const trimmedName = input.name.trim() || 'Atleta';
+    const trimmedName = (input.name.trim() || 'Atleta').slice(0, 120);
 
     if (!trimmedEmail) {
       throw new Error('E-mail é obrigatório para cadastro.');
@@ -253,7 +276,10 @@ export class SupabaseAuthRepository implements IAuthRepository {
   async logoutUser(): Promise<void> {
     const { error } = await this.client.auth.signOut();
     if (error) {
-      throw new Error(error.message);
+      const localRes = await this.client.auth.signOut({ scope: 'local' });
+      if (localRes?.error) {
+        throw new Error(error.message);
+      }
     }
   }
 
@@ -281,10 +307,14 @@ export class SupabaseAuthRepository implements IAuthRepository {
     const sessionUser = await this.getCurrentUserId();
     if (!sessionUser) return;
 
-    await this.client
+    const { error } = await this.client
       .from('profiles')
       .update({ theme, updated_at: new Date().toISOString() })
       .eq('id', sessionUser.userId);
+
+    if (error) {
+      throw new Error(error.message);
+    }
   }
 
   async getTheme(): Promise<'dark' | 'light'> {

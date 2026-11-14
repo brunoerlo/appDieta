@@ -10,6 +10,7 @@ import {
 
 interface DietLogRow {
   id: string;
+  user_id?: string;
   date: string;
   meal_type: MealType;
   food_id: string | null;
@@ -34,7 +35,7 @@ interface FoodRow {
   fat: number;
   fiber: number | null;
   barcode: string | null;
-  source: 'taco' | 'openfoodfacts' | 'custom';
+  source: 'taco' | 'openfoodfacts' | 'custom' | 'recipe';
   serving_unit_name: string | null;
   serving_unit_grams: number | null;
   created_at: string;
@@ -42,6 +43,7 @@ interface FoodRow {
 
 interface WaterLogRow {
   id: string;
+  user_id?: string;
   date: string;
   amount_ml: number;
   created_at: string;
@@ -49,6 +51,17 @@ interface WaterLogRow {
 
 export class SqliteDietRepository implements IDietRepository {
   constructor(private db: ISqliteDatabase) {}
+
+  private async getActiveUserId(): Promise<string> {
+    try {
+      const row = await this.db.getFirstAsync<{ id: string }>(
+        'SELECT id FROM users WHERE is_logged_in = 1 LIMIT 1;'
+      );
+      return row?.id || 'default_user';
+    } catch {
+      return 'default_user';
+    }
+  }
 
   private mapDietRow(row: DietLogRow): DietLogEntry {
     return {
@@ -87,24 +100,28 @@ export class SqliteDietRepository implements IDietRepository {
   }
 
   async getDailyLogs(date: string): Promise<DietLogEntry[]> {
+    const userId = await this.getActiveUserId();
     const rows = await this.db.getAllAsync<DietLogRow>(
       `SELECT id, date, meal_type, food_id, food_name, serving_grams, calories, protein, carbs, fat, created_at
        FROM diet_logs
-       WHERE date = ?
+       WHERE user_id = ? AND date = ?
        ORDER BY created_at ASC;`,
+      userId,
       date
     );
     return rows.map((r) => this.mapDietRow(r));
   }
 
   async addDietLog(entry: Omit<DietLogEntry, 'id' | 'createdAt'>): Promise<DietLogEntry> {
+    const userId = await this.getActiveUserId();
     const id = `diet-log-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
     const createdAt = new Date().toISOString();
 
     await this.db.runAsync(
-      `INSERT INTO diet_logs (id, date, meal_type, food_id, food_name, serving_grams, calories, protein, carbs, fat, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
+      `INSERT INTO diet_logs (id, user_id, date, meal_type, food_id, food_name, serving_grams, calories, protein, carbs, fat, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
       id,
+      userId,
       entry.date,
       entry.mealType,
       entry.foodId ?? null,
@@ -125,11 +142,13 @@ export class SqliteDietRepository implements IDietRepository {
   }
 
   async updateDietLog(id: string, entry: Partial<DietLogEntry>): Promise<void> {
+    const userId = await this.getActiveUserId();
     const current = await this.db.getFirstAsync<DietLogRow>(
       `SELECT id, date, meal_type, food_id, food_name, serving_grams, calories, protein, carbs, fat, created_at
        FROM diet_logs
-       WHERE id = ?;`,
-      id
+       WHERE id = ? AND user_id = ?;`,
+      id,
+      userId
     );
     if (!current) return;
 
@@ -141,25 +160,28 @@ export class SqliteDietRepository implements IDietRepository {
          carbs = ?,
          fat = ?,
          meal_type = ?
-       WHERE id = ?;`,
+       WHERE id = ? AND user_id = ?;`,
       entry.servingGrams !== undefined ? entry.servingGrams : current.serving_grams,
       entry.calories !== undefined ? entry.calories : current.calories,
       entry.protein !== undefined ? entry.protein : current.protein,
       entry.carbs !== undefined ? entry.carbs : current.carbs,
       entry.fat !== undefined ? entry.fat : current.fat,
       entry.mealType !== undefined ? entry.mealType : current.meal_type,
-      id
+      id,
+      userId
     );
   }
 
   async deleteDietLog(id: string): Promise<void> {
-    await this.db.runAsync(`DELETE FROM diet_logs WHERE id = ?;`, id);
+    const userId = await this.getActiveUserId();
+    await this.db.runAsync(`DELETE FROM diet_logs WHERE id = ? AND user_id = ?;`, id, userId);
   }
 
   async searchFoods(query: string, limit = 50): Promise<FoodItem[]> {
     const sanitized = query.trim();
+    const safeLimit = Math.max(1, Math.min(200, Math.floor(Number(limit) || 50)));
     if (!sanitized) {
-      const topLimit = limit === 50 ? 30 : Math.min(limit, 100);
+      const topLimit = safeLimit === 50 ? 30 : Math.min(safeLimit, 100);
       const rows = await this.db.getAllAsync<FoodRow>(
         `SELECT id, name, name_normalized, category, serving_grams, calories, protein, carbs, fat, fiber, barcode, source, serving_unit_name, serving_unit_grams, created_at
          FROM foods
@@ -197,7 +219,7 @@ export class SqliteDietRepository implements IDietRepository {
       wildcardNorm,
       prefixRaw,
       prefixNorm,
-      limit
+      safeLimit
     );
 
     return rows.map((r) => this.mapFoodRow(r));
@@ -250,11 +272,13 @@ export class SqliteDietRepository implements IDietRepository {
   }
 
   async getWaterLogs(date: string): Promise<WaterLogEntry[]> {
+    const userId = await this.getActiveUserId();
     const rows = await this.db.getAllAsync<WaterLogRow>(
       `SELECT id, date, amount_ml, created_at
        FROM water_logs
-       WHERE date = ?
+       WHERE user_id = ? AND date = ?
        ORDER BY created_at ASC;`,
+      userId,
       date
     );
 
@@ -267,13 +291,15 @@ export class SqliteDietRepository implements IDietRepository {
   }
 
   async addWaterLog(date: string, amountMl: number): Promise<WaterLogEntry> {
+    const userId = await this.getActiveUserId();
     const id = `water-log-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
     const createdAt = new Date().toISOString();
 
     await this.db.runAsync(
-      `INSERT INTO water_logs (id, date, amount_ml, created_at)
-       VALUES (?, ?, ?, ?);`,
+      `INSERT INTO water_logs (id, user_id, date, amount_ml, created_at)
+       VALUES (?, ?, ?, ?, ?);`,
       id,
+      userId,
       date,
       amountMl,
       createdAt
@@ -283,16 +309,20 @@ export class SqliteDietRepository implements IDietRepository {
   }
 
   async deleteWaterLog(id: string): Promise<void> {
-    await this.db.runAsync(`DELETE FROM water_logs WHERE id = ?;`, id);
+    const userId = await this.getActiveUserId();
+    await this.db.runAsync(`DELETE FROM water_logs WHERE id = ? AND user_id = ?;`, id, userId);
   }
 
   async resetWaterLogs(date: string): Promise<void> {
-    await this.db.runAsync(`DELETE FROM water_logs WHERE date = ?;`, date);
+    const userId = await this.getActiveUserId();
+    await this.db.runAsync(`DELETE FROM water_logs WHERE user_id = ? AND date = ?;`, userId, date);
   }
 
   async getDailyWaterTotal(date: string): Promise<number> {
+    const userId = await this.getActiveUserId();
     const row = await this.db.getFirstAsync<{ total: number | null }>(
-      `SELECT SUM(amount_ml) as total FROM water_logs WHERE date = ?;`,
+      `SELECT SUM(amount_ml) as total FROM water_logs WHERE user_id = ? AND date = ?;`,
+      userId,
       date
     );
     return Math.max(0, row?.total ?? 0);

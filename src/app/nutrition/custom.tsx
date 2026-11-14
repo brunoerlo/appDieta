@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -40,6 +40,14 @@ export interface RecipeIngredient {
   fat: number;
 }
 
+const VALID_MEAL_TYPES: MealType[] = ['breakfast', 'lunch', 'snack', 'dinner', 'supper'];
+
+const parseLocalizedNumber = (value: string, emptyDefault = 0): number => {
+  const trimmed = value.trim();
+  if (!trimmed) return emptyDefault;
+  return Number(trimmed.replace(',', '.'));
+};
+
 export default function CustomFoodScreen() {
   const router = useRouter();
   const { colors } = useTheme();
@@ -51,7 +59,10 @@ export default function CustomFoodScreen() {
     initialName?: string;
   }>();
 
-  const mealType: MealType = params.mealType || 'lunch';
+  const mealType: MealType =
+    params.mealType && VALID_MEAL_TYPES.includes(params.mealType)
+      ? params.mealType
+      : 'lunch';
 
   const { addFoodLog, searchFoods, createFood } = useDiet();
 
@@ -95,26 +106,44 @@ export default function CustomFoodScreen() {
   const [dishFiber, setDishFiber] = useState('');
 
   const [saving, setSaving] = useState(false);
+  const isSubmittingRef = useRef(false);
 
-  // Numeric values for Single Food
-  const numKcal = parseFloat(calories) || 0;
-  const numP = parseFloat(protein) || 0;
-  const numC = parseFloat(carbs) || 0;
-  const numF = parseFloat(fat) || 0;
-  const numFiber = fiber ? parseFloat(fiber) || 0 : undefined;
-  const numPortionGrams = parseFloat(portionGrams) || 100;
+  // Raw parsed numeric values for Single Food (pt-BR comma normalized, without masking 0/invalid)
+  const rawKcal = parseLocalizedNumber(calories, 0);
+  const rawP = parseLocalizedNumber(protein, 0);
+  const rawC = parseLocalizedNumber(carbs, 0);
+  const rawF = parseLocalizedNumber(fat, 0);
+  const rawFiber = fiber.trim() ? parseLocalizedNumber(fiber, NaN) : undefined;
+  const rawPortionGrams = parseLocalizedNumber(portionGrams, NaN);
+
+  const numKcal = Number.isFinite(rawKcal) ? rawKcal : 0;
+  const numP = Number.isFinite(rawP) ? rawP : 0;
+  const numC = Number.isFinite(rawC) ? rawC : 0;
+  const numF = Number.isFinite(rawF) ? rawF : 0;
+  const numFiber = rawFiber !== undefined && Number.isFinite(rawFiber) ? rawFiber : undefined;
+  const numPortionGrams =
+    Number.isFinite(rawPortionGrams) && rawPortionGrams > 0 ? rawPortionGrams : 100;
 
   // Atwater Calculation for Single Food
   const atwaterKcal = calculateAtwaterCalories(numP, numC, numF);
   const isConsistent = isAtwaterConsistent(numKcal, numP, numC, numF, 20);
 
-  // Numeric values for Direct Dish
-  const numDishKcal = parseFloat(dishCalories) || 0;
-  const numDishP = parseFloat(dishProtein) || 0;
-  const numDishC = parseFloat(dishCarbs) || 0;
-  const numDishF = parseFloat(dishFat) || 0;
-  const numDishFiber = dishFiber ? parseFloat(dishFiber) || 0 : undefined;
-  const numDishPortionGrams = parseFloat(dishPortionGrams) || 250;
+  // Raw parsed numeric values for Direct Dish
+  const rawDishKcal = parseLocalizedNumber(dishCalories, 0);
+  const rawDishP = parseLocalizedNumber(dishProtein, 0);
+  const rawDishC = parseLocalizedNumber(dishCarbs, 0);
+  const rawDishF = parseLocalizedNumber(dishFat, 0);
+  const rawDishFiber = dishFiber.trim() ? parseLocalizedNumber(dishFiber, NaN) : undefined;
+  const rawDishPortionGrams = parseLocalizedNumber(dishPortionGrams, NaN);
+
+  const numDishKcal = Number.isFinite(rawDishKcal) ? rawDishKcal : 0;
+  const numDishP = Number.isFinite(rawDishP) ? rawDishP : 0;
+  const numDishC = Number.isFinite(rawDishC) ? rawDishC : 0;
+  const numDishF = Number.isFinite(rawDishF) ? rawDishF : 0;
+  const numDishFiber =
+    rawDishFiber !== undefined && Number.isFinite(rawDishFiber) ? rawDishFiber : undefined;
+  const numDishPortionGrams =
+    Number.isFinite(rawDishPortionGrams) && rawDishPortionGrams > 0 ? rawDishPortionGrams : 250;
 
   // Atwater for Direct Dish
   const atwaterDishKcal = calculateAtwaterCalories(numDishP, numDishC, numDishF);
@@ -151,12 +180,19 @@ export default function CustomFoodScreen() {
   useEffect(() => {
     if (!isPickerVisible) return;
     let active = true;
-    searchFoods(pickerSearch, 30).then((foods) => {
-      if (active) {
-        setPickerFoods(foods);
-        setIsPickerLoading(false);
-      }
-    });
+    searchFoods(pickerSearch, 30)
+      .then((foods) => {
+        if (active) {
+          setPickerFoods(foods);
+          setIsPickerLoading(false);
+        }
+      })
+      .catch(() => {
+        if (active) {
+          setPickerFoods([]);
+          setIsPickerLoading(false);
+        }
+      });
     return () => {
       active = false;
     };
@@ -172,8 +208,15 @@ export default function CustomFoodScreen() {
 
   const handleAddIngredient = () => {
     if (!selectedIngredientFood) return;
-    const g = parseFloat(ingredientGramsInput) || 100;
-    const ratio = (g > 0 ? g : 0) / (selectedIngredientFood.servingGrams || 100);
+    const g = parseLocalizedNumber(ingredientGramsInput, NaN);
+    if (!Number.isFinite(g) || g <= 0 || g > 10000) {
+      Alert.alert(
+        'Quantidade inválida',
+        'Informe um peso válido maior que zero para o ingrediente (máx. 10.000g).'
+      );
+      return;
+    }
+    const ratio = g / (selectedIngredientFood.servingGrams || 100);
 
     const newIng: RecipeIngredient = {
       id: `${selectedIngredientFood.id}-${Date.now()}`,
@@ -191,7 +234,8 @@ export default function CustomFoodScreen() {
   };
 
   const handleUpdateIngredientGrams = (id: string, textGrams: string) => {
-    const g = parseFloat(textGrams) || 0;
+    const parsed = parseLocalizedNumber(textGrams, 0);
+    const g = Number.isFinite(parsed) && parsed >= 0 ? Math.min(10000, parsed) : 0;
     setIngredients((prev) =>
       prev.map((item) => {
         if (item.id !== id) return item;
@@ -218,15 +262,51 @@ export default function CustomFoodScreen() {
       Alert.alert('Nome obrigatório', 'Por favor, informe o nome do alimento.');
       return false;
     }
-    if (numKcal <= 0 && numP <= 0 && numC <= 0 && numF <= 0) {
+    if (
+      !Number.isFinite(rawKcal) ||
+      !Number.isFinite(rawP) ||
+      !Number.isFinite(rawC) ||
+      !Number.isFinite(rawF) ||
+      rawKcal < 0 ||
+      rawP < 0 ||
+      rawC < 0 ||
+      rawF < 0 ||
+      (rawFiber !== undefined && (!Number.isFinite(rawFiber) || rawFiber < 0))
+    ) {
+      Alert.alert(
+        'Valores nutricionais inválidos',
+        'Calorias e macronutrientes devem ser números válidos e não negativos.'
+      );
+      return false;
+    }
+    if (
+      rawKcal > 20000 ||
+      rawP > 1000 ||
+      rawC > 1000 ||
+      rawF > 1000 ||
+      (rawFiber !== undefined && rawFiber > 1000)
+    ) {
+      Alert.alert(
+        'Valores fora do limite',
+        'Informe valores dentro dos limites permitidos (máx. 20.000 kcal e 1.000g por macronutriente).'
+      );
+      return false;
+    }
+    if (rawKcal <= 0 && rawP <= 0 && rawC <= 0 && rawF <= 0) {
       Alert.alert(
         'Valores nutricionais inválidos',
         'Por favor, informe calorias ou macronutrientes do alimento.'
       );
       return false;
     }
-    if (mode === 'portion' && numPortionGrams <= 0) {
-      Alert.alert('Porção inválida', 'Por favor, informe a quantidade da porção em gramas.');
+    if (
+      mode === 'portion' &&
+      (!Number.isFinite(rawPortionGrams) || rawPortionGrams <= 0 || rawPortionGrams > 10000)
+    ) {
+      Alert.alert(
+        'Porção inválida',
+        'Por favor, informe uma quantidade válida da porção em gramas/ml (entre 0,1 e 10.000).'
+      );
       return false;
     }
     return true;
@@ -245,16 +325,64 @@ export default function CustomFoodScreen() {
         );
         return false;
       }
-      if (totalGrams <= 0) {
+      if (
+        ingredients.some(
+          (ing) => !Number.isFinite(ing.grams) || ing.grams <= 0 || ing.grams > 10000
+        )
+      ) {
+        Alert.alert(
+          'Ingrediente inválido',
+          'Todos os ingredientes devem ter peso válido maior que zero (máx. 10.000g).'
+        );
+        return false;
+      }
+      if (!Number.isFinite(totalGrams) || totalGrams <= 0) {
         Alert.alert('Peso inválido', 'O peso total dos ingredientes deve ser maior que zero.');
         return false;
       }
     } else {
-      if (numDishPortionGrams <= 0) {
-        Alert.alert('Porção inválida', 'Por favor, informe o peso da porção em gramas.');
+      if (
+        !Number.isFinite(rawDishPortionGrams) ||
+        rawDishPortionGrams <= 0 ||
+        rawDishPortionGrams > 10000
+      ) {
+        Alert.alert(
+          'Porção inválida',
+          'Por favor, informe um peso válido da porção em gramas (entre 0,1 e 10.000g).'
+        );
         return false;
       }
-      if (numDishKcal <= 0 && numDishP <= 0 && numDishC <= 0 && numDishF <= 0) {
+      if (
+        !Number.isFinite(rawDishKcal) ||
+        !Number.isFinite(rawDishP) ||
+        !Number.isFinite(rawDishC) ||
+        !Number.isFinite(rawDishF) ||
+        rawDishKcal < 0 ||
+        rawDishP < 0 ||
+        rawDishC < 0 ||
+        rawDishF < 0 ||
+        (rawDishFiber !== undefined && (!Number.isFinite(rawDishFiber) || rawDishFiber < 0))
+      ) {
+        Alert.alert(
+          'Valores nutricionais inválidos',
+          'Calorias e macronutrientes devem ser números válidos e não negativos.'
+        );
+        return false;
+      }
+      if (
+        rawDishKcal > 20000 ||
+        rawDishP > 1000 ||
+        rawDishC > 1000 ||
+        rawDishF > 1000 ||
+        (rawDishFiber !== undefined && rawDishFiber > 1000)
+      ) {
+        Alert.alert(
+          'Valores fora do limite',
+          'Informe valores dentro dos limites permitidos (máx. 20.000 kcal e 1.000g por macronutriente).'
+        );
+        return false;
+      }
+      if (rawDishKcal <= 0 && rawDishP <= 0 && rawDishC <= 0 && rawDishF <= 0) {
         Alert.alert(
           'Valores nutricionais inválidos',
           'Por favor, informe calorias ou macros do prato.'
@@ -338,9 +466,11 @@ export default function CustomFoodScreen() {
   };
 
   const handleSaveOnly = async () => {
+    if (isSubmittingRef.current || saving) return;
     const isValid = creationType === 'meal' ? validateMeal() : validateFood();
-    if (!isValid || saving) return;
+    if (!isValid) return;
 
+    isSubmittingRef.current = true;
     setSaving(true);
     try {
       const itemToSave = creationType === 'meal' ? getNormalizedMeal() : getNormalizedFood();
@@ -354,14 +484,17 @@ export default function CustomFoodScreen() {
     } catch {
       Alert.alert('Erro', 'Não foi possível salvar.');
     } finally {
+      isSubmittingRef.current = false;
       setSaving(false);
     }
   };
 
   const handleSaveAndLog = async () => {
+    if (isSubmittingRef.current || saving) return;
     const isValid = creationType === 'meal' ? validateMeal() : validateFood();
-    if (!isValid || saving) return;
+    if (!isValid) return;
 
+    isSubmittingRef.current = true;
     setSaving(true);
     try {
       const itemToSave = creationType === 'meal' ? getNormalizedMeal() : getNormalizedFood();
@@ -384,17 +517,19 @@ export default function CustomFoodScreen() {
     } catch {
       Alert.alert('Erro', 'Não foi possível salvar e registrar.');
     } finally {
+      isSubmittingRef.current = false;
       setSaving(false);
     }
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
+    <SafeAreaView style={styles.container} edges={['top', 'bottom', 'left', 'right']}>
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity
           style={styles.closeBtn}
           onPress={() => router.back()}
+          disabled={saving}
           activeOpacity={0.7}
         >
           <Text style={styles.closeBtnText}>✕</Text>
@@ -485,6 +620,7 @@ export default function CustomFoodScreen() {
                 placeholderTextColor={colors.textDimmed}
                 value={name}
                 onChangeText={setName}
+                maxLength={120}
               />
 
               {/* Brand */}
@@ -495,6 +631,7 @@ export default function CustomFoodScreen() {
                 placeholderTextColor={colors.textDimmed}
                 value={brand}
                 onChangeText={setBrand}
+                maxLength={80}
               />
 
               {/* Barcode */}
@@ -506,6 +643,7 @@ export default function CustomFoodScreen() {
                 value={barcode}
                 onChangeText={setBarcode}
                 keyboardType="numeric"
+                maxLength={32}
               />
 
               {/* Mode Switcher */}
@@ -545,7 +683,8 @@ export default function CustomFoodScreen() {
                       placeholderTextColor={colors.textDimmed}
                       value={portionGrams}
                       onChangeText={setPortionGrams}
-                      keyboardType="numeric"
+                      keyboardType="decimal-pad"
+                      maxLength={10}
                     />
                   </View>
 
@@ -557,6 +696,7 @@ export default function CustomFoodScreen() {
                       placeholderTextColor={colors.textDimmed}
                       value={portionName}
                       onChangeText={setPortionName}
+                      maxLength={40}
                     />
                   </View>
                 </View>
@@ -576,7 +716,8 @@ export default function CustomFoodScreen() {
                     placeholderTextColor={colors.textDimmed}
                     value={calories}
                     onChangeText={setCalories}
-                    keyboardType="numeric"
+                    keyboardType="decimal-pad"
+                    maxLength={10}
                   />
                 </View>
 
@@ -588,7 +729,8 @@ export default function CustomFoodScreen() {
                     placeholderTextColor={colors.textDimmed}
                     value={protein}
                     onChangeText={setProtein}
-                    keyboardType="numeric"
+                    keyboardType="decimal-pad"
+                    maxLength={10}
                   />
                 </View>
 
@@ -600,7 +742,8 @@ export default function CustomFoodScreen() {
                     placeholderTextColor={colors.textDimmed}
                     value={carbs}
                     onChangeText={setCarbs}
-                    keyboardType="numeric"
+                    keyboardType="decimal-pad"
+                    maxLength={10}
                   />
                 </View>
 
@@ -612,7 +755,8 @@ export default function CustomFoodScreen() {
                     placeholderTextColor={colors.textDimmed}
                     value={fat}
                     onChangeText={setFat}
-                    keyboardType="numeric"
+                    keyboardType="decimal-pad"
+                    maxLength={10}
                   />
                 </View>
               </View>
@@ -625,7 +769,8 @@ export default function CustomFoodScreen() {
                   placeholderTextColor={colors.textDimmed}
                   value={fiber}
                   onChangeText={setFiber}
-                  keyboardType="numeric"
+                  keyboardType="decimal-pad"
+                  maxLength={10}
                 />
               </View>
 
@@ -657,6 +802,7 @@ export default function CustomFoodScreen() {
                 placeholderTextColor={colors.textDimmed}
                 value={dishName}
                 onChangeText={setDishName}
+                maxLength={120}
               />
 
               {/* Meal Sub-selector */}
@@ -744,7 +890,8 @@ export default function CustomFoodScreen() {
                             style={styles.ingredientGramsInput}
                             value={String(item.grams)}
                             onChangeText={(val) => handleUpdateIngredientGrams(item.id, val)}
-                            keyboardType="numeric"
+                            keyboardType="decimal-pad"
+                            maxLength={10}
                           />
                           <Text style={styles.ingredientGramsUnit}>g</Text>
                           <TouchableOpacity
@@ -771,7 +918,8 @@ export default function CustomFoodScreen() {
                         placeholderTextColor={colors.textDimmed}
                         value={dishPortionGrams}
                         onChangeText={setDishPortionGrams}
-                        keyboardType="numeric"
+                        keyboardType="decimal-pad"
+                        maxLength={10}
                       />
                     </View>
 
@@ -783,6 +931,7 @@ export default function CustomFoodScreen() {
                         placeholderTextColor={colors.textDimmed}
                         value={dishPortionName}
                         onChangeText={setDishPortionName}
+                        maxLength={40}
                       />
                     </View>
                   </View>
@@ -800,7 +949,8 @@ export default function CustomFoodScreen() {
                         placeholderTextColor={colors.textDimmed}
                         value={dishCalories}
                         onChangeText={setDishCalories}
-                        keyboardType="numeric"
+                        keyboardType="decimal-pad"
+                        maxLength={10}
                       />
                     </View>
 
@@ -812,7 +962,8 @@ export default function CustomFoodScreen() {
                         placeholderTextColor={colors.textDimmed}
                         value={dishProtein}
                         onChangeText={setDishProtein}
-                        keyboardType="numeric"
+                        keyboardType="decimal-pad"
+                        maxLength={10}
                       />
                     </View>
 
@@ -824,7 +975,8 @@ export default function CustomFoodScreen() {
                         placeholderTextColor={colors.textDimmed}
                         value={dishCarbs}
                         onChangeText={setDishCarbs}
-                        keyboardType="numeric"
+                        keyboardType="decimal-pad"
+                        maxLength={10}
                       />
                     </View>
 
@@ -836,7 +988,8 @@ export default function CustomFoodScreen() {
                         placeholderTextColor={colors.textDimmed}
                         value={dishFat}
                         onChangeText={setDishFat}
-                        keyboardType="numeric"
+                        keyboardType="decimal-pad"
+                        maxLength={10}
                       />
                     </View>
                   </View>
@@ -849,7 +1002,8 @@ export default function CustomFoodScreen() {
                       placeholderTextColor={colors.textDimmed}
                       value={dishFiber}
                       onChangeText={setDishFiber}
-                      keyboardType="numeric"
+                      keyboardType="decimal-pad"
+                      maxLength={10}
                     />
                   </View>
 
@@ -889,6 +1043,7 @@ export default function CustomFoodScreen() {
             <Button
               title="Cancelar"
               onPress={() => router.back()}
+              disabled={saving}
               variant="ghost"
               style={styles.spacingBtn}
             />
@@ -924,6 +1079,7 @@ export default function CustomFoodScreen() {
               value={pickerSearch}
               onChangeText={handlePickerSearchChange}
               autoFocus={true}
+              maxLength={100}
             />
           </View>
 
@@ -976,7 +1132,8 @@ export default function CustomFoodScreen() {
                   style={styles.pickerGramsInput}
                   value={ingredientGramsInput}
                   onChangeText={setIngredientGramsInput}
-                  keyboardType="numeric"
+                  keyboardType="decimal-pad"
+                  maxLength={10}
                 />
                 <Text style={styles.pickerGramsUnit}>g</Text>
               </View>

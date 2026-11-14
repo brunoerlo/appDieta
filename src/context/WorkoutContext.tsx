@@ -187,6 +187,15 @@ export class WorkoutStateManager {
 
   public async deleteRoutine(id: string): Promise<void> {
     await this.workoutRepo.deleteRoutine(id);
+    if (this.activeSession && this.activeSession.routineId === id) {
+      this.activeSession = {
+        ...this.activeSession,
+        routineId: undefined,
+      };
+    }
+    if (this.selectedRoutine?.id === id) {
+      this.selectedRoutine = null;
+    }
     await this.loadRoutines();
   }
 
@@ -235,11 +244,17 @@ export class WorkoutStateManager {
     this.notify();
 
     if (routine && routine.exercises && routine.exercises.length > 0) {
-      const prevLoads = await Promise.all(
-        routine.exercises.map((ex) =>
-          this.workoutRepo.getPreviousExerciseSets(ex.name, ex.targetSets)
-        )
-      );
+      let prevLoads: SetLog[][] = [];
+      try {
+        prevLoads = await Promise.all(
+          routine.exercises.map((ex) =>
+            this.workoutRepo.getPreviousExerciseSets(ex.name, ex.targetSets)
+          )
+        );
+      } catch {
+        // Keep placeholder workout session functional if fetching previous loads fails offline
+        return;
+      }
 
       // Guard if session was discarded or replaced while awaiting previous sets
       if (
@@ -346,7 +361,12 @@ export class WorkoutStateManager {
     if (!this.activeSession) return;
     const targetSets = exercise.targetSets || 3;
     const defaultRestSeconds = exercise.defaultRestSeconds || 60;
-    const prevSets = await this.workoutRepo.getPreviousExerciseSets(exercise.name, targetSets);
+    let prevSets: SetLog[] = [];
+    try {
+      prevSets = await this.workoutRepo.getPreviousExerciseSets(exercise.name, targetSets);
+    } catch {
+      prevSets = [];
+    }
 
     if (!this.activeSession) return;
 
@@ -721,16 +741,23 @@ export interface WorkoutProviderProps {
   children: React.ReactNode;
   workoutRepo: IWorkoutRepository;
   hapticsService?: HapticsServiceInterface;
+  userKey?: string;
+  enabled?: boolean;
 }
 
 export const WorkoutProvider: React.FC<WorkoutProviderProps> = ({
   children,
   workoutRepo,
   hapticsService = defaultHapticsService,
+  userKey,
+  enabled = true,
 }) => {
   const manager = useMemo(
-    () => new WorkoutStateManager(workoutRepo, hapticsService),
-    [workoutRepo, hapticsService]
+    () => {
+      void userKey;
+      return new WorkoutStateManager(workoutRepo, hapticsService);
+    },
+    [workoutRepo, hapticsService, userKey]
   );
 
   const [version, setVersion] = useState(0);
@@ -740,14 +767,16 @@ export const WorkoutProvider: React.FC<WorkoutProviderProps> = ({
       setVersion((v) => v + 1);
     });
 
-    manager.loadRoutines();
-    manager.loadCustomExercises();
+    if (enabled) {
+      manager.loadRoutines();
+      manager.loadCustomExercises();
+    }
 
     return () => {
       unsubscribe();
       manager.cleanup();
     };
-  }, [manager]);
+  }, [manager, enabled]);
 
   const value = useMemo<WorkoutContextValue>(
     () => {

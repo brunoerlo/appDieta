@@ -99,41 +99,56 @@ export interface ThemeProviderProps {
   children: React.ReactNode;
   authRepo?: IAuthRepository;
   initialTheme?: ThemeMode;
+  userKey?: string;
 }
 
 export const ThemeProvider: React.FC<ThemeProviderProps> = ({
   children,
   authRepo,
   initialTheme = 'dark',
+  userKey,
 }) => {
   const [themeMode, setThemeModeState] = useState<ThemeMode>(initialTheme);
-  const [isLoading, setIsLoading] = useState<boolean>(!!authRepo);
+  const [isLoading, setIsLoading] = useState<boolean>(!!authRepo && userKey !== 'guest');
 
   useEffect(() => {
     let active = true;
-    if (authRepo) {
-      authRepo
-        .getTheme()
-        .then((saved) => {
-          if (active && saved) {
-            setThemeModeState(saved);
-            setIsLoading(false);
-          }
-        })
-        .catch(() => {
-          if (active) setIsLoading(false);
-        });
-    }
+    (async () => {
+      if (!authRepo || userKey === 'guest') {
+        await Promise.resolve();
+        if (active) {
+          setThemeModeState(initialTheme);
+          setIsLoading(false);
+        }
+        return;
+      }
+      try {
+        const saved = await authRepo.getTheme();
+        if (active) {
+          setThemeModeState(saved || initialTheme);
+          setIsLoading(false);
+        }
+      } catch {
+        if (active) {
+          setThemeModeState(initialTheme);
+          setIsLoading(false);
+        }
+      }
+    })();
     return () => {
       active = false;
     };
-  }, [authRepo]);
+  }, [authRepo, userKey, initialTheme]);
 
   const setTheme = useCallback(
     async (mode: ThemeMode) => {
       setThemeModeState(mode);
       if (authRepo) {
-        await authRepo.setTheme(mode);
+        try {
+          await authRepo.setTheme(mode);
+        } catch (err) {
+          console.warn('[ThemeProvider] Failed to persist theme preference:', err);
+        }
       }
     },
     [authRepo]

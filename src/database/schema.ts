@@ -54,6 +54,7 @@ CREATE INDEX IF NOT EXISTS idx_foods_source ON foods(source);
 -- =========================================================================
 CREATE TABLE IF NOT EXISTS diet_logs (
   id TEXT PRIMARY KEY NOT NULL,
+  user_id TEXT NOT NULL DEFAULT 'default_user',
   date TEXT NOT NULL,
   meal_type TEXT NOT NULL CHECK(meal_type IN ('breakfast', 'lunch', 'snack', 'dinner', 'supper')),
   food_id TEXT,
@@ -68,24 +69,28 @@ CREATE TABLE IF NOT EXISTS diet_logs (
 
 CREATE INDEX IF NOT EXISTS idx_diet_logs_date ON diet_logs(date);
 CREATE INDEX IF NOT EXISTS idx_diet_logs_date_meal ON diet_logs(date, meal_type);
+CREATE INDEX IF NOT EXISTS idx_diet_logs_user_date ON diet_logs(user_id, date);
 
 -- =========================================================================
 -- 4. WATER_LOGS (Hydration Entries)
 -- =========================================================================
 CREATE TABLE IF NOT EXISTS water_logs (
   id TEXT PRIMARY KEY NOT NULL,
+  user_id TEXT NOT NULL DEFAULT 'default_user',
   date TEXT NOT NULL,
   amount_ml INTEGER NOT NULL,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
 CREATE INDEX IF NOT EXISTS idx_water_logs_date ON water_logs(date);
+CREATE INDEX IF NOT EXISTS idx_water_logs_user_date ON water_logs(user_id, date);
 
 -- =========================================================================
 -- 5. WORKOUT_ROUTINES (Routine Templates: ABC, PPL, etc.)
 -- =========================================================================
 CREATE TABLE IF NOT EXISTS workout_routines (
   id TEXT PRIMARY KEY NOT NULL,
+  user_id TEXT NOT NULL DEFAULT 'default_user',
   name TEXT NOT NULL,
   description TEXT,
   sort_order INTEGER NOT NULL DEFAULT 0,
@@ -93,12 +98,14 @@ CREATE TABLE IF NOT EXISTS workout_routines (
 );
 
 CREATE INDEX IF NOT EXISTS idx_workout_routines_sort ON workout_routines(sort_order);
+CREATE INDEX IF NOT EXISTS idx_workout_routines_user_sort ON workout_routines(user_id, sort_order);
 
 -- =========================================================================
 -- 6. ROUTINE_EXERCISES (Exercises Assigned to Routines)
 -- =========================================================================
 CREATE TABLE IF NOT EXISTS routine_exercises (
   id TEXT PRIMARY KEY NOT NULL,
+  user_id TEXT NOT NULL DEFAULT 'default_user',
   routine_id TEXT NOT NULL,
   name TEXT NOT NULL,
   muscle_group TEXT NOT NULL,
@@ -111,12 +118,14 @@ CREATE TABLE IF NOT EXISTS routine_exercises (
 
 CREATE INDEX IF NOT EXISTS idx_routine_exercises_routine ON routine_exercises(routine_id, sort_order);
 CREATE INDEX IF NOT EXISTS idx_routine_exercises_name ON routine_exercises(name COLLATE NOCASE);
+CREATE INDEX IF NOT EXISTS idx_routine_exercises_user ON routine_exercises(user_id);
 
 -- =========================================================================
 -- 7. WORKOUT_SESSIONS (Executed Live & Past Workouts)
 -- =========================================================================
 CREATE TABLE IF NOT EXISTS workout_sessions (
   id TEXT PRIMARY KEY NOT NULL,
+  user_id TEXT NOT NULL DEFAULT 'default_user',
   routine_id TEXT,
   routine_name TEXT NOT NULL,
   date TEXT NOT NULL,
@@ -131,12 +140,14 @@ CREATE TABLE IF NOT EXISTS workout_sessions (
 
 CREATE INDEX IF NOT EXISTS idx_workout_sessions_date ON workout_sessions(date DESC);
 CREATE INDEX IF NOT EXISTS idx_workout_sessions_routine ON workout_sessions(routine_id);
+CREATE INDEX IF NOT EXISTS idx_workout_sessions_user_date ON workout_sessions(user_id, date DESC);
 
 -- =========================================================================
 -- 8. SET_LOGS (Completed Sets with Weight & Reps)
 -- =========================================================================
 CREATE TABLE IF NOT EXISTS set_logs (
   id TEXT PRIMARY KEY NOT NULL,
+  user_id TEXT NOT NULL DEFAULT 'default_user',
   session_id TEXT NOT NULL,
   exercise_id TEXT,
   exercise_name TEXT NOT NULL,
@@ -151,13 +162,15 @@ CREATE TABLE IF NOT EXISTS set_logs (
 CREATE INDEX IF NOT EXISTS idx_set_logs_session ON set_logs(session_id);
 CREATE INDEX IF NOT EXISTS idx_set_logs_exercise ON set_logs(exercise_id, set_number);
 CREATE INDEX IF NOT EXISTS idx_set_logs_exercise_name ON set_logs(exercise_name, completed);
+CREATE INDEX IF NOT EXISTS idx_set_logs_user_exercise ON set_logs(user_id, exercise_name, completed);
 
 -- =========================================================================
 -- 9. BODY_LOGS (Weight, 7-Day MA, Measurements & Photos)
 -- =========================================================================
 CREATE TABLE IF NOT EXISTS body_logs (
   id TEXT PRIMARY KEY NOT NULL,
-  date TEXT NOT NULL UNIQUE,
+  user_id TEXT NOT NULL DEFAULT 'default_user',
+  date TEXT NOT NULL,
   weight_kg REAL NOT NULL,
   body_fat_pct REAL,
   waist_cm REAL,
@@ -165,16 +178,19 @@ CREATE TABLE IF NOT EXISTS body_logs (
   arms_cm REAL,
   legs_cm REAL,
   photo_uris_json TEXT,
-  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE(user_id, date)
 );
 
 CREATE INDEX IF NOT EXISTS idx_body_logs_date ON body_logs(date DESC);
+CREATE INDEX IF NOT EXISTS idx_body_logs_user_date ON body_logs(user_id, date DESC);
 
 -- =========================================================================
 -- 10. CUSTOM_EXERCISES (User-Created Exercises with Categories)
 -- =========================================================================
 CREATE TABLE IF NOT EXISTS custom_exercises (
   id TEXT PRIMARY KEY NOT NULL,
+  user_id TEXT NOT NULL DEFAULT 'default_user',
   name TEXT NOT NULL,
   category TEXT NOT NULL,
   default_sets INTEGER NOT NULL DEFAULT 3,
@@ -184,4 +200,5 @@ CREATE TABLE IF NOT EXISTS custom_exercises (
 
 CREATE INDEX IF NOT EXISTS idx_custom_exercises_category ON custom_exercises(category);
 CREATE INDEX IF NOT EXISTS idx_custom_exercises_name ON custom_exercises(name COLLATE NOCASE);
+CREATE INDEX IF NOT EXISTS idx_custom_exercises_user_category ON custom_exercises(user_id, category);
 `;

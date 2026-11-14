@@ -210,6 +210,27 @@ export class SupabaseWorkoutRepository implements IWorkoutRepository {
     routine: Partial<WorkoutRoutine>,
     exercises?: RoutineExercise[]
   ): Promise<void> {
+    if (typeof (this.client as unknown as { rpc?: unknown }).rpc === 'function') {
+      const { error } = await this.client.rpc('update_workout_routine_atomic', {
+        p_routine_id: id,
+        p_name: routine.name ?? null,
+        p_description: routine.description ?? null,
+        p_update_description: routine.description !== undefined,
+        p_sort_order: routine.sortOrder ?? null,
+        p_exercises: exercises
+          ? exercises.map((ex, i) => ({
+              name: ex.name,
+              muscle_group: ex.muscleGroup ?? '',
+              target_sets: ex.targetSets,
+              default_rest_seconds: ex.defaultRestSeconds,
+              sort_order: ex.sortOrder ?? i + 1,
+            }))
+          : null,
+      });
+      if (error) throw new Error(error.message);
+      return;
+    }
+
     const payload: Record<string, unknown> = {};
     if (routine.name !== undefined) payload.name = routine.name;
     if (routine.description !== undefined) payload.description = routine.description ?? null;
@@ -257,6 +278,7 @@ export class SupabaseWorkoutRepository implements IWorkoutRepository {
   }
 
   async getPreviousExerciseSets(exerciseName: string, targetSets = 10): Promise<SetLog[]> {
+    const safeTargetSets = Math.max(1, Math.min(200, Math.floor(Number(targetSets) || 10)));
     const { data: latestSets, error: latestError } = await this.client
       .from('set_logs')
       .select('session_id, workout_sessions!inner(date, created_at)')
@@ -277,7 +299,7 @@ export class SupabaseWorkoutRepository implements IWorkoutRepository {
       .eq('exercise_name', exerciseName)
       .eq('completed', true)
       .order('set_number', { ascending: true })
-      .limit(targetSets)
+      .limit(safeTargetSets)
       .returns<SetLogRow[]>();
 
     if (setsError) throw new Error(setsError.message);
@@ -298,6 +320,55 @@ export class SupabaseWorkoutRepository implements IWorkoutRepository {
     }
     const totalVolumeKg =
       session.totalVolumeKg !== undefined ? session.totalVolumeKg : calculatedVolume;
+
+    if (typeof (this.client as unknown as { rpc?: unknown }).rpc === 'function') {
+      const { data: rpcResult, error: rpcError } = await this.client.rpc(
+        'save_workout_session_atomic',
+        {
+          p_routine_id: session.routineId ?? null,
+          p_routine_name: session.routineName,
+          p_date: session.date,
+          p_start_time: session.startTime ?? null,
+          p_end_time: session.endTime ?? null,
+          p_duration_minutes: session.durationMinutes,
+          p_total_volume_kg: totalVolumeKg,
+          p_notes: session.notes ?? null,
+          p_sets: effectiveSets.map((s) => ({
+            exercise_id: s.exerciseId ?? null,
+            exercise_name: s.exerciseName,
+            set_number: s.setNumber,
+            weight_kg: s.weightKg,
+            reps: s.reps,
+            completed: Boolean(s.completed),
+          })),
+        }
+      );
+
+      if (rpcError || !rpcResult) {
+        throw new Error(rpcError?.message ?? 'Erro ao salvar sessão de treino.');
+      }
+
+      const payload = rpcResult as {
+        session?: WorkoutSessionRow;
+        sets?: SetLogRow[];
+      };
+      const createdSession = payload.session ?? (rpcResult as WorkoutSessionRow);
+      const insertedSets = Array.isArray(payload.sets) ? payload.sets : [];
+
+      return {
+        id: createdSession.id,
+        routineId: createdSession.routine_id ?? undefined,
+        routineName: createdSession.routine_name,
+        date: createdSession.date,
+        startTime: createdSession.start_time ?? undefined,
+        endTime: createdSession.end_time ?? undefined,
+        durationMinutes: createdSession.duration_minutes,
+        totalVolumeKg: createdSession.total_volume_kg,
+        notes: createdSession.notes ?? undefined,
+        sets: insertedSets.map((r) => this.mapSetLogRow(r)),
+        createdAt: createdSession.created_at,
+      };
+    }
 
     const { data: createdSession, error: sessionError } = await this.client
       .from('workout_sessions')
@@ -356,12 +427,15 @@ export class SupabaseWorkoutRepository implements IWorkoutRepository {
   }
 
   async getWorkoutSessions(limit = 20, offset = 0): Promise<WorkoutSession[]> {
+    const safeLimit = Math.max(1, Math.min(100, Math.floor(Number(limit) || 20)));
+    const safeOffset = Math.max(0, Math.floor(Number(offset) || 0));
+
     const { data: sessionsData, error: sessionsError } = await this.client
       .from('workout_sessions')
       .select('id, routine_id, routine_name, date, start_time, end_time, duration_minutes, total_volume_kg, notes, created_at')
       .order('date', { ascending: false })
       .order('created_at', { ascending: false })
-      .range(offset, offset + limit - 1)
+      .range(safeOffset, safeOffset + safeLimit - 1)
       .returns<WorkoutSessionRow[]>();
 
     if (sessionsError) throw new Error(sessionsError.message);
@@ -445,12 +519,17 @@ export class SupabaseWorkoutRepository implements IWorkoutRepository {
       workout_sessions: { date: string } | { date: string }[] | null;
     }
 
-    const { data, error } = await this.client
+    let query = this.client
       .from('set_logs')
       .select('session_id, weight_kg, reps, workout_sessions!inner(date)')
       .eq('exercise_name', exerciseName)
-      .eq('completed', true)
-      .returns<JoinedSetRow[]>();
+      .eq('completed', true);
+
+    if (typeof (query as unknown as { limit?: (n: number) => typeof query }).limit === 'function') {
+      query = query.limit(1000);
+    }
+
+    const { data, error } = await query.returns<JoinedSetRow[]>();
 
     if (error) throw new Error(error.message);
 

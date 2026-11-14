@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   View,
   Text,
@@ -55,28 +55,35 @@ export default function EditRoutineScreen() {
   });
   const [isPickerVisible, setIsPickerVisible] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const isSubmittingRef = useRef(false);
 
   useEffect(() => {
     let active = true;
     if (routineId && !existingRoutine) {
-      getRoutineById(routineId).then((r) => {
-        if (r && active) {
-          setName(r.name);
-          setDescription(r.description || '');
-          if (r.exercises) {
-            setExercises(
-              r.exercises.map((e, idx) => ({
-                id: e.id,
-                name: e.name,
-                muscleGroup: e.muscleGroup || 'Geral',
-                targetSets: e.targetSets,
-                defaultRestSeconds: e.defaultRestSeconds,
-                sortOrder: e.sortOrder || idx + 1,
-              }))
-            );
+      getRoutineById(routineId)
+        .then((r) => {
+          if (r && active) {
+            setName(r.name);
+            setDescription(r.description || '');
+            if (r.exercises) {
+              setExercises(
+                r.exercises.map((e, idx) => ({
+                  id: e.id,
+                  name: e.name,
+                  muscleGroup: e.muscleGroup || 'Geral',
+                  targetSets: e.targetSets,
+                  defaultRestSeconds: e.defaultRestSeconds,
+                  sortOrder: e.sortOrder || idx + 1,
+                }))
+              );
+            }
           }
-        }
-      });
+        })
+        .catch((err: any) => {
+          if (active) {
+            Alert.alert('Erro', err?.message || 'Não foi possível carregar a rotina.');
+          }
+        });
     }
     return () => {
       active = false;
@@ -132,6 +139,8 @@ export default function EditRoutineScreen() {
   };
 
   const handleSave = async () => {
+    if (isSubmittingRef.current) return;
+
     const trimmedName = name.trim();
     if (!trimmedName) {
       Alert.alert('Nome obrigatório', 'Por favor, insira o nome da rotina.');
@@ -143,6 +152,7 @@ export default function EditRoutineScreen() {
       return;
     }
 
+    isSubmittingRef.current = true;
     setIsSaving(true);
     try {
       if (isEditing && routineId) {
@@ -179,6 +189,7 @@ export default function EditRoutineScreen() {
     } catch (err: any) {
       Alert.alert('Erro ao salvar', err?.message || 'Falha ao salvar a rotina.');
     } finally {
+      isSubmittingRef.current = false;
       setIsSaving(false);
     }
   };
@@ -189,11 +200,12 @@ export default function EditRoutineScreen() {
       <View style={styles.topBar}>
         <TouchableOpacity
           onPress={() => router.back()}
+          disabled={isSaving}
           style={styles.cancelBtn}
           accessibilityRole="button"
           accessibilityLabel="Cancelar edição de rotina"
         >
-          <Text style={styles.cancelText}>Cancelar</Text>
+          <Text style={[styles.cancelText, isSaving && styles.saveTextDisabled]}>Cancelar</Text>
         </TouchableOpacity>
 
         <Text style={styles.screenTitle}>
@@ -229,6 +241,7 @@ export default function EditRoutineScreen() {
             placeholderTextColor={colors.textDimmed}
             value={name}
             onChangeText={setName}
+            maxLength={80}
           />
         </View>
 
@@ -240,6 +253,7 @@ export default function EditRoutineScreen() {
             placeholderTextColor={colors.textDimmed}
             value={description}
             onChangeText={setDescription}
+            maxLength={200}
           />
         </View>
 

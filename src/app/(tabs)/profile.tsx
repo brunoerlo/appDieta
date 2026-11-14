@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -14,6 +14,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useProfile } from '../../hooks/useProfile';
 import { useTheme } from '../../hooks/useTheme';
+import { parseDecimalInput } from '../../utils/nutrition';
 
 export default function ProfileScreen() {
   const router = useRouter();
@@ -38,6 +39,16 @@ export default function ProfileScreen() {
 
   const [saving, setSaving] = useState(false);
   const [feedbackMsg, setFeedbackMsg] = useState<string | null>(null);
+  const feedbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (feedbackTimerRef.current) {
+        clearTimeout(feedbackTimerRef.current);
+        feedbackTimerRef.current = null;
+      }
+    };
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -64,15 +75,16 @@ export default function ProfileScreen() {
 
 
   // Macro Energy Math (Atwater 4-4-9)
-  const pGrams = parseFloat(targetProtein) || 0;
-  const cGrams = parseFloat(targetCarbs) || 0;
-  const fGrams = parseFloat(targetFat) || 0;
+  const pGrams = Math.max(0, parseDecimalInput(targetProtein) || 0);
+  const cGrams = Math.max(0, parseDecimalInput(targetCarbs) || 0);
+  const fGrams = Math.max(0, parseDecimalInput(targetFat) || 0);
   const computedKcal = Math.round(pGrams * 4 + cGrams * 4 + fGrams * 9);
-  const goalKcal = parseFloat(targetCalories) || 0;
+  const goalKcal = Math.max(0, parseDecimalInput(targetCalories) || 0);
   const kcalDiff = computedKcal - goalKcal;
 
   const handleAdjustCalories = (delta: number) => {
-    const cur = parseFloat(targetCalories) || 2000;
+    const parsedCur = parseDecimalInput(targetCalories);
+    const cur = Number.isFinite(parsedCur) && parsedCur > 0 ? parsedCur : 2000;
     const next = Math.max(1000, Math.min(6000, cur + delta));
     setTargetCalories(String(next));
   };
@@ -82,24 +94,78 @@ export default function ProfileScreen() {
   };
 
   const handleSave = async () => {
+    const trimmedName = name.trim();
+    if (!trimmedName) {
+      Alert.alert('Dados Inválidos', 'Por favor, informe um nome válido.');
+      return;
+    }
+
+    const parsedCalories = parseDecimalInput(targetCalories);
+    const parsedProtein = parseDecimalInput(targetProtein);
+    const parsedCarbs = parseDecimalInput(targetCarbs);
+    const parsedFat = parseDecimalInput(targetFat);
+    const parsedWater = Math.round(parseDecimalInput(targetWaterMl));
+    const parsedTargetWeight = targetWeight.trim() ? parseDecimalInput(targetWeight) : undefined;
+    const parsedHeight = heightCm.trim() ? parseDecimalInput(heightCm) : undefined;
+
+    if (!Number.isFinite(parsedCalories) || parsedCalories < 500 || parsedCalories > 20000) {
+      Alert.alert('Dados Inválidos', 'Informe uma meta calórica válida entre 500 e 20000 kcal.');
+      return;
+    }
+    if (!Number.isFinite(parsedProtein) || parsedProtein < 0 || parsedProtein > 2000) {
+      Alert.alert('Dados Inválidos', 'Informe uma meta de proteína válida entre 0g e 2000g.');
+      return;
+    }
+    if (!Number.isFinite(parsedCarbs) || parsedCarbs < 0 || parsedCarbs > 3000) {
+      Alert.alert('Dados Inválidos', 'Informe uma meta de carboidratos válida entre 0g e 3000g.');
+      return;
+    }
+    if (!Number.isFinite(parsedFat) || parsedFat < 0 || parsedFat > 1000) {
+      Alert.alert('Dados Inválidos', 'Informe uma meta de gorduras válida entre 0g e 1000g.');
+      return;
+    }
+    if (!Number.isFinite(parsedWater) || parsedWater < 500 || parsedWater > 20000) {
+      Alert.alert('Dados Inválidos', 'Informe uma meta hídrica válida entre 500ml e 20000ml.');
+      return;
+    }
+    if (
+      parsedTargetWeight !== undefined &&
+      (!Number.isFinite(parsedTargetWeight) || parsedTargetWeight < 20 || parsedTargetWeight > 400)
+    ) {
+      Alert.alert('Dados Inválidos', 'Informe uma meta de peso válida entre 20kg e 400kg.');
+      return;
+    }
+    if (
+      parsedHeight !== undefined &&
+      (!Number.isFinite(parsedHeight) || parsedHeight < 50 || parsedHeight > 300)
+    ) {
+      Alert.alert('Dados Inválidos', 'Informe uma altura válida entre 50cm e 300cm.');
+      return;
+    }
+
     setSaving(true);
     setFeedbackMsg(null);
     try {
       await updateProfile({
-        name,
-        email,
-        targetCalories: parseFloat(targetCalories) || 2000,
-        targetProtein: parseFloat(targetProtein) || 150,
-        targetCarbs: parseFloat(targetCarbs) || 200,
-        targetFat: parseFloat(targetFat) || 60,
-        targetWaterMl: parseInt(targetWaterMl, 10) || 2500,
-        targetWeightKg: targetWeight ? parseFloat(targetWeight) : undefined,
-        heightCm: heightCm ? parseFloat(heightCm) : undefined,
+        name: trimmedName,
+        targetCalories: parsedCalories,
+        targetProtein: parsedProtein,
+        targetCarbs: parsedCarbs,
+        targetFat: parsedFat,
+        targetWaterMl: parsedWater,
+        targetWeightKg: parsedTargetWeight,
+        heightCm: parsedHeight,
         trainingGoal,
         activityLevel,
       });
       setFeedbackMsg('Configurações salvas com sucesso!');
-      setTimeout(() => setFeedbackMsg(null), 3000);
+      if (feedbackTimerRef.current) {
+        clearTimeout(feedbackTimerRef.current);
+      }
+      feedbackTimerRef.current = setTimeout(() => {
+        setFeedbackMsg(null);
+        feedbackTimerRef.current = null;
+      }, 3000);
     } catch {
       Alert.alert('Erro', 'Não foi possível salvar as configurações.');
     } finally {
@@ -156,13 +222,15 @@ export default function ProfileScreen() {
                 style={[styles.athleteNameInput, { color: colors.textPrimary }]}
                 value={name}
                 onChangeText={setName}
+                maxLength={120}
                 placeholder="Nome do Atleta"
                 placeholderTextColor={colors.textDimmed}
               />
               <TextInput
                 style={[styles.athleteEmailInput, { color: colors.textSecondary }]}
-                value={email}
-                onChangeText={setEmail}
+                value={profile?.email || email}
+                editable={false}
+                maxLength={254}
                 placeholder="atleta@menosfrango.app"
                 placeholderTextColor={colors.textDimmed}
                 keyboardType="email-address"
@@ -203,6 +271,7 @@ export default function ProfileScreen() {
                   value={targetCalories}
                   onChangeText={setTargetCalories}
                   keyboardType="numeric"
+                  maxLength={10}
                 />
                 <Text style={[styles.calorieUnit, { color: colors.textDimmed }]}>kcal</Text>
               </View>
@@ -235,6 +304,7 @@ export default function ProfileScreen() {
                   value={targetProtein}
                   onChangeText={setTargetProtein}
                   keyboardType="numeric"
+                  maxLength={10}
                 />
                 <Text style={[styles.macroUnit, { color: colors.textDimmed }]}>g</Text>
               </View>
@@ -260,6 +330,7 @@ export default function ProfileScreen() {
                   value={targetCarbs}
                   onChangeText={setTargetCarbs}
                   keyboardType="numeric"
+                  maxLength={10}
                 />
                 <Text style={[styles.macroUnit, { color: colors.textDimmed }]}>g</Text>
               </View>
@@ -285,6 +356,7 @@ export default function ProfileScreen() {
                   value={targetFat}
                   onChangeText={setTargetFat}
                   keyboardType="numeric"
+                  maxLength={10}
                 />
                 <Text style={[styles.macroUnit, { color: colors.textDimmed }]}>g</Text>
               </View>
@@ -331,6 +403,7 @@ export default function ProfileScreen() {
                 value={targetWaterMl}
                 onChangeText={setTargetWaterMl}
                 keyboardType="numeric"
+                maxLength={10}
               />
               <Text style={[styles.waterUnit, { color: colors.textDimmed }]}>ml</Text>
             </View>
@@ -415,6 +488,7 @@ export default function ProfileScreen() {
                   placeholder="178"
                   placeholderTextColor={colors.textDimmed}
                   keyboardType="numeric"
+                  maxLength={10}
                 />
                 <Text style={[styles.statUnit, { color: colors.textDimmed }]}>cm</Text>
               </View>
@@ -436,6 +510,7 @@ export default function ProfileScreen() {
                   placeholder="80.0"
                   placeholderTextColor={colors.textDimmed}
                   keyboardType="decimal-pad"
+                  maxLength={10}
                 />
                 <Text style={[styles.statUnit, { color: colors.textDimmed }]}>kg</Text>
               </View>
@@ -504,7 +579,7 @@ export default function ProfileScreen() {
             <View style={{ flex: 1 }}>
               <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Conta & Sessão</Text>
               <Text style={[styles.sessionEmailText, { color: colors.textSecondary }]}>
-                Conectado como <Text style={{ color: colors.textPrimary, fontWeight: '700' }}>{email || profile?.email || 'atleta@irontrack.app'}</Text>
+                Conectado como <Text style={{ color: colors.textPrimary, fontWeight: '700' }}>{profile?.email || '—'}</Text>
               </Text>
             </View>
             <View style={[styles.activeStatusPill, { backgroundColor: colors.primaryMuted }]}>

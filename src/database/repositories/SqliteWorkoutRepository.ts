@@ -68,6 +68,13 @@ interface CustomExerciseRow {
 export class SqliteWorkoutRepository implements IWorkoutRepository {
   constructor(private db: ISqliteDatabase) {}
 
+  private async getActiveUserId(): Promise<string> {
+    const row = await this.db.getFirstAsync<{ id: string }>(
+      `SELECT id FROM users WHERE is_logged_in = 1 LIMIT 1;`
+    );
+    return row?.id ?? 'default_user';
+  }
+
   private mapSetLogRow(row: SetLogRow): SetLog {
     return {
       id: row.id,
@@ -83,16 +90,21 @@ export class SqliteWorkoutRepository implements IWorkoutRepository {
   }
 
   async getRoutines(): Promise<WorkoutRoutine[]> {
+    const userId = await this.getActiveUserId();
     const routineRows = await this.db.getAllAsync<RoutineRow>(
       `SELECT id, name, description, sort_order, created_at
        FROM workout_routines
-       ORDER BY sort_order ASC, name ASC;`
+       WHERE user_id = ? OR user_id = 'default_user'
+       ORDER BY sort_order ASC, name ASC;`,
+      userId
     );
 
     const exerciseRows = await this.db.getAllAsync<RoutineExerciseRow>(
       `SELECT id, routine_id, name, muscle_group, target_sets, default_rest_seconds, sort_order, created_at
        FROM routine_exercises
-       ORDER BY sort_order ASC;`
+       WHERE user_id = ? OR user_id = 'default_user'
+       ORDER BY sort_order ASC;`,
+      userId
     );
 
     const exercisesByRoutine = new Map<string, RoutineExercise[]>();
@@ -121,20 +133,23 @@ export class SqliteWorkoutRepository implements IWorkoutRepository {
   }
 
   async getRoutineById(id: string): Promise<WorkoutRoutine | null> {
+    const userId = await this.getActiveUserId();
     const r = await this.db.getFirstAsync<RoutineRow>(
       `SELECT id, name, description, sort_order, created_at
        FROM workout_routines
-       WHERE id = ?;`,
-      id
+       WHERE id = ? AND (user_id = ? OR user_id = 'default_user');`,
+      id,
+      userId
     );
     if (!r) return null;
 
     const exerciseRows = await this.db.getAllAsync<RoutineExerciseRow>(
       `SELECT id, routine_id, name, muscle_group, target_sets, default_rest_seconds, sort_order, created_at
        FROM routine_exercises
-       WHERE routine_id = ?
+       WHERE routine_id = ? AND (user_id = ? OR user_id = 'default_user')
        ORDER BY sort_order ASC;`,
-      id
+      id,
+      userId
     );
 
     return {
@@ -159,15 +174,17 @@ export class SqliteWorkoutRepository implements IWorkoutRepository {
     routine: Omit<WorkoutRoutine, 'id' | 'createdAt'>,
     exercises: Omit<RoutineExercise, 'id' | 'routineId'>[] = []
   ): Promise<WorkoutRoutine> {
+    const userId = await this.getActiveUserId();
     const routineId = `routine-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
     const createdAt = new Date().toISOString();
 
     let createdRoutine: WorkoutRoutine;
     await this.db.withTransactionAsync(async () => {
       await this.db.runAsync(
-        `INSERT INTO workout_routines (id, name, description, sort_order, created_at)
-         VALUES (?, ?, ?, ?, ?);`,
+        `INSERT INTO workout_routines (id, user_id, name, description, sort_order, created_at)
+         VALUES (?, ?, ?, ?, ?, ?);`,
         routineId,
+        userId,
         routine.name,
         routine.description ?? null,
         routine.sortOrder ?? 0,
@@ -179,9 +196,10 @@ export class SqliteWorkoutRepository implements IWorkoutRepository {
         const ex = exercises[i];
         const exId = `exercise-${Date.now()}-${i}-${Math.random().toString(36).substring(2, 8)}`;
         await this.db.runAsync(
-          `INSERT INTO routine_exercises (id, routine_id, name, muscle_group, target_sets, default_rest_seconds, sort_order, created_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?);`,
+          `INSERT INTO routine_exercises (id, user_id, routine_id, name, muscle_group, target_sets, default_rest_seconds, sort_order, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);`,
           exId,
+          userId,
           routineId,
           ex.name,
           ex.muscleGroup ?? null,
@@ -219,6 +237,7 @@ export class SqliteWorkoutRepository implements IWorkoutRepository {
     routine: Partial<WorkoutRoutine>,
     exercises?: RoutineExercise[]
   ): Promise<void> {
+    const userId = await this.getActiveUserId();
     await this.db.withTransactionAsync(async () => {
       const existing = await this.getRoutineById(id);
       if (!existing) return;
@@ -228,23 +247,29 @@ export class SqliteWorkoutRepository implements IWorkoutRepository {
            name = ?,
            description = ?,
            sort_order = ?
-         WHERE id = ?;`,
+         WHERE id = ? AND (user_id = ? OR user_id = 'default_user');`,
         routine.name !== undefined ? routine.name : existing.name,
         routine.description !== undefined ? routine.description : existing.description ?? null,
         routine.sortOrder !== undefined ? routine.sortOrder : existing.sortOrder,
-        id
+        id,
+        userId
       );
 
       if (exercises) {
-        await this.db.runAsync(`DELETE FROM routine_exercises WHERE routine_id = ?;`, id);
+        await this.db.runAsync(
+          `DELETE FROM routine_exercises WHERE routine_id = ? AND (user_id = ? OR user_id = 'default_user');`,
+          id,
+          userId
+        );
         const now = new Date().toISOString();
         for (let i = 0; i < exercises.length; i++) {
           const ex = exercises[i];
           const exId = ex.id || `exercise-${Date.now()}-${i}-${Math.random().toString(36).substring(2, 8)}`;
           await this.db.runAsync(
-            `INSERT INTO routine_exercises (id, routine_id, name, muscle_group, target_sets, default_rest_seconds, sort_order, created_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?);`,
+            `INSERT INTO routine_exercises (id, user_id, routine_id, name, muscle_group, target_sets, default_rest_seconds, sort_order, created_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);`,
             exId,
+            userId,
             id,
             ex.name,
             ex.muscleGroup ?? null,
@@ -259,28 +284,37 @@ export class SqliteWorkoutRepository implements IWorkoutRepository {
   }
 
   async deleteRoutine(id: string): Promise<void> {
-    await this.db.runAsync(`DELETE FROM workout_routines WHERE id = ?;`, id);
+    const userId = await this.getActiveUserId();
+    await this.db.runAsync(
+      `DELETE FROM workout_routines WHERE id = ? AND (user_id = ? OR user_id = 'default_user');`,
+      id,
+      userId
+    );
   }
 
   async getPreviousExerciseSets(exerciseName: string, targetSets = 10): Promise<SetLog[]> {
+    const userId = await this.getActiveUserId();
+    const safeTargetSets = Math.max(1, Math.min(200, Math.floor(Number(targetSets) || 10)));
     const rows = await this.db.getAllAsync<SetLogRow>(
       `SELECT s.id, s.session_id, s.exercise_id, s.exercise_name, s.set_number, s.weight_kg, s.reps, s.completed, s.created_at
        FROM set_logs s
        JOIN workout_sessions ws ON s.session_id = ws.id
-       WHERE s.exercise_name = ? AND s.completed = 1
+       WHERE s.exercise_name = ? AND s.completed = 1 AND ws.user_id = ?
          AND ws.id = (
            SELECT ws2.id
            FROM workout_sessions ws2
            JOIN set_logs s2 ON ws2.id = s2.session_id
-           WHERE s2.exercise_name = ? AND s2.completed = 1
+           WHERE s2.exercise_name = ? AND s2.completed = 1 AND ws2.user_id = ?
            ORDER BY ws2.date DESC, ws2.created_at DESC
            LIMIT 1
          )
        ORDER BY s.set_number ASC
        LIMIT ?;`,
       exerciseName,
+      userId,
       exerciseName,
-      targetSets
+      userId,
+      safeTargetSets
     );
 
     return rows.map((r) => this.mapSetLogRow(r));
@@ -290,6 +324,7 @@ export class SqliteWorkoutRepository implements IWorkoutRepository {
     session: WorkoutSessionInput,
     setsInput?: Omit<SetLog, 'id' | 'sessionId' | 'createdAt'>[]
   ): Promise<WorkoutSession> {
+    const userId = await this.getActiveUserId();
     const sessionId = `session-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
     const createdAt = new Date().toISOString();
     const effectiveSets = setsInput ?? session.sets ?? [];
@@ -305,9 +340,10 @@ export class SqliteWorkoutRepository implements IWorkoutRepository {
     let savedSession: WorkoutSession;
     await this.db.withTransactionAsync(async () => {
       await this.db.runAsync(
-        `INSERT INTO workout_sessions (id, routine_id, routine_name, date, start_time, end_time, duration_minutes, total_volume_kg, notes, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
+        `INSERT INTO workout_sessions (id, user_id, routine_id, routine_name, date, start_time, end_time, duration_minutes, total_volume_kg, notes, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
         sessionId,
+        userId,
         session.routineId ?? null,
         session.routineName,
         session.date,
@@ -327,9 +363,10 @@ export class SqliteWorkoutRepository implements IWorkoutRepository {
         const completedInt = set.completed ? 1 : 0;
 
         await this.db.runAsync(
-          `INSERT INTO set_logs (id, session_id, exercise_id, exercise_name, set_number, weight_kg, reps, completed, created_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);`,
+          `INSERT INTO set_logs (id, user_id, session_id, exercise_id, exercise_name, set_number, weight_kg, reps, completed, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
           setId,
+          userId,
           sessionId,
           set.exerciseId ?? null,
           set.exerciseName,
@@ -372,13 +409,19 @@ export class SqliteWorkoutRepository implements IWorkoutRepository {
   }
 
   async getWorkoutSessions(limit = 20, offset = 0): Promise<WorkoutSession[]> {
+    const userId = await this.getActiveUserId();
+    const safeLimit = Math.max(1, Math.min(100, Math.floor(Number(limit) || 20)));
+    const safeOffset = Math.max(0, Math.floor(Number(offset) || 0));
+
     const rows = await this.db.getAllAsync<WorkoutSessionRow>(
       `SELECT id, routine_id, routine_name, date, start_time, end_time, duration_minutes, total_volume_kg, notes, created_at
        FROM workout_sessions
+       WHERE user_id = ?
        ORDER BY date DESC, created_at DESC
        LIMIT ? OFFSET ?;`,
-      limit,
-      offset
+      userId,
+      safeLimit,
+      safeOffset
     );
 
     const sessions: WorkoutSession[] = [];
@@ -386,9 +429,10 @@ export class SqliteWorkoutRepository implements IWorkoutRepository {
       const setRows = await this.db.getAllAsync<SetLogRow>(
         `SELECT id, session_id, exercise_id, exercise_name, set_number, weight_kg, reps, completed, created_at
          FROM set_logs
-         WHERE session_id = ?
+         WHERE session_id = ? AND user_id = ?
          ORDER BY exercise_name ASC, set_number ASC;`,
-        row.id
+        row.id,
+        userId
       );
 
       sessions.push({
@@ -410,20 +454,23 @@ export class SqliteWorkoutRepository implements IWorkoutRepository {
   }
 
   async getSessionDetails(id: string): Promise<WorkoutSession | null> {
+    const userId = await this.getActiveUserId();
     const row = await this.db.getFirstAsync<WorkoutSessionRow>(
       `SELECT id, routine_id, routine_name, date, start_time, end_time, duration_minutes, total_volume_kg, notes, created_at
        FROM workout_sessions
-       WHERE id = ?;`,
-      id
+       WHERE id = ? AND user_id = ?;`,
+      id,
+      userId
     );
     if (!row) return null;
 
     const setRows = await this.db.getAllAsync<SetLogRow>(
       `SELECT id, session_id, exercise_id, exercise_name, set_number, weight_kg, reps, completed, created_at
        FROM set_logs
-       WHERE session_id = ?
+       WHERE session_id = ? AND user_id = ?
        ORDER BY exercise_name ASC, set_number ASC;`,
-      id
+      id,
+      userId
     );
 
     return {
@@ -442,52 +489,86 @@ export class SqliteWorkoutRepository implements IWorkoutRepository {
   }
 
   async getExerciseHistory(exerciseName: string): Promise<ExerciseHistoryPoint[]> {
-    interface HistoryRow {
+    const userId = await this.getActiveUserId();
+
+    interface JoinedSetRow {
+      session_id: string;
       date: string;
-      max_weight: number;
-      total_volume: number;
-      best_reps: number;
-      best_weight: number;
+      weight_kg: number;
+      reps: number;
     }
 
-    const rows = await this.db.getAllAsync<HistoryRow>(
-      `SELECT 
-         ws.date,
-         MAX(s.weight_kg) as max_weight,
-         SUM(s.weight_kg * s.reps) as total_volume,
-         s.reps as best_reps,
-         s.weight_kg as best_weight
+    const rows = await this.db.getAllAsync<JoinedSetRow>(
+      `SELECT
+         ws.id as session_id,
+         ws.date as date,
+         s.weight_kg as weight_kg,
+         s.reps as reps
        FROM set_logs s
        JOIN workout_sessions ws ON s.session_id = ws.id
-       WHERE s.exercise_name = ? AND s.completed = 1
-       GROUP BY ws.id, ws.date
-       ORDER BY ws.date ASC;`,
-      exerciseName
+       WHERE s.exercise_name = ? AND s.completed = 1 AND ws.user_id = ?
+       ORDER BY ws.date ASC, ws.created_at ASC, s.set_number ASC;`,
+      exerciseName,
+      userId
     );
 
-    return rows.map((r) => {
-      // Brzycki 1RM formula: weight * (36 / (37 - min(reps, 30)))
-      const repsClamped = Math.min(Math.max(1, r.best_reps), 30);
-      const estimated1RM =
-        r.best_reps === 1
-          ? r.best_weight
-          : Number((r.best_weight * (36 / (37 - repsClamped))).toFixed(1));
+    const bySession = new Map<
+      string,
+      {
+        date: string;
+        maxWeightKg: number;
+        totalVolumeKg: number;
+        best1RM: number;
+        bestSetReps: number;
+      }
+    >();
 
-      return {
-        date: r.date,
-        maxWeightKg: r.max_weight,
-        totalVolumeKg: Number(r.total_volume.toFixed(1)),
-        estimated1RM,
-        bestSetReps: r.best_reps,
-      };
-    });
+    for (const r of rows) {
+      // Brzycki 1RM formula: weight * (36 / (37 - min(reps, 30)))
+      const repsClamped = Math.min(Math.max(1, r.reps), 30);
+      const set1RM =
+        r.reps === 1
+          ? r.weight_kg
+          : Number((r.weight_kg * (36 / (37 - repsClamped))).toFixed(1));
+
+      const existing = bySession.get(r.session_id);
+      if (!existing) {
+        bySession.set(r.session_id, {
+          date: r.date,
+          maxWeightKg: r.weight_kg,
+          totalVolumeKg: r.weight_kg * r.reps,
+          best1RM: set1RM,
+          bestSetReps: r.reps,
+        });
+      } else {
+        existing.maxWeightKg = Math.max(existing.maxWeightKg, r.weight_kg);
+        existing.totalVolumeKg += r.weight_kg * r.reps;
+        if (set1RM > existing.best1RM) {
+          existing.best1RM = set1RM;
+          existing.bestSetReps = r.reps;
+        }
+      }
+    }
+
+    return Array.from(bySession.values())
+      .sort((a, b) => a.date.localeCompare(b.date))
+      .map((item) => ({
+        date: item.date,
+        maxWeightKg: item.maxWeightKg,
+        totalVolumeKg: Number(item.totalVolumeKg.toFixed(1)),
+        estimated1RM: item.best1RM,
+        bestSetReps: item.bestSetReps,
+      }));
   }
 
   async getCustomExercises(): Promise<CustomExercise[]> {
+    const userId = await this.getActiveUserId();
     const rows = await this.db.getAllAsync<CustomExerciseRow>(
       `SELECT id, name, category, default_sets, default_rest_seconds, created_at
        FROM custom_exercises
-       ORDER BY name COLLATE NOCASE ASC;`
+       WHERE user_id = ?
+       ORDER BY name COLLATE NOCASE ASC;`,
+      userId
     );
 
     return rows.map((r) => ({
@@ -503,6 +584,7 @@ export class SqliteWorkoutRepository implements IWorkoutRepository {
   async createCustomExercise(
     data: Omit<CustomExercise, 'id' | 'createdAt'>
   ): Promise<CustomExercise> {
+    const userId = await this.getActiveUserId();
     const id = `custom_ex_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
     const createdAt = new Date().toISOString();
     const defaultSets = data.defaultSets ?? 3;
@@ -511,9 +593,10 @@ export class SqliteWorkoutRepository implements IWorkoutRepository {
     const trimmedCategory = data.category.trim();
 
     await this.db.runAsync(
-      `INSERT INTO custom_exercises (id, name, category, default_sets, default_rest_seconds, created_at)
-       VALUES (?, ?, ?, ?, ?, ?);`,
+      `INSERT INTO custom_exercises (id, user_id, name, category, default_sets, default_rest_seconds, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?);`,
       id,
+      userId,
       trimmedName,
       trimmedCategory,
       defaultSets,

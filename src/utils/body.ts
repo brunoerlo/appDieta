@@ -30,10 +30,20 @@ export interface WeightChartData {
  * Shifts date string (YYYY-MM-DD) by given number of days safely without UTC hour distortion.
  */
 export function shiftDateString(dateStr: string, days: number): string {
+  if (!dateStr || typeof dateStr !== 'string') return '';
   const parts = dateStr.split('-');
   if (parts.length !== 3) return dateStr;
   const [year, month, day] = parts.map(Number);
+  if (
+    !Number.isFinite(year) ||
+    !Number.isFinite(month) ||
+    !Number.isFinite(day) ||
+    !Number.isFinite(days)
+  ) {
+    return dateStr;
+  }
   const date = new Date(year, month - 1, day);
+  if (Number.isNaN(date.getTime())) return dateStr;
   date.setDate(date.getDate() + days);
   const y = date.getFullYear();
   const m = String(date.getMonth() + 1).padStart(2, '0');
@@ -70,11 +80,13 @@ export function calculateBodyComposition(
   bodyFatPct?: number | null
 ): BodyCompositionResult | null {
   if (
-    !weightKg ||
+    !Number.isFinite(weightKg) ||
     weightKg <= 0 ||
     bodyFatPct === undefined ||
     bodyFatPct === null ||
-    bodyFatPct < 0
+    !Number.isFinite(bodyFatPct) ||
+    bodyFatPct < 0 ||
+    bodyFatPct > 100
   ) {
     return null;
   }

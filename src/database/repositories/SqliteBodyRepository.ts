@@ -1,5 +1,6 @@
 import { IBodyRepository, ISqliteDatabase } from './interfaces';
 import { BodyLog, WeightHistoryPoint } from '../../types/domain';
+import { PhotoStorageService } from '../../services/PhotoStorageService';
 
 interface BodyLogRow {
   id: string;
@@ -15,13 +16,37 @@ interface BodyLogRow {
 }
 
 export class SqliteBodyRepository implements IBodyRepository {
+  private txChain: Promise<void> = Promise.resolve();
+
   constructor(private db: ISqliteDatabase) {}
+
+  private async getActiveUserId(): Promise<string> {
+    const row = await this.db.getFirstAsync<{ id: string }>(
+      `SELECT id FROM users WHERE is_logged_in = 1 LIMIT 1;`
+    );
+    return row?.id ?? 'default_user';
+  }
+
+  private async runSerializedTransaction<T>(task: () => Promise<T>): Promise<T> {
+    let result!: T;
+    const next = this.txChain.then(async () => {
+      await this.db.withTransactionAsync(async () => {
+        result = await task();
+      });
+    });
+    this.txChain = next.catch(() => undefined);
+    await next;
+    return result;
+  }
 
   private mapRow(row: BodyLogRow): BodyLog {
     let photoUris: string[] = [];
     if (row.photo_uris_json) {
       try {
-        photoUris = JSON.parse(row.photo_uris_json);
+        const parsed = JSON.parse(row.photo_uris_json);
+        if (Array.isArray(parsed)) {
+          photoUris = parsed.filter((u): u is string => typeof u === 'string');
+        }
       } catch {
         photoUris = [];
       }
@@ -42,26 +67,35 @@ export class SqliteBodyRepository implements IBodyRepository {
   }
 
   async getBodyLog(date: string): Promise<BodyLog | null> {
+    const userId = await this.getActiveUserId();
     const row = await this.db.getFirstAsync<BodyLogRow>(
       `SELECT id, date, weight_kg, body_fat_pct, waist_cm, chest_cm, arms_cm, legs_cm, photo_uris_json, created_at
        FROM body_logs
-       WHERE date = ?
+       WHERE date = ? AND user_id = ?
        LIMIT 1;`,
-      date
+      date,
+      userId
     );
 
     return row ? this.mapRow(row) : null;
   }
 
   async saveBodyLog(log: Omit<BodyLog, 'id' | 'createdAt'>): Promise<BodyLog> {
-    const id = `body-log-${log.date}`;
+    const userId = await this.getActiveUserId();
+    const id =
+      userId === 'default_user'
+        ? `body-log-${log.date}`
+        : `body-log-${userId}-${log.date}`;
     const createdAt = new Date().toISOString();
-    const photoUrisJson = JSON.stringify(log.photoUris ?? []);
+    const safePhotos = Array.isArray(log.photoUris)
+      ? log.photoUris.filter((u): u is string => typeof u === 'string')
+      : [];
+    const photoUrisJson = JSON.stringify(safePhotos);
 
     await this.db.runAsync(
-      `INSERT INTO body_logs (id, date, weight_kg, body_fat_pct, waist_cm, chest_cm, arms_cm, legs_cm, photo_uris_json, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-       ON CONFLICT(date) DO UPDATE SET
+      `INSERT INTO body_logs (id, user_id, date, weight_kg, body_fat_pct, waist_cm, chest_cm, arms_cm, legs_cm, photo_uris_json, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(user_id, date) DO UPDATE SET
          weight_kg = excluded.weight_kg,
          body_fat_pct = excluded.body_fat_pct,
          waist_cm = excluded.waist_cm,
@@ -70,6 +104,7 @@ export class SqliteBodyRepository implements IBodyRepository {
          legs_cm = excluded.legs_cm,
          photo_uris_json = excluded.photo_uris_json;`,
       id,
+      userId,
       log.date,
       log.weightKg,
       log.bodyFatPct ?? null,
@@ -84,13 +119,15 @@ export class SqliteBodyRepository implements IBodyRepository {
     return {
       ...log,
       id,
-      photoUris: log.photoUris ?? [],
+      photoUris: safePhotos,
       createdAt,
     };
   }
 
   async calculateMovingAverage(date: string, windowDays = 7): Promise<number | null> {
-    const offsetDays = `-${windowDays - 1} days`;
+    const userId = await this.getActiveUserId();
+    const safeWindow = Math.max(1, Math.min(365, Math.floor(Number(windowDays) || 7)));
+    const offsetDays = `-${safeWindow - 1} days`;
 
     interface AvgResult {
       moving_avg: number | null;
@@ -100,7 +137,8 @@ export class SqliteBodyRepository implements IBodyRepository {
     const res = await this.db.getFirstAsync<AvgResult>(
       `SELECT AVG(weight_kg) as moving_avg, COUNT(*) as count
        FROM body_logs
-       WHERE date <= ? AND date >= date(?, ?) AND weight_kg > 0;`,
+       WHERE user_id = ? AND date <= ? AND date >= date(?, ?) AND weight_kg > 0;`,
+      userId,
       date,
       date,
       offsetDays
@@ -114,8 +152,9 @@ export class SqliteBodyRepository implements IBodyRepository {
   }
 
   async getWeightHistory(startDate?: string, endDate?: string): Promise<WeightHistoryPoint[]> {
-    let sql = `SELECT date, weight_kg FROM body_logs WHERE weight_kg > 0`;
-    const params: string[] = [];
+    const userId = await this.getActiveUserId();
+    let sql = `SELECT date, weight_kg FROM body_logs WHERE user_id = ? AND weight_kg > 0`;
+    const params: string[] = [userId];
 
     if (startDate && endDate) {
       sql += ` AND date >= ? AND date <= ?`;
@@ -151,44 +190,74 @@ export class SqliteBodyRepository implements IBodyRepository {
   }
 
   async savePhoto(date: string, photoUri: string): Promise<string[]> {
-    const existing = await this.getBodyLog(date);
-    const photoUris = existing?.photoUris ? [...existing.photoUris] : [];
-    if (!photoUris.includes(photoUri)) {
-      photoUris.push(photoUri);
-    }
-
-    if (existing) {
-      await this.db.runAsync(
-        `UPDATE body_logs SET photo_uris_json = ? WHERE date = ?;`,
-        JSON.stringify(photoUris),
-        date
-      );
-    } else {
-      await this.saveBodyLog({
+    return this.runSerializedTransaction(async () => {
+      const userId = await this.getActiveUserId();
+      const row = await this.db.getFirstAsync<BodyLogRow>(
+        `SELECT id, date, weight_kg, body_fat_pct, waist_cm, chest_cm, arms_cm, legs_cm, photo_uris_json, created_at
+         FROM body_logs
+         WHERE date = ? AND user_id = ?
+         LIMIT 1;`,
         date,
-        weightKg: 0,
-        photoUris,
-      });
-    }
+        userId
+      );
+      const existing = row ? this.mapRow(row) : null;
+      const photoUris = existing?.photoUris ? [...existing.photoUris] : [];
+      if (!photoUris.includes(photoUri)) {
+        photoUris.push(photoUri);
+      }
 
-    return photoUris;
+      if (existing) {
+        await this.db.runAsync(
+          `UPDATE body_logs SET photo_uris_json = ? WHERE date = ? AND user_id = ?;`,
+          JSON.stringify(photoUris),
+          date,
+          userId
+        );
+      } else {
+        const id =
+          userId === 'default_user'
+            ? `body-log-${date}`
+            : `body-log-${userId}-${date}`;
+        const createdAt = new Date().toISOString();
+        await this.db.runAsync(
+          `INSERT INTO body_logs (id, user_id, date, weight_kg, body_fat_pct, waist_cm, chest_cm, arms_cm, legs_cm, photo_uris_json, created_at)
+           VALUES (?, ?, ?, ?, NULL, NULL, NULL, NULL, NULL, ?, ?)
+           ON CONFLICT(user_id, date) DO UPDATE SET
+             photo_uris_json = excluded.photo_uris_json;`,
+          id,
+          userId,
+          date,
+          0,
+          JSON.stringify(photoUris),
+          createdAt
+        );
+      }
+
+      return photoUris;
+    });
   }
 
   async getPhotos(): Promise<{ date: string; uri: string }[]> {
+    const userId = await this.getActiveUserId();
     const rows = await this.db.getAllAsync<{ date: string; photo_uris_json: string | null }>(
       `SELECT date, photo_uris_json
        FROM body_logs
-       WHERE photo_uris_json IS NOT NULL AND photo_uris_json != '[]'
-       ORDER BY date DESC;`
+       WHERE user_id = ? AND photo_uris_json IS NOT NULL AND photo_uris_json != '[]'
+       ORDER BY date DESC;`,
+      userId
     );
 
     const photos: { date: string; uri: string }[] = [];
     for (const r of rows) {
       if (r.photo_uris_json) {
         try {
-          const uris: string[] = JSON.parse(r.photo_uris_json);
-          for (const u of uris) {
-            photos.push({ date: r.date, uri: u });
+          const parsed = JSON.parse(r.photo_uris_json);
+          if (Array.isArray(parsed)) {
+            for (const u of parsed) {
+              if (typeof u === 'string') {
+                photos.push({ date: r.date, uri: u });
+              }
+            }
           }
         } catch {
           // Ignore invalid JSON
@@ -200,17 +269,34 @@ export class SqliteBodyRepository implements IBodyRepository {
   }
 
   async deletePhoto(date: string, photoUri: string): Promise<string[]> {
-    const existing = await this.getBodyLog(date);
-    if (!existing || !existing.photoUris) {
-      return [];
+    const updatedUris = await this.runSerializedTransaction(async () => {
+      const userId = await this.getActiveUserId();
+      const row = await this.db.getFirstAsync<BodyLogRow>(
+        `SELECT id, date, weight_kg, body_fat_pct, waist_cm, chest_cm, arms_cm, legs_cm, photo_uris_json, created_at
+         FROM body_logs
+         WHERE date = ? AND user_id = ?
+         LIMIT 1;`,
+        date,
+        userId
+      );
+      const existing = row ? this.mapRow(row) : null;
+      if (!existing || !existing.photoUris) {
+        return [] as string[];
+      }
+      const nextUris = existing.photoUris.filter((u) => u !== photoUri);
+      await this.db.runAsync(
+        `UPDATE body_logs SET photo_uris_json = ? WHERE date = ? AND user_id = ?;`,
+        JSON.stringify(nextUris),
+        date,
+        userId
+      );
+      return nextUris;
+    });
+
+    if (photoUri && photoUri.startsWith('file://')) {
+      await PhotoStorageService.deletePhotoFile(photoUri);
     }
-    const updatedUris = existing.photoUris.filter((u) => u !== photoUri);
-    await this.db.runAsync(
-      `UPDATE body_logs SET photo_uris_json = ? WHERE date = ?;`,
-      JSON.stringify(updatedUris),
-      date
-    );
+
     return updatedUris;
   }
 }
-

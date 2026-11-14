@@ -31,7 +31,7 @@ export default function WorkoutHistoryScreen() {
   const [isLoadingPoints, setIsLoadingPoints] = useState<boolean>(false);
 
   useEffect(() => {
-    loadHistory(50, 0);
+    void Promise.resolve(loadHistory(50, 0)).catch(() => {});
   }, [loadHistory]);
 
   // Aggregate overall stats
@@ -71,7 +71,13 @@ export default function WorkoutHistoryScreen() {
   useEffect(() => {
     let active = true;
     if (activeExercise) {
-      loadExerciseHistory(activeExercise)
+      Promise.resolve()
+        .then(() => {
+          if (active) {
+            setIsLoadingPoints(true);
+          }
+          return loadExerciseHistory(activeExercise);
+        })
         .then((pts) => {
           if (active) {
             setExerciseHistoryPoints(pts);

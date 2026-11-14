@@ -206,6 +206,7 @@ export const WorkoutSummaryModal: React.FC<WorkoutSummaryModalProps> = ({
             multiline
             numberOfLines={3}
             textAlignVertical="top"
+            maxLength={500}
           />
 
           {/* Action CTAs */}

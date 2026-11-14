@@ -3,7 +3,6 @@ export type MealType = 'breakfast' | 'lunch' | 'snack' | 'dinner' | 'supper';
 export interface UserProfile {
   id: string;
   email: string;
-  password?: string;
   name: string;
   isLoggedIn?: boolean;
   onboardingCompleted?: boolean;

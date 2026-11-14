@@ -130,14 +130,16 @@ describe('Tier 5 Adversarial Stress Testing: Milestone M2 Integrity', () => {
 
     it('correctly handles limit edge cases (0, negative, extremely large)', async () => {
       const zeroLimit = await repo.searchFoods('frango', 0);
-      expect(zeroLimit.length).toBe(0);
+      // Hardened limit clamps 0/falsy to default safe limit (50) and [1, 200]
+      expect(zeroLimit.length).toBeGreaterThan(0);
 
       const largeLimit = await repo.searchFoods('frango', 100000);
       expect(largeLimit.length).toBeGreaterThan(0);
+      expect(largeLimit.length).toBeLessThanOrEqual(200);
 
       const negativeLimit = await repo.searchFoods('frango', -1);
-      // SQLite interprets LIMIT -1 as "no limit"
       expect(Array.isArray(negativeLimit)).toBe(true);
+      expect(negativeLimit.length).toBeGreaterThan(0);
     });
   });
 

@@ -7,6 +7,7 @@ import { ISqliteDatabase } from './repositories/interfaces';
 export const DATABASE_NAME = 'fitness.db';
 
 let dbInstance: SQLite.SQLiteDatabase | null = null;
+let initPromise: Promise<SQLite.SQLiteDatabase> | null = null;
 
 /**
  * Configures SQLite PRAGMAs for performance and referential integrity.
@@ -22,7 +23,7 @@ export async function configurePragmas(db: ISqliteDatabase): Promise<void> {
  * Migration V1: Initial schema, default user, TACO foods, and default routines.
  */
 export async function runMigrationV1(db: ISqliteDatabase): Promise<void> {
-  // 1. Create all 9 tables and 10 indexes
+  // 1. Create all tables and indexes
   await db.execAsync(SCHEMA_DDL);
 
   // 2. Seed Default User if table is empty
@@ -136,6 +137,7 @@ export async function runMigrationV2(db: ISqliteDatabase): Promise<void> {
   await db.execAsync(`
     CREATE TABLE IF NOT EXISTS custom_exercises (
       id TEXT PRIMARY KEY NOT NULL,
+      user_id TEXT NOT NULL DEFAULT 'default_user',
       name TEXT NOT NULL,
       category TEXT NOT NULL,
       default_sets INTEGER NOT NULL DEFAULT 3,
@@ -200,6 +202,70 @@ export async function runMigrationV3(db: ISqliteDatabase): Promise<void> {
 }
 
 /**
+ * Migration V4: Multi-tenant user_id isolation across all user data tables and UNIQUE(user_id, date) on body_logs.
+ */
+export async function runMigrationV4(db: ISqliteDatabase): Promise<void> {
+  const tablesNeedUserId = [
+    'diet_logs',
+    'water_logs',
+    'workout_routines',
+    'routine_exercises',
+    'workout_sessions',
+    'set_logs',
+    'custom_exercises',
+  ];
+
+  for (const table of tablesNeedUserId) {
+    const cols = await db.getAllAsync<{ name: string }>(`PRAGMA table_info(${table});`);
+    const hasUserId = cols.some((c) => c.name === 'user_id');
+    if (!hasUserId) {
+      await db.execAsync(
+        `ALTER TABLE ${table} ADD COLUMN user_id TEXT NOT NULL DEFAULT 'default_user';`
+      );
+    }
+  }
+
+  // Check if body_logs already has user_id column; if not, rebuild with UNIQUE(user_id, date)
+  const bodyCols = await db.getAllAsync<{ name: string }>('PRAGMA table_info(body_logs);');
+  const bodyHasUserId = bodyCols.some((c) => c.name === 'user_id');
+  if (!bodyHasUserId) {
+    await db.execAsync(`
+      CREATE TABLE IF NOT EXISTS body_logs_v4 (
+        id TEXT PRIMARY KEY NOT NULL,
+        user_id TEXT NOT NULL DEFAULT 'default_user',
+        date TEXT NOT NULL,
+        weight_kg REAL NOT NULL,
+        body_fat_pct REAL,
+        waist_cm REAL,
+        chest_cm REAL,
+        arms_cm REAL,
+        legs_cm REAL,
+        photo_uris_json TEXT,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        UNIQUE(user_id, date)
+      );
+      INSERT OR IGNORE INTO body_logs_v4 (id, user_id, date, weight_kg, body_fat_pct, waist_cm, chest_cm, arms_cm, legs_cm, photo_uris_json, created_at)
+        SELECT id, 'default_user', date, weight_kg, body_fat_pct, waist_cm, chest_cm, arms_cm, legs_cm, photo_uris_json, created_at
+        FROM body_logs;
+      DROP TABLE body_logs;
+      ALTER TABLE body_logs_v4 RENAME TO body_logs;
+      CREATE INDEX IF NOT EXISTS idx_body_logs_date ON body_logs(date DESC);
+    `);
+  }
+
+  await db.execAsync(`
+    CREATE INDEX IF NOT EXISTS idx_diet_logs_user_date ON diet_logs(user_id, date);
+    CREATE INDEX IF NOT EXISTS idx_water_logs_user_date ON water_logs(user_id, date);
+    CREATE INDEX IF NOT EXISTS idx_workout_routines_user_sort ON workout_routines(user_id, sort_order);
+    CREATE INDEX IF NOT EXISTS idx_routine_exercises_user ON routine_exercises(user_id);
+    CREATE INDEX IF NOT EXISTS idx_workout_sessions_user_date ON workout_sessions(user_id, date DESC);
+    CREATE INDEX IF NOT EXISTS idx_set_logs_user_exercise ON set_logs(user_id, exercise_name, completed);
+    CREATE INDEX IF NOT EXISTS idx_body_logs_user_date ON body_logs(user_id, date DESC);
+    CREATE INDEX IF NOT EXISTS idx_custom_exercises_user_category ON custom_exercises(user_id, category);
+  `);
+}
+
+/**
  * Migration runner based on PRAGMA user_version.
  */
 export async function runMigrations(db: ISqliteDatabase): Promise<void> {
@@ -226,18 +292,38 @@ export async function runMigrations(db: ISqliteDatabase): Promise<void> {
       await db.execAsync('PRAGMA user_version = 3;');
     });
   }
+
+  if (currentVersion < 4) {
+    await db.withTransactionAsync(async () => {
+      await runMigrationV4(db);
+      await db.execAsync('PRAGMA user_version = 4;');
+    });
+  }
 }
 
 /**
  * Returns the singleton database instance, initializing pragmas and running migrations.
+ * Memoizes initPromise to prevent race conditions during concurrent cold-start calls.
  */
 export async function getDatabaseAsync(): Promise<SQLite.SQLiteDatabase> {
-  if (!dbInstance) {
-    dbInstance = await SQLite.openDatabaseAsync(DATABASE_NAME);
-    await configurePragmas(dbInstance);
-    await runMigrations(dbInstance);
+  if (dbInstance) {
+    return dbInstance;
   }
-  return dbInstance;
+  if (!initPromise) {
+    initPromise = (async () => {
+      try {
+        const db = await SQLite.openDatabaseAsync(DATABASE_NAME);
+        await configurePragmas(db);
+        await runMigrations(db);
+        dbInstance = db;
+        return db;
+      } catch (err) {
+        initPromise = null;
+        throw err;
+      }
+    })();
+  }
+  return initPromise;
 }
 
 /**
@@ -253,6 +339,7 @@ export async function migrateDbIfNeeded(db: SQLite.SQLiteDatabase): Promise<void
  * Resets the cached database connection.
  */
 export async function resetDatabaseConnectionAsync(): Promise<void> {
+  initPromise = null;
   if (dbInstance) {
     try {
       await dbInstance.closeAsync();

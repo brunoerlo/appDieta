@@ -1,4 +1,4 @@
-import React, { createContext, useState, useEffect, useMemo, useCallback, useContext } from 'react';
+import React, { createContext, useState, useEffect, useMemo, useCallback } from 'react';
 import { UserProfile } from '../types/domain';
 import {
   IAuthRepository,
@@ -6,10 +6,12 @@ import {
   LoginUserInput,
   OnboardingData,
 } from '../database/repositories/interfaces';
+import { supabase } from '../services/supabaseClient';
 
 export interface ProfileContextValue {
   profile: UserProfile | null;
   isLoading: boolean;
+  isBootstrapping: boolean;
   error: string | null;
   isLoggedIn: boolean;
   onboardingCompleted: boolean;
@@ -23,12 +25,30 @@ export interface ProfileContextValue {
 
 export const ProfileContext = createContext<ProfileContextValue | null>(null);
 
+function createClearedProfile(prev?: UserProfile | null): UserProfile {
+  return {
+    id: '',
+    email: '',
+    name: 'Atleta',
+    isLoggedIn: false,
+    onboardingCompleted: false,
+    targetCalories: 2000,
+    targetProtein: 150,
+    targetCarbs: 200,
+    targetFat: 60,
+    targetWaterMl: 2500,
+    theme: prev?.theme || 'dark',
+    createdAt: new Date().toISOString(),
+  };
+}
+
 /**
  * Headless Profile State Manager for decoupled testing and state coordination.
  */
 export class ProfileStateManager {
   public profile: UserProfile | null = null;
   public isLoading = false;
+  public isBootstrapping = true;
   public error: string | null = null;
   private listeners: (() => void)[] = [];
 
@@ -69,6 +89,7 @@ export class ProfileStateManager {
       this.error = err?.message || 'Falha ao carregar perfil';
     } finally {
       this.isLoading = false;
+      this.isBootstrapping = false;
       this.notify();
     }
   }
@@ -130,13 +151,11 @@ export class ProfileStateManager {
     this.notify();
     try {
       await this.authRepo.logoutUser();
-      if (this.profile) {
-        this.profile = { ...this.profile, isLoggedIn: false };
-      }
     } catch (err: any) {
       this.error = err?.message || 'Falha ao sair da conta';
       throw err;
     } finally {
+      this.profile = createClearedProfile(this.profile);
       this.isLoading = false;
       this.notify();
     }
@@ -166,6 +185,7 @@ export const ProfileProvider: React.FC<{
 }> = ({ children, authRepo }) => {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isBootstrapping, setIsBootstrapping] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
   const loadProfile = useCallback(async () => {
@@ -188,17 +208,49 @@ export const ProfileProvider: React.FC<{
         const p = await authRepo.getProfile();
         if (active) {
           setProfile(p);
-          setIsLoading(false);
         }
       } catch (err: any) {
         if (active) {
           setError(err?.message || 'Falha ao carregar perfil');
+        }
+      } finally {
+        if (active) {
           setIsLoading(false);
+          setIsBootstrapping(false);
         }
       }
     })();
     return () => {
       active = false;
+    };
+  }, [authRepo]);
+
+  useEffect(() => {
+    if (!supabase?.auth || typeof supabase.auth.onAuthStateChange !== 'function') {
+      return;
+    }
+    let active = true;
+    const subResult = supabase.auth.onAuthStateChange((event, session) => {
+      if (!active) return;
+      if (event === 'SIGNED_OUT' || (!session && event === 'TOKEN_REFRESHED')) {
+        setProfile((prev) => createClearedProfile(prev));
+      } else if (event === 'TOKEN_REFRESHED' && session?.user) {
+        authRepo
+          .getProfile()
+          .then((p) => {
+            if (active && p) {
+              setProfile(p);
+            }
+          })
+          .catch(() => {
+            // Preserve current profile if background refresh fails
+          });
+      }
+    });
+
+    return () => {
+      active = false;
+      subResult?.data?.subscription?.unsubscribe?.();
     };
   }, [authRepo]);
 
@@ -261,11 +313,11 @@ export const ProfileProvider: React.FC<{
     setError(null);
     try {
       await authRepo.logoutUser();
-      setProfile((prev) => (prev ? { ...prev, isLoggedIn: false } : null));
     } catch (err: any) {
       setError(err?.message || 'Falha ao sair da conta');
       throw err;
     } finally {
+      setProfile((prev) => createClearedProfile(prev));
       setIsLoading(false);
     }
   }, [authRepo]);
@@ -292,6 +344,7 @@ export const ProfileProvider: React.FC<{
     () => ({
       profile,
       isLoading,
+      isBootstrapping,
       error,
       isLoggedIn: Boolean(profile?.isLoggedIn),
       onboardingCompleted: Boolean(profile?.onboardingCompleted),
@@ -305,6 +358,7 @@ export const ProfileProvider: React.FC<{
     [
       profile,
       isLoading,
+      isBootstrapping,
       error,
       updateProfile,
       loadProfile,
@@ -317,11 +371,3 @@ export const ProfileProvider: React.FC<{
 
   return <ProfileContext.Provider value={value}>{children}</ProfileContext.Provider>;
 };
-
-export function useProfile(): ProfileContextValue {
-  const context = useContext(ProfileContext);
-  if (!context) {
-    throw new Error('useProfile must be used within a ProfileProvider');
-  }
-  return context;
-}

@@ -24,10 +24,10 @@ describe('Beverages Seed, Migration V3, Dynamic Theme & Rebrand Tests', () => {
       }
     });
 
-    it('verifies database initializes to user_version 3 with all beverages seeded', async () => {
+    it('verifies database initializes to user_version 4 with all beverages seeded', async () => {
       const db = await getDatabaseAsync();
       const version = await db.getFirstAsync<{ user_version: number }>('PRAGMA user_version;');
-      expect(version?.user_version).toBe(3);
+      expect(version?.user_version).toBe(4);
 
       const drinksCount = await db.getFirstAsync<{ count: number }>(
         "SELECT COUNT(*) as count FROM foods WHERE category = 'Bebidas';"

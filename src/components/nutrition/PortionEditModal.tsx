@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import {
   Modal,
   View,
@@ -8,6 +8,7 @@ import {
   TouchableOpacity,
   KeyboardAvoidingView,
   Platform,
+  Alert,
 } from 'react-native';
 import { spacing, borderRadius, ThemeColors } from '../../constants/theme';
 import { useTheme } from '../../hooks/useTheme';
@@ -27,8 +28,8 @@ export interface PortionEditModalProps {
       carbs: number;
       fat: number;
     }
-  ) => void;
-  onDelete: (id: string) => void;
+  ) => Promise<void> | void;
+  onDelete: (id: string) => Promise<void> | void;
   onClose: () => void;
 }
 
@@ -48,7 +49,15 @@ const PortionEditModalContent: React.FC<PortionEditModalContentProps> = ({
   const { colors } = useTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
 
-  const [grams, setGrams] = useState<number>(entry.servingGrams);
+  const [gramsInput, setGramsInput] = useState<string>(String(entry.servingGrams || ''));
+  const [saving, setSaving] = useState<boolean>(false);
+  const isSubmittingRef = useRef<boolean>(false);
+
+  const parsedGrams = Number(gramsInput.trim().replace(',', '.'));
+  const grams =
+    gramsInput.trim() !== '' && Number.isFinite(parsedGrams) && parsedGrams > 0
+      ? Math.min(10000, parsedGrams)
+      : 0;
 
   const isDrink = isBeverageEntry(entry);
   const unitLabel = isDrink ? 'ml' : 'g';
@@ -72,21 +81,55 @@ const PortionEditModalContent: React.FC<PortionEditModalContentProps> = ({
   const liveCarbs = Number((entry.carbs * ratio).toFixed(1));
   const liveFat = Number((entry.fat * ratio).toFixed(1));
 
-  const handleSave = () => {
-    if (grams <= 0) return;
-    onSave(entry.id, {
-      servingGrams: grams,
-      calories: liveCalories,
-      protein: liveProtein,
-      carbs: liveCarbs,
-      fat: liveFat,
-    });
-    onClose();
+  const handleGramsTextChange = (t: string) => {
+    const cleaned = t.replace(',', '.').replace(/[^0-9.]/g, '');
+    const parts = cleaned.split('.');
+    const normalized = parts.length > 2 ? `${parts[0]}.${parts.slice(1).join('')}` : cleaned;
+    setGramsInput(normalized);
   };
 
-  const handleDelete = () => {
-    onDelete(entry.id);
-    onClose();
+  const handleSave = async () => {
+    if (isSubmittingRef.current || saving) return;
+    if (!Number.isFinite(parsedGrams) || parsedGrams < 0.1 || parsedGrams > 10000) {
+      Alert.alert(
+        'Porção inválida',
+        `Informe uma quantidade válida entre 0,1 e 10.000 ${unitLabel}.`
+      );
+      return;
+    }
+
+    isSubmittingRef.current = true;
+    setSaving(true);
+    try {
+      await onSave(entry.id, {
+        servingGrams: Number(parsedGrams.toFixed(1)),
+        calories: liveCalories,
+        protein: liveProtein,
+        carbs: liveCarbs,
+        fat: liveFat,
+      });
+      onClose();
+    } catch (err: any) {
+      Alert.alert('Erro', err?.message || 'Não foi possível salvar as alterações.');
+    } finally {
+      isSubmittingRef.current = false;
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (isSubmittingRef.current || saving) return;
+    isSubmittingRef.current = true;
+    setSaving(true);
+    try {
+      await onDelete(entry.id);
+      onClose();
+    } catch (err: any) {
+      Alert.alert('Erro', err?.message || 'Não foi possível excluir o alimento.');
+    } finally {
+      isSubmittingRef.current = false;
+      setSaving(false);
+    }
   };
 
   return (
@@ -105,10 +148,11 @@ const PortionEditModalContent: React.FC<PortionEditModalContentProps> = ({
         <View style={styles.inputContainer}>
           <TextInput
             style={styles.input}
-            value={String(grams || '')}
-            onChangeText={(t) => setGrams(Number(t.replace(/[^0-9]/g, '')) || 0)}
-            keyboardType="numeric"
+            value={gramsInput}
+            onChangeText={handleGramsTextChange}
+            keyboardType="decimal-pad"
             selectTextOnFocus
+            maxLength={10}
           />
           <Text style={styles.suffix}>{unitLabel}</Text>
         </View>
@@ -119,7 +163,11 @@ const PortionEditModalContent: React.FC<PortionEditModalContentProps> = ({
             <TouchableOpacity
               key={c.label}
               style={styles.chip}
-              onPress={() => setGrams((g) => Math.max(1, g + c.delta))}
+              disabled={saving}
+              onPress={() => {
+                const next = Math.min(10000, Math.max(0.1, Number((grams + c.delta).toFixed(1))));
+                setGramsInput(String(next));
+              }}
             >
               <Text style={styles.chipText}>{c.label}</Text>
             </TouchableOpacity>
@@ -151,16 +199,23 @@ const PortionEditModalContent: React.FC<PortionEditModalContentProps> = ({
 
         {/* Action Buttons */}
         <View style={styles.buttonStack}>
-          <Button title="Salvar Alterações" onPress={handleSave} variant="primary" />
+          <Button
+            title="Salvar Alterações"
+            onPress={handleSave}
+            loading={saving}
+            variant="primary"
+          />
           <Button
             title="Excluir Alimento"
             onPress={handleDelete}
+            disabled={saving}
             variant="destructive"
             style={styles.spacingBtn}
           />
           <Button
             title="Cancelar"
             onPress={onClose}
+            disabled={saving}
             variant="ghost"
             style={styles.spacingBtn}
           />

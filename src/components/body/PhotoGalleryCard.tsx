@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -15,7 +15,7 @@ export interface PhotoGalleryCardProps {
   photos: { date: string; uri: string }[];
   onAddPhoto: () => void;
   onCompare: () => void;
-  onDeletePhoto?: (uri: string, date: string) => void;
+  onDeletePhoto?: (uri: string, date: string) => void | Promise<void>;
 }
 
 const POSE_LABELS: Record<string, string> = {
@@ -32,8 +32,13 @@ export const PhotoGalleryCard: React.FC<PhotoGalleryCardProps> = ({
   onDeletePhoto,
 }) => {
   const { colors } = useTheme();
+  const [failedUris, setFailedUris] = useState<Record<string, boolean>>({});
 
   const canCompare = photos.length >= 2;
+
+  const handleImageError = (uri: string) => {
+    setFailedUris((prev) => ({ ...prev, [uri]: true }));
+  };
 
   const handleDelete = (uri: string, date: string) => {
     if (!onDeletePhoto) return;
@@ -45,7 +50,11 @@ export const PhotoGalleryCard: React.FC<PhotoGalleryCardProps> = ({
         {
           text: 'Excluir',
           style: 'destructive',
-          onPress: () => onDeletePhoto(uri, date),
+          onPress: () => {
+            void Promise.resolve(onDeletePhoto(uri, date)).catch((err: any) => {
+              Alert.alert('Erro', err?.message || 'Não foi possível excluir a foto.');
+            });
+          },
         },
       ]
     );
@@ -121,6 +130,7 @@ export const PhotoGalleryCard: React.FC<PhotoGalleryCardProps> = ({
             const pose = extractPoseFromUri(item.uri);
             const poseLabel = POSE_LABELS[pose] || 'Geral';
             const resolvedUri = resolvePhotoUri(item.uri);
+            const isBroken = !resolvedUri || failedUris[item.uri];
 
             const parts = item.date.split('-');
             const dateLabel = parts.length === 3 ? `${parts[2]}/${parts[1]}` : item.date;
@@ -133,11 +143,21 @@ export const PhotoGalleryCard: React.FC<PhotoGalleryCardProps> = ({
                   { backgroundColor: colors.surfaceMuted, borderColor: colors.cardBorder },
                 ]}
               >
-                <Image
-                  source={{ uri: resolvedUri }}
-                  style={styles.photoImage}
-                  resizeMode="cover"
-                />
+                {isBroken ? (
+                  <View style={styles.brokenImagePlaceholder}>
+                    <Text style={styles.brokenImageIcon}>📷</Text>
+                    <Text style={[styles.brokenImageText, { color: colors.textDimmed }]}>
+                      Indisponível
+                    </Text>
+                  </View>
+                ) : (
+                  <Image
+                    source={{ uri: resolvedUri }}
+                    style={styles.photoImage}
+                    resizeMode="cover"
+                    onError={() => handleImageError(item.uri)}
+                  />
+                )}
 
                 {/* Badges Overlay */}
                 <View style={styles.overlayTop}>
@@ -263,6 +283,22 @@ const styles = StyleSheet.create({
   photoImage: {
     width: '100%',
     height: '100%',
+  },
+  brokenImagePlaceholder: {
+    width: '100%',
+    height: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 8,
+  },
+  brokenImageIcon: {
+    fontSize: 24,
+    marginBottom: 4,
+  },
+  brokenImageText: {
+    fontSize: 10,
+    fontWeight: '600',
+    textAlign: 'center',
   },
   overlayTop: {
     position: 'absolute',

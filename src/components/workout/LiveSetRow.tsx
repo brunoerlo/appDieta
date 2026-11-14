@@ -99,6 +99,7 @@ export const LiveSetRow: React.FC<LiveSetRowProps> = ({
           onChangeText={handleWeightChange}
           onBlur={() => setWeightInputText(null)}
           selectTextOnFocus
+          maxLength={6}
           accessibilityLabel={`Peso da série ${setNumber} em quilogramas`}
         />
       </View>
@@ -113,6 +114,7 @@ export const LiveSetRow: React.FC<LiveSetRowProps> = ({
           placeholderTextColor={colors.textDimmed}
           onChangeText={handleRepsChange}
           selectTextOnFocus
+          maxLength={4}
           accessibilityLabel={`Repetições da série ${setNumber}`}
         />
       </View>

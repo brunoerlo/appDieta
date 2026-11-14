@@ -6,6 +6,7 @@ import {
   ScrollView,
   TouchableOpacity,
   RefreshControl,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useBody } from '../../hooks/useBody';
@@ -133,8 +134,20 @@ export default function BodyScreen() {
         <PhotoGalleryCard
           photos={photos}
           onAddPhoto={() => setPhotoCaptureVisible(true)}
-          onCompare={() => setCompareVisible(true)}
-          onDeletePhoto={(uri, date) => deletePhoto(uri, date)}
+          onCompare={() => {
+            if (photos.length < 2) {
+              Alert.alert('Fotos Insuficientes', 'Registre pelo menos 2 fotos para comparar.');
+              return;
+            }
+            setCompareVisible(true);
+          }}
+          onDeletePhoto={async (uri, date) => {
+            try {
+              await deletePhoto(uri, date);
+            } catch (err: any) {
+              Alert.alert('Erro', err?.message || 'Não foi possível excluir a foto.');
+            }
+          }}
         />
       </ScrollView>
 

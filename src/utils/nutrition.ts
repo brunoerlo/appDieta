@@ -28,6 +28,25 @@ export const MEAL_TYPE_NAMES: Record<MealType, string> = {
 };
 
 /**
+ * Safely parses a user-entered numeric string (supporting pt-BR comma decimals),
+ * rejecting malformed strings, Infinity, or NaN.
+ */
+export function parseDecimalInput(value: string | number | null | undefined): number {
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? value : NaN;
+  }
+  if (typeof value !== 'string') {
+    return NaN;
+  }
+  const normalized = value.trim().replace(',', '.');
+  if (!normalized || !/^[+-]?(\d+(\.\d+)?|\.\d+)$/.test(normalized)) {
+    return NaN;
+  }
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : NaN;
+}
+
+/**
  * Normalizes text by removing diacritics/accents and converting to lowercase.
  */
 export function normalizeFoodName(name: string): string {
@@ -42,7 +61,12 @@ export function scaleMacros(
   targetGrams: number,
   baseMacros: MacroProfile
 ): MacroProfile {
-  if (baseGrams <= 0 || targetGrams <= 0) {
+  if (
+    !Number.isFinite(baseGrams) ||
+    !Number.isFinite(targetGrams) ||
+    baseGrams <= 0 ||
+    targetGrams <= 0
+  ) {
     return {
       calories: 0,
       protein: 0,
@@ -52,12 +76,23 @@ export function scaleMacros(
     };
   }
   const factor = targetGrams / baseGrams;
+  const safeCal = Number.isFinite(baseMacros.calories) ? baseMacros.calories : 0;
+  const safeProt = Number.isFinite(baseMacros.protein) ? baseMacros.protein : 0;
+  const safeCarbs = Number.isFinite(baseMacros.carbs) ? baseMacros.carbs : 0;
+  const safeFat = Number.isFinite(baseMacros.fat) ? baseMacros.fat : 0;
+  const safeFiber =
+    baseMacros.fiber !== undefined && Number.isFinite(baseMacros.fiber)
+      ? Number((baseMacros.fiber * factor).toFixed(1))
+      : baseMacros.fiber !== undefined
+      ? 0
+      : undefined;
+
   return {
-    calories: Number((baseMacros.calories * factor).toFixed(1)),
-    protein: Number((baseMacros.protein * factor).toFixed(1)),
-    carbs: Number((baseMacros.carbs * factor).toFixed(1)),
-    fat: Number((baseMacros.fat * factor).toFixed(1)),
-    fiber: baseMacros.fiber !== undefined ? Number((baseMacros.fiber * factor).toFixed(1)) : undefined,
+    calories: Number((safeCal * factor).toFixed(1)),
+    protein: Number((safeProt * factor).toFixed(1)),
+    carbs: Number((safeCarbs * factor).toFixed(1)),
+    fat: Number((safeFat * factor).toFixed(1)),
+    fiber: safeFiber,
   };
 }
 
@@ -65,7 +100,10 @@ export function scaleMacros(
  * Computes theoretical Atwater energy in kcal: (P * 4) + (C * 4) + (F * 9).
  */
 export function calculateAtwaterCalories(protein: number, carbs: number, fat: number): number {
-  return Number(((protein * 4) + (carbs * 4) + (fat * 9)).toFixed(1));
+  const p = Number.isFinite(protein) ? protein : 0;
+  const c = Number.isFinite(carbs) ? carbs : 0;
+  const f = Number.isFinite(fat) ? fat : 0;
+  return Number(((p * 4) + (c * 4) + (f * 9)).toFixed(1));
 }
 
 /**
@@ -78,9 +116,22 @@ export function isAtwaterConsistent(
   fat: number,
   tolerancePercent = 15
 ): boolean {
+  if (
+    !Number.isFinite(calories) ||
+    !Number.isFinite(protein) ||
+    !Number.isFinite(carbs) ||
+    !Number.isFinite(fat) ||
+    !Number.isFinite(tolerancePercent) ||
+    calories < 0 ||
+    protein < 0 ||
+    carbs < 0 ||
+    fat < 0
+  ) {
+    return false;
+  }
   if (calories === 0 && protein === 0 && carbs === 0 && fat === 0) return true;
   const atwater = calculateAtwaterCalories(protein, carbs, fat);
-  if (calories === 0) return atwater === 0;
+  if (calories <= 0) return atwater === 0;
   const diff = Math.abs(calories - atwater);
   const percentDiff = (diff / calories) * 100;
   return percentDiff <= tolerancePercent;
@@ -159,8 +210,20 @@ export function getTodayDateString(): string {
 }
 
 export function shiftDateString(dateStr: string, days: number): string {
-  const [year, month, day] = dateStr.split('-').map(Number);
+  if (!dateStr || typeof dateStr !== 'string') return '';
+  const parts = dateStr.split('-');
+  if (parts.length !== 3) return dateStr;
+  const [year, month, day] = parts.map(Number);
+  if (
+    !Number.isFinite(year) ||
+    !Number.isFinite(month) ||
+    !Number.isFinite(day) ||
+    !Number.isFinite(days)
+  ) {
+    return dateStr;
+  }
   const date = new Date(year, month - 1, day);
+  if (Number.isNaN(date.getTime())) return dateStr;
   date.setDate(date.getDate() + days);
   const y = date.getFullYear();
   const m = String(date.getMonth() + 1).padStart(2, '0');
@@ -196,9 +259,16 @@ export interface SuggestedTargetsResult {
  * - Water: 35-50 ml/kg based on activity level
  */
 export function calculateSuggestedTargets(input: SuggestedTargetsInput): SuggestedTargetsResult {
-  const weight = Math.max(30, Math.min(250, input.weightKg || 70));
-  const height = Math.max(100, Math.min(230, input.heightCm || 175));
-  const age = input.age || 25;
+  const rawWeight =
+    Number.isFinite(input.weightKg) && input.weightKg > 0 ? input.weightKg : 70;
+  const rawHeight =
+    Number.isFinite(input.heightCm) && input.heightCm > 0 ? input.heightCm : 175;
+  const rawAge =
+    input.age !== undefined && Number.isFinite(input.age) && input.age > 0 ? input.age : 25;
+
+  const weight = Math.max(30, Math.min(250, rawWeight));
+  const height = Math.max(100, Math.min(230, rawHeight));
+  const age = Math.max(10, Math.min(120, rawAge));
   const genderConst = input.gender === 'female' ? -161 : 5;
 
   // 1. BMR (Mifflin-St Jeor)

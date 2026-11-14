@@ -5,7 +5,7 @@ import { SetLog, ExerciseHistoryPoint } from '../types/domain';
  * Standard and clinically recommended for reps between 1 and 10.
  */
 export function calculateBrzycki1RM(weightKg: number, reps: number): number {
-  if (weightKg <= 0 || reps <= 0) return 0;
+  if (!Number.isFinite(weightKg) || !Number.isFinite(reps) || weightKg <= 0 || reps <= 0) return 0;
   if (reps === 1) return Math.round(weightKg * 10) / 10;
   // Guard against division by zero or negative denominator (reps >= 37)
   const safeReps = Math.min(reps, 30);
@@ -18,7 +18,7 @@ export function calculateBrzycki1RM(weightKg: number, reps: number): number {
  * Recommended for higher rep ranges (> 10 reps).
  */
 export function calculateEpley1RM(weightKg: number, reps: number): number {
-  if (weightKg <= 0 || reps <= 0) return 0;
+  if (!Number.isFinite(weightKg) || !Number.isFinite(reps) || weightKg <= 0 || reps <= 0) return 0;
   if (reps === 1) return Math.round(weightKg * 10) / 10;
   const result = weightKg * (1 + 0.0333 * reps);
   return Math.round(result * 10) / 10;
@@ -59,7 +59,7 @@ export function calculateWorkoutVolume(
  * Formats elapsed seconds into MM:SS or HH:MM:SS.
  */
 export function formatElapsedSeconds(totalSeconds: number): string {
-  if (totalSeconds <= 0) return '00:00';
+  if (!Number.isFinite(totalSeconds) || totalSeconds <= 0) return '00:00';
   const hours = Math.floor(totalSeconds / 3600);
   const minutes = Math.floor((totalSeconds % 3600) / 60);
   const seconds = Math.floor(totalSeconds % 60);
@@ -75,7 +75,7 @@ export function formatElapsedSeconds(totalSeconds: number): string {
  * Formats duration in minutes to user-friendly string (e.g. "45 min" or "1h 15m").
  */
 export function formatDurationMinutes(minutes: number): string {
-  if (minutes <= 0) return '0 min';
+  if (!Number.isFinite(minutes) || minutes <= 0) return '0 min';
   if (minutes < 60) return `${Math.round(minutes)} min`;
   const hours = Math.floor(minutes / 60);
   const remMinutes = Math.round(minutes % 60);
@@ -86,6 +86,7 @@ export function formatDurationMinutes(minutes: number): string {
  * Formats rest timer countdown in MM:SS format.
  */
 export function formatRestTimerDisplay(remainingSeconds: number): string {
+  if (!Number.isFinite(remainingSeconds) || remainingSeconds <= 0) return '00:00';
   const safeSeconds = Math.max(0, Math.ceil(remainingSeconds));
   const minutes = Math.floor(safeSeconds / 60);
   const seconds = safeSeconds % 60;

@@ -7,6 +7,8 @@ import {
   TouchableOpacity,
   Platform,
   ActivityIndicator,
+  Alert,
+  Linking,
 } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as Haptics from 'expo-haptics';
@@ -39,9 +41,12 @@ export const PhotoCaptureModal: React.FC<PhotoCaptureModalProps> = ({
   const [permission, requestPermission] = useCameraPermissions();
   const [isCapturing, setIsCapturing] = useState(false);
   const cameraRef = useRef<any>(null);
+  const isSubmittingRef = useRef(false);
   const safeTop = useSafeTopPadding(8);
 
   const handleCapture = async () => {
+    if (isSubmittingRef.current || !permission?.granted) return;
+    isSubmittingRef.current = true;
     setIsCapturing(true);
     try {
       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -57,9 +62,8 @@ export const PhotoCaptureModal: React.FC<PhotoCaptureModalProps> = ({
         }
       }
 
-      // If no photo taken (e.g. simulated or failed camera), create standard local placeholder
       if (!capturedUri) {
-        capturedUri = `file:///data/photos/${date}_${selectedPose}_${Date.now()}.jpg`;
+        throw new Error('Não foi possível capturar a imagem da câmera.');
       }
 
       // Persist permanently in document storage
@@ -72,34 +76,44 @@ export const PhotoCaptureModal: React.FC<PhotoCaptureModalProps> = ({
       await onPhotoSaved(persistedUri);
       onClose();
     } catch {
-      // Fallback: save placeholder URI
-      const fallbackUri = `file:///data/photos/${date}_${selectedPose}_${Date.now()}.jpg`;
-      await onPhotoSaved(fallbackUri);
-      onClose();
+      Alert.alert('Erro', 'Não foi possível salvar a foto.');
     } finally {
+      isSubmittingRef.current = false;
       setIsCapturing(false);
     }
   };
 
   const handleUseMockPhoto = async () => {
+    if (isSubmittingRef.current) return;
+    isSubmittingRef.current = true;
     setIsCapturing(true);
     try {
       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       const mockUri = `file:///data/photos/${date}_${selectedPose}_${Date.now()}.jpg`;
       await onPhotoSaved(mockUri);
       onClose();
+    } catch {
+      Alert.alert('Erro', 'Não foi possível salvar a foto.');
     } finally {
+      isSubmittingRef.current = false;
       setIsCapturing(false);
     }
   };
 
   return (
-    <Modal visible={visible} animationType="slide" statusBarTranslucent={true} onRequestClose={onClose}>
+    <Modal
+      visible={visible}
+      animationType="slide"
+      statusBarTranslucent={true}
+      onRequestClose={() => {
+        if (!isCapturing) onClose();
+      }}
+    >
       <View style={[styles.container, { backgroundColor: colors.background }]}>
         {/* Top Controls Header */}
         <View style={[styles.topBar, { paddingTop: safeTop }]}>
-          <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
-            <Text style={styles.closeBtnText}>✕ Cancelar</Text>
+          <TouchableOpacity onPress={onClose} disabled={isCapturing} style={styles.closeBtn}>
+            <Text style={[styles.closeBtnText, isCapturing && { opacity: 0.5 }]}>✕ Cancelar</Text>
           </TouchableOpacity>
 
           {/* Pose Selector Tabs */}
@@ -110,6 +124,7 @@ export const PhotoCaptureModal: React.FC<PhotoCaptureModalProps> = ({
                 <TouchableOpacity
                   key={p.key}
                   onPress={() => setSelectedPose(p.key)}
+                  disabled={isCapturing}
                   style={[
                     styles.poseTab,
                     active && { backgroundColor: colors.primary },
@@ -148,37 +163,61 @@ export const PhotoCaptureModal: React.FC<PhotoCaptureModalProps> = ({
               <Text style={[styles.permissionText, { color: colors.textSecondary }]}>
                 Permita o acesso à câmera para fotografar sua evolução corporal.
               </Text>
-              <TouchableOpacity
-                onPress={requestPermission}
-                style={[styles.permissionBtn, { backgroundColor: colors.primary }]}
-              >
-                <Text style={styles.permissionBtnText}>Permitir Acesso</Text>
-              </TouchableOpacity>
+              {permission && !permission.granted && permission.canAskAgain === false ? (
+                <TouchableOpacity
+                  onPress={() => {
+                    void Linking.openSettings();
+                  }}
+                  style={[styles.permissionBtn, { backgroundColor: colors.primary }]}
+                >
+                  <Text style={styles.permissionBtnText}>Abrir Configurações</Text>
+                </TouchableOpacity>
+              ) : (
+                <TouchableOpacity
+                  onPress={requestPermission}
+                  style={[styles.permissionBtn, { backgroundColor: colors.primary }]}
+                >
+                  <Text style={styles.permissionBtnText}>Permitir Acesso</Text>
+                </TouchableOpacity>
+              )}
             </View>
           )}
         </View>
 
         {/* Bottom Shutter Controls */}
         <View style={[styles.bottomBar, { backgroundColor: colors.card }]}>
-          <TouchableOpacity
-            onPress={handleUseMockPhoto}
-            style={styles.mockBtn}
-          >
-            <Text style={[styles.mockBtnText, { color: colors.textDimmed }]}>
-              Foto Simulação
-            </Text>
-          </TouchableOpacity>
+          {__DEV__ ? (
+            <TouchableOpacity
+              onPress={handleUseMockPhoto}
+              disabled={isCapturing}
+              style={styles.mockBtn}
+            >
+              <Text style={[styles.mockBtnText, { color: colors.textDimmed }]}>
+                Foto Simulação
+              </Text>
+            </TouchableOpacity>
+          ) : (
+            <View style={styles.mockBtnSpacer} />
+          )}
 
           {/* Shutter Circle Button */}
           <TouchableOpacity
             onPress={handleCapture}
-            disabled={isCapturing}
-            style={[styles.shutterOuter, { borderColor: colors.primary }]}
+            disabled={isCapturing || !permission?.granted}
+            style={[
+              styles.shutterOuter,
+              { borderColor: permission?.granted ? colors.primary : colors.textDimmed },
+            ]}
           >
             {isCapturing ? (
               <ActivityIndicator color={colors.primary} />
             ) : (
-              <View style={[styles.shutterInner, { backgroundColor: colors.primary }]} />
+              <View
+                style={[
+                  styles.shutterInner,
+                  { backgroundColor: permission?.granted ? colors.primary : colors.textDimmed },
+                ]}
+              />
             )}
           </TouchableOpacity>
 

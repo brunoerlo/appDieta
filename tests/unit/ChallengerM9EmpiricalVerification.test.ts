@@ -29,9 +29,9 @@ describe('Challenger M9: Empirical Stress & Verification Test Suite', () => {
       );
       expect(postCount?.count).toBe(15);
 
-      // Verify PRAGMA user_version is 3
+      // Verify PRAGMA user_version is 4 (including V4 multi-user isolation migration)
       const version = await db.getFirstAsync<{ user_version: number }>('PRAGMA user_version;');
-      expect(version?.user_version).toBe(3);
+      expect(version?.user_version).toBe(4);
     });
 
     it('verifies concurrent execution of runMigrations does not produce duplicate foods or throw constraint errors', async () => {
@@ -316,12 +316,13 @@ describe('Challenger M9: Empirical Stress & Verification Test Suite', () => {
       expect(pkgJson.name).toBe('menosfrango');
     });
 
-    it('verifies PASSWORD_SALT in SqliteAuthRepository is strictly preserved for backwards compatibility', () => {
+    it('verifies per-user cryptographic salt generation and v2$ hash format in SqliteAuthRepository', () => {
       const authRepoPath = path.resolve(__dirname, '../../src/database/repositories/SqliteAuthRepository.ts');
       const content = fs.readFileSync(authRepoPath, 'utf8');
 
-      // The cryptographic salt must remain 'irontrack_secure_salt_v2' to not invalidate existing hashes
-      expect(content).toContain("const PASSWORD_SALT = 'irontrack_secure_salt_v2';");
+      // Per-user CSPRNG salt generation and v2$<salt>$<digest> format
+      expect(content).toContain('export function generateSalt(byteLength = 16): string');
+      expect(content).toContain('return `v2$${effectiveSalt}$${digest}`;');
     });
   });
 });

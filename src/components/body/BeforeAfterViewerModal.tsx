@@ -9,6 +9,7 @@ import {
   ScrollView,
   Dimensions,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BodyLog } from '../../types/domain';
 import { useTheme } from '../../hooks/useTheme';
 import { useSafeTopPadding } from '../../hooks/useSafeTopPadding';
@@ -44,6 +45,7 @@ export const BeforeAfterViewerModal: React.FC<BeforeAfterViewerModalProps> = ({
   const { colors } = useTheme();
   const screenWidth = Dimensions.get('window').width;
   const safeTop = useSafeTopPadding(8);
+  const insets = useSafeAreaInsets();
 
   const [mode, setMode] = useState<ComparisonMode>('sideBySide');
   const [beforeIdx, setBeforeIdx] = useState<number>(0);
@@ -51,11 +53,16 @@ export const BeforeAfterViewerModal: React.FC<BeforeAfterViewerModalProps> = ({
 
   const [beforeLog, setBeforeLog] = useState<BodyLog | null>(null);
   const [afterLog, setAfterLog] = useState<BodyLog | null>(null);
+  const [failedUris, setFailedUris] = useState<Record<string, boolean>>({});
 
   // Slider position (percentage 0 to 100)
   const [sliderPct, setSliderPct] = useState<number>(50);
   // Quick flip toggle state: false = Before, true = After
   const [isFlippedToAfter, setIsFlippedToAfter] = useState<boolean>(false);
+
+  const markImageFailed = (uri: string) => {
+    setFailedUris((prev) => ({ ...prev, [uri]: true }));
+  };
 
   // Initialize pairing
   useEffect(() => {
@@ -85,11 +92,18 @@ export const BeforeAfterViewerModal: React.FC<BeforeAfterViewerModalProps> = ({
     let active = true;
 
     (async () => {
-      const bLog = beforePhoto ? await getBodyLog(beforePhoto.date) : null;
-      const aLog = afterPhoto ? await getBodyLog(afterPhoto.date) : null;
-      if (active) {
-        setBeforeLog(bLog);
-        setAfterLog(aLog);
+      try {
+        const bLog = beforePhoto ? await getBodyLog(beforePhoto.date) : null;
+        const aLog = afterPhoto ? await getBodyLog(afterPhoto.date) : null;
+        if (active) {
+          setBeforeLog(bLog);
+          setAfterLog(aLog);
+        }
+      } catch {
+        if (active) {
+          setBeforeLog(null);
+          setAfterLog(null);
+        }
       }
     })();
 
@@ -249,7 +263,7 @@ export const BeforeAfterViewerModal: React.FC<BeforeAfterViewerModalProps> = ({
 
         {/* Main Comparison Area */}
         <View style={styles.viewerContainer}>
-          {photos.length < 2 ? (
+          {photos.length < 2 || !beforePhoto || !afterPhoto ? (
             <View style={styles.emptyView}>
               <Text style={[styles.emptyText, { color: colors.textDimmed }]}>
                 É necessário ter pelo menos 2 fotos registradas para comparar.
@@ -270,13 +284,25 @@ export const BeforeAfterViewerModal: React.FC<BeforeAfterViewerModalProps> = ({
                   </Text>
                 </View>
 
-                {beforePhoto && (
-                  <Image
-                    source={{ uri: resolvePhotoUri(beforePhoto.uri) }}
-                    style={styles.fullImage}
-                    resizeMode="cover"
-                  />
-                )}
+                {(() => {
+                  const uri = beforePhoto?.uri ? resolvePhotoUri(beforePhoto.uri) : '';
+                  if (!uri || failedUris[beforePhoto.uri]) {
+                    return (
+                      <View style={[styles.fullImage, styles.brokenPlaceholder, { backgroundColor: colors.surfaceMuted }]}>
+                        <Text style={styles.brokenIcon}>📷</Text>
+                        <Text style={[styles.brokenText, { color: colors.textDimmed }]}>Indisponível</Text>
+                      </View>
+                    );
+                  }
+                  return (
+                    <Image
+                      source={{ uri }}
+                      style={styles.fullImage}
+                      resizeMode="cover"
+                      onError={() => markImageFailed(beforePhoto.uri)}
+                    />
+                  );
+                })()}
                 <View style={styles.poseBadgeOverlay}>
                   <Text style={styles.poseBadgeText}>{POSE_LABELS[beforePose]}</Text>
                 </View>
@@ -294,13 +320,25 @@ export const BeforeAfterViewerModal: React.FC<BeforeAfterViewerModalProps> = ({
                   </Text>
                 </View>
 
-                {afterPhoto && (
-                  <Image
-                    source={{ uri: resolvePhotoUri(afterPhoto.uri) }}
-                    style={styles.fullImage}
-                    resizeMode="cover"
-                  />
-                )}
+                {(() => {
+                  const uri = afterPhoto?.uri ? resolvePhotoUri(afterPhoto.uri) : '';
+                  if (!uri || failedUris[afterPhoto.uri]) {
+                    return (
+                      <View style={[styles.fullImage, styles.brokenPlaceholder, { backgroundColor: colors.surfaceMuted }]}>
+                        <Text style={styles.brokenIcon}>📷</Text>
+                        <Text style={[styles.brokenText, { color: colors.textDimmed }]}>Indisponível</Text>
+                      </View>
+                    );
+                  }
+                  return (
+                    <Image
+                      source={{ uri }}
+                      style={styles.fullImage}
+                      resizeMode="cover"
+                      onError={() => markImageFailed(afterPhoto.uri)}
+                    />
+                  );
+                })()}
                 <View style={styles.poseBadgeOverlay}>
                   <Text style={styles.poseBadgeText}>{POSE_LABELS[afterPose]}</Text>
                 </View>
@@ -310,22 +348,54 @@ export const BeforeAfterViewerModal: React.FC<BeforeAfterViewerModalProps> = ({
             /* Mode 2: Interactive Slider */
             <View style={[styles.sliderFrame, { borderColor: colors.cardBorder }]}>
               {/* After Image (Background) */}
-              {afterPhoto && (
-                <Image
-                  source={{ uri: resolvePhotoUri(afterPhoto.uri) }}
-                  style={styles.sliderFullImage}
-                  resizeMode="cover"
-                />
-              )}
+              {(() => {
+                const uri = afterPhoto?.uri ? resolvePhotoUri(afterPhoto.uri) : '';
+                if (!uri || failedUris[afterPhoto.uri]) {
+                  return (
+                    <View style={[styles.sliderFullImage, styles.brokenPlaceholder, { backgroundColor: colors.surfaceMuted }]}>
+                      <Text style={styles.brokenIcon}>📷</Text>
+                      <Text style={[styles.brokenText, { color: colors.textDimmed }]}>Indisponível</Text>
+                    </View>
+                  );
+                }
+                return (
+                  <Image
+                    source={{ uri }}
+                    style={styles.sliderFullImage}
+                    resizeMode="cover"
+                    onError={() => markImageFailed(afterPhoto.uri)}
+                  />
+                );
+              })()}
 
               {/* Before Image (Foreground with dynamic clip width) */}
               {beforePhoto && (
                 <View style={[styles.sliderClippedWrapper, { width: `${sliderPct}%` }]}>
-                  <Image
-                    source={{ uri: resolvePhotoUri(beforePhoto.uri) }}
-                    style={[styles.sliderFullImage, { width: screenWidth - 32 }]}
-                    resizeMode="cover"
-                  />
+                  {(() => {
+                    const uri = beforePhoto?.uri ? resolvePhotoUri(beforePhoto.uri) : '';
+                    if (!uri || failedUris[beforePhoto.uri]) {
+                      return (
+                        <View
+                          style={[
+                            styles.sliderFullImage,
+                            styles.brokenPlaceholder,
+                            { width: screenWidth - 32, backgroundColor: colors.surfaceMuted },
+                          ]}
+                        >
+                          <Text style={styles.brokenIcon}>📷</Text>
+                          <Text style={[styles.brokenText, { color: colors.textDimmed }]}>Indisponível</Text>
+                        </View>
+                      );
+                    }
+                    return (
+                      <Image
+                        source={{ uri }}
+                        style={[styles.sliderFullImage, { width: screenWidth - 32 }]}
+                        resizeMode="cover"
+                        onError={() => markImageFailed(beforePhoto.uri)}
+                      />
+                    );
+                  })()}
                 </View>
               )}
 
@@ -376,15 +446,29 @@ export const BeforeAfterViewerModal: React.FC<BeforeAfterViewerModalProps> = ({
             /* Mode 3: Quick Flip */
             <View style={[styles.flipFrame, { borderColor: colors.cardBorder }]}>
               {/* Render either Before or After based on isFlippedToAfter */}
-              <Image
-                source={{
-                  uri: resolvePhotoUri(
-                    isFlippedToAfter ? afterPhoto?.uri || '' : beforePhoto?.uri || ''
-                  ),
-                }}
-                style={styles.fullImage}
-                resizeMode="cover"
-              />
+              {(() => {
+                const activePhoto = isFlippedToAfter ? afterPhoto : beforePhoto;
+                const rawUri = activePhoto?.uri;
+                const resolved = rawUri ? resolvePhotoUri(rawUri) : '';
+                if (!resolved || (rawUri && failedUris[rawUri])) {
+                  return (
+                    <View style={[styles.fullImage, styles.brokenPlaceholder, { backgroundColor: colors.surfaceMuted }]}>
+                      <Text style={styles.brokenIcon}>📷</Text>
+                      <Text style={[styles.brokenText, { color: colors.textDimmed }]}>Indisponível</Text>
+                    </View>
+                  );
+                }
+                return (
+                  <Image
+                    source={{ uri: resolved }}
+                    style={styles.fullImage}
+                    resizeMode="cover"
+                    onError={() => {
+                      if (rawUri) markImageFailed(rawUri);
+                    }}
+                  />
+                );
+              })()}
 
               <View style={styles.flipOverlay}>
                 <View style={styles.flipBadge}>
@@ -415,7 +499,16 @@ export const BeforeAfterViewerModal: React.FC<BeforeAfterViewerModalProps> = ({
         </View>
 
         {/* Photo Selection Pickers */}
-        <View style={[styles.selectorBar, { backgroundColor: colors.card, borderTopColor: colors.cardBorder }]}>
+        <View
+          style={[
+            styles.selectorBar,
+            {
+              backgroundColor: colors.card,
+              borderTopColor: colors.cardBorder,
+              paddingBottom: Math.max(10, insets.bottom + 8),
+            },
+          ]}
+        >
           <Text style={[styles.selectorTitle, { color: colors.textSecondary }]}>
             Selecionar Fotos para Comparação:
           </Text>
@@ -424,6 +517,8 @@ export const BeforeAfterViewerModal: React.FC<BeforeAfterViewerModalProps> = ({
             {photos.map((p, idx) => {
               const isBefore = idx === beforeIdx;
               const isAfter = idx === afterIdx;
+              const thumbUri = p.uri ? resolvePhotoUri(p.uri) : '';
+              const isThumbBroken = !thumbUri || failedUris[p.uri];
               return (
                 <TouchableOpacity
                   key={`${p.uri}-${idx}`}
@@ -444,7 +539,18 @@ export const BeforeAfterViewerModal: React.FC<BeforeAfterViewerModalProps> = ({
                     isAfter && { borderColor: colors.primary, borderWidth: 2 },
                   ]}
                 >
-                  <Image source={{ uri: resolvePhotoUri(p.uri) }} style={styles.thumbnailImg} resizeMode="cover" />
+                  {isThumbBroken ? (
+                    <View style={[styles.thumbnailImg, styles.brokenPlaceholder, { backgroundColor: colors.surfaceMuted }]}>
+                      <Text style={{ fontSize: 16 }}>📷</Text>
+                    </View>
+                  ) : (
+                    <Image
+                      source={{ uri: thumbUri }}
+                      style={styles.thumbnailImg}
+                      resizeMode="cover"
+                      onError={() => markImageFailed(p.uri)}
+                    />
+                  )}
                   <View style={styles.thumbLabel}>
                     <Text style={styles.thumbText}>{formatDate(p.date)}</Text>
                   </View>
@@ -471,6 +577,20 @@ export const BeforeAfterViewerModal: React.FC<BeforeAfterViewerModalProps> = ({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  brokenPlaceholder: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 8,
+  },
+  brokenIcon: {
+    fontSize: 28,
+    marginBottom: 4,
+  },
+  brokenText: {
+    fontSize: 11,
+    fontWeight: '600',
+    textAlign: 'center',
   },
   header: {
     flexDirection: 'row',

@@ -9,6 +9,7 @@ import {
   ScrollView,
   ActivityIndicator,
   Keyboard,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -22,12 +23,17 @@ import { useDiet } from '../../hooks/useDiet';
 
 type FilterTab = 'all' | 'meals' | 'drinks' | 'taco' | 'custom' | 'off';
 
+const VALID_MEAL_TYPES: MealType[] = ['breakfast', 'lunch', 'snack', 'dinner', 'supper'];
+
 export default function FoodSearchScreen() {
   const router = useRouter();
   const { colors } = useTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const params = useLocalSearchParams<{ mealType?: MealType; date?: string }>();
-  const mealType: MealType = params.mealType || 'lunch';
+  const mealType: MealType =
+    params.mealType && VALID_MEAL_TYPES.includes(params.mealType)
+      ? params.mealType
+      : 'lunch';
 
   const { addFoodLog, searchFoods, createFood } = useDiet();
 
@@ -41,26 +47,43 @@ export default function FoodSearchScreen() {
   const [servingModalVisible, setServingModalVisible] = useState(false);
 
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const requestIdRef = useRef<number>(0);
 
   // Initial load of common TACO foods and ready meals
   useEffect(() => {
     let active = true;
-    searchFoods('', 100).then((foods) => {
-      if (active) setLocalResults(foods);
-    });
+    searchFoods('', 100)
+      .then((foods) => {
+        if (active) setLocalResults(foods);
+      })
+      .catch(() => {
+        if (active) setLocalResults([]);
+      });
     return () => {
       active = false;
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
     };
   }, [searchFoods]);
 
   // Handle Query Changes with immediate local search & debounced remote search
   const handleQueryChange = (text: string) => {
     setQuery(text);
+    const currentReqId = ++requestIdRef.current;
 
-    // Immediate local search
-    searchFoods(text, 50).then((foods) => {
-      setLocalResults(foods);
-    });
+    // Immediate local search guarded against race condition
+    searchFoods(text, 50)
+      .then((foods) => {
+        if (requestIdRef.current === currentReqId) {
+          setLocalResults(foods);
+        }
+      })
+      .catch(() => {
+        if (requestIdRef.current === currentReqId) {
+          setLocalResults([]);
+        }
+      });
 
     // Clear previous remote timer
     if (debounceTimerRef.current) {
@@ -77,11 +100,17 @@ export default function FoodSearchScreen() {
     debounceTimerRef.current = setTimeout(async () => {
       try {
         const offResults = await openFoodFactsService.searchFoods(text.trim(), 20);
-        setRemoteResults(offResults);
+        if (requestIdRef.current === currentReqId) {
+          setRemoteResults(offResults);
+        }
       } catch {
-        setRemoteResults([]);
+        if (requestIdRef.current === currentReqId) {
+          setRemoteResults([]);
+        }
       } finally {
-        setIsSearchingRemote(false);
+        if (requestIdRef.current === currentReqId) {
+          setIsSearchingRemote(false);
+        }
       }
     }, 400);
   };
@@ -130,22 +159,27 @@ export default function FoodSearchScreen() {
     carbs: number;
     fat: number;
   }) => {
-    // If food is from Open Food Facts and not in local DB, cache it
-    if (entry.food.source === 'openfoodfacts') {
-      try {
-        await createFood(entry.food);
-      } catch {
-        // Already cached or ignored
+    try {
+      // If food is from Open Food Facts and not in local DB, cache it
+      if (entry.food.source === 'openfoodfacts') {
+        try {
+          await createFood(entry.food);
+        } catch {
+          // Already cached or ignored
+        }
       }
+
+      await addFoodLog({
+        mealType: entry.mealType,
+        food: entry.food,
+        servingGrams: entry.servingGrams,
+      });
+
+      router.back();
+    } catch (err: any) {
+      Alert.alert('Erro', err?.message || 'Não foi possível registrar o alimento.');
+      throw err;
     }
-
-    await addFoodLog({
-      mealType: entry.mealType,
-      food: entry.food,
-      servingGrams: entry.servingGrams,
-    });
-
-    router.back();
   };
 
   const renderSourceBadge = (item: FoodItem) => {
@@ -168,7 +202,7 @@ export default function FoodSearchScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
+    <SafeAreaView style={styles.container} edges={['top', 'bottom', 'left', 'right']}>
       {/* Top Header Bar */}
       <View style={styles.headerBar}>
         <TouchableOpacity
@@ -223,6 +257,7 @@ export default function FoodSearchScreen() {
           onChangeText={handleQueryChange}
           autoCorrect={false}
           clearButtonMode="while-editing"
+          maxLength={100}
         />
         {isSearchingRemote && (
           <ActivityIndicator

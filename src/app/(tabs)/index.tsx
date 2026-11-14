@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import {
   View,
   Text,
@@ -6,6 +6,7 @@ import {
   ScrollView,
   TouchableOpacity,
   RefreshControl,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -19,6 +20,7 @@ import { useProfile } from '../../hooks/useProfile';
 import { useBody } from '../../hooks/useBody';
 import { useTheme } from '../../hooks/useTheme';
 import { formatDatePortuguese } from '../../utils/date';
+import { getTodayDateString } from '../../utils/nutrition';
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -29,10 +31,19 @@ export default function HomeScreen() {
     waterTotalMl,
     addWater,
     isRefreshing,
+    error: dietError,
     refresh,
   } = useDiet();
   const { routines, activeSession, startWorkout } = useWorkout();
-  const { currentBodyLog, currentMovingAverage } = useBody();
+  const {
+    selectedDate: bodySelectedDate,
+    goToToday: goToTodayBody,
+    currentBodyLog,
+    currentMovingAverage,
+  } = useBody();
+
+  const isSubmittingRef = useRef(false);
+  const isAddingWaterRef = useRef(false);
 
   const targetKcal = profile?.targetCalories ?? 2000;
   const consumedKcal = dailySummary.totalCalories;
@@ -41,21 +52,50 @@ export default function HomeScreen() {
   const targetWater = profile?.targetWaterMl ?? 2500;
   const waterProgress = targetWater > 0 ? Math.min(1, waterTotalMl / targetWater) : 0;
 
+  const isBodyToday = bodySelectedDate === getTodayDateString();
+
   // Next routine or first available routine
   const suggestedRoutine = routines.length > 0 ? routines[0] : null;
 
-  const handleStartWorkout = () => {
-    if (activeSession) {
-      router.push('/workout/live');
-    } else if (suggestedRoutine) {
-      startWorkout(suggestedRoutine);
-      router.push({
-        pathname: '/workout/live',
-        params: { routineId: suggestedRoutine.id },
-      });
-    } else {
-      router.push('/workout/live');
+  const handleQuickWater = async (amountMl: number) => {
+    if (isAddingWaterRef.current) return;
+    isAddingWaterRef.current = true;
+    try {
+      await addWater(amountMl);
+    } catch (err: any) {
+      Alert.alert('Erro', err?.message || 'Não foi possível registrar água.');
+    } finally {
+      isAddingWaterRef.current = false;
     }
+  };
+
+  const handleStartWorkout = async () => {
+    if (isSubmittingRef.current) return;
+    isSubmittingRef.current = true;
+    try {
+      if (activeSession) {
+        router.push('/workout/live');
+      } else if (suggestedRoutine) {
+        await startWorkout(suggestedRoutine);
+        router.push({
+          pathname: '/workout/live',
+          params: { routineId: suggestedRoutine.id },
+        });
+      } else {
+        router.push('/workout/live');
+      }
+    } catch (err: any) {
+      Alert.alert('Erro', err?.message || 'Não foi possível iniciar o treino.');
+    } finally {
+      isSubmittingRef.current = false;
+    }
+  };
+
+  const handleOpenWeighIn = () => {
+    if (!isBodyToday) {
+      goToTodayBody();
+    }
+    router.push('/body/log');
   };
 
   return (
@@ -81,6 +121,12 @@ export default function HomeScreen() {
             {profile?.name ? `Olá, ${profile.name}!` : 'Olá, Atleta!'}
           </Text>
         </View>
+
+        {dietError ? (
+          <View style={[styles.errorBanner, { backgroundColor: colors.dangerMuted, borderColor: colors.danger }]}>
+            <Text style={[styles.errorText, { color: colors.danger }]}>⚠️ {dietError}</Text>
+          </View>
+        ) : null}
 
         {/* 1. Daily Calorie & Nutrition Snapshot Card */}
         <Card style={[styles.card, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
@@ -173,7 +219,9 @@ export default function HomeScreen() {
           <View style={styles.waterQuickRow}>
             <TouchableOpacity
               style={[styles.waterQuickBtn, { backgroundColor: colors.surfaceMuted, borderColor: colors.cardBorder }]}
-              onPress={() => addWater(250)}
+              onPress={() => {
+                void handleQuickWater(250);
+              }}
               activeOpacity={0.7}
             >
               <Text style={[styles.waterQuickText, { color: colors.textPrimary }]}>+250ml</Text>
@@ -181,7 +229,9 @@ export default function HomeScreen() {
 
             <TouchableOpacity
               style={[styles.waterQuickBtn, { backgroundColor: colors.surfaceMuted, borderColor: colors.cardBorder }]}
-              onPress={() => addWater(500)}
+              onPress={() => {
+                void handleQuickWater(500);
+              }}
               activeOpacity={0.7}
             >
               <Text style={[styles.waterQuickText, { color: colors.textPrimary }]}>+500ml</Text>
@@ -239,7 +289,11 @@ export default function HomeScreen() {
         <Card style={[styles.card, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
           <View style={styles.cardHeader}>
             <View>
-              <Text style={[styles.cardTag, { color: colors.textSecondary }]}>EVOLUÇÃO CORPORAL 📈</Text>
+              <Text style={[styles.cardTag, { color: colors.textSecondary }]}>
+                {isBodyToday
+                  ? 'EVOLUÇÃO CORPORAL 📈'
+                  : `EVOLUÇÃO CORPORAL 📈 • ${formatDatePortuguese(bodySelectedDate)}`}
+              </Text>
               <Text style={[styles.cardMainMetric, { color: colors.textPrimary }]}>
                 {currentBodyLog?.weightKg ? `${currentBodyLog.weightKg.toFixed(1)} kg` : '—'}{' '}
                 {currentMovingAverage !== null && (
@@ -251,7 +305,7 @@ export default function HomeScreen() {
             </View>
             <TouchableOpacity
               style={[styles.smallActionBtn, { backgroundColor: colors.surfaceMuted, borderColor: colors.cardBorder }]}
-              onPress={() => router.push('/body/log')}
+              onPress={handleOpenWeighIn}
               activeOpacity={0.7}
             >
               <Text style={[styles.smallActionBtnText, { color: colors.textPrimary }]}>+ Pesar</Text>
@@ -282,6 +336,15 @@ const styles = StyleSheet.create({
     paddingTop: 12,
     paddingBottom: 32,
     gap: 14,
+  },
+  errorBanner: {
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  errorText: {
+    fontSize: 13,
+    fontWeight: '600',
   },
   greetingSection: {
     paddingHorizontal: 4,

@@ -248,22 +248,14 @@ describe('Challenger M4.2 — Boundary, Math & SQL Injection Adversarial Test Su
     });
 
     it('probes bodyFatPct > 100% (e.g. 500%) anomaly', () => {
-      // Adversarial probe: when bodyFatPct exceeds 100%, does lean mass become negative?
+      // Hardened contract: when bodyFatPct exceeds 100%, returns null instead of negative lean mass
       const comp = calculateBodyComposition(80.0, 500);
-      // Empirical observation: fat mass = 400kg, lean mass = -320kg
-      expect(comp?.fatMassKg).toBe(400.0);
-      expect(comp?.leanMassKg).toBe(-320.0);
+      expect(comp).toBeNull();
     });
 
     it('probes bodyFatPct = NaN anomaly', () => {
-      // In JS, NaN is not undefined, null, or < 0
       const comp = calculateBodyComposition(80.0, NaN);
-      // Note: without Number.isNaN check, fatMassKg and leanMassKg become NaN
-      expect(comp).toBeDefined();
-      if (comp) {
-        expect(Number.isNaN(comp.fatMassKg)).toBe(true);
-        expect(Number.isNaN(comp.leanMassKg)).toBe(true);
-      }
+      expect(comp).toBeNull();
     });
 
     it('verifies Atwater mass conservation: fatMassKg + leanMassKg === weightKg (within 0.1kg)', () => {
@@ -353,18 +345,16 @@ describe('Challenger M4.2 — Boundary, Math & SQL Injection Adversarial Test Su
 
     it('probes empty string dates in calculatePhotoDeltaMetrics', () => {
       const deltas = calculatePhotoDeltaMetrics(mockLog1, mockLog2, '', '');
-      // When date is empty string, new Date('').getTime() evaluates to NaN
-      expect(Number.isNaN(deltas.daysBetween)).toBe(true);
+      // Hardened contract: invalid/empty dates safely fallback to 0 daysBetween instead of NaN
+      expect(deltas.daysBetween).toBe(0);
     });
 
     it('probes null vs undefined bodyFatPct in calculatePhotoDeltaMetrics', () => {
-      // In JS, null !== undefined evaluates to true.
-      // If a log has bodyFatPct explicitly set to null (e.g. from JSON or database row):
+      // Hardened contract: null or undefined bodyFatPct produces null delta rather than coercing null to 0
       const logWithNull = { ...mockLog1, bodyFatPct: null as any };
       const logWithVal = { ...mockLog2, bodyFatPct: 15.0 };
       const deltas = calculatePhotoDeltaMetrics(logWithNull, logWithVal, '2026-10-01', '2026-11-01');
-      // Empirical result: 15.0 - null evaluates to 15.0 because null coerces to 0 in subtraction
-      expect(deltas.bodyFatDeltaPct).toBe(15.0);
+      expect(deltas.bodyFatDeltaPct).toBeNull();
     });
 
     it('probes getInitialComparisonIndices with 0, 1, 2, and 100 photos', () => {

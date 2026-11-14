@@ -50,6 +50,18 @@ interface WaterLogRow {
   created_at: string;
 }
 
+function sanitizePostgrestFilterTerm(input: string): string {
+  return input
+    .replace(/[,().*"'\\%_]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 120);
+}
+
+function toFiniteNonNegative(val: number, fallback = 0): number {
+  return Number.isFinite(val) && val >= 0 ? val : fallback;
+}
+
 export class SupabaseDietRepository implements IDietRepository {
   private localFoodRepo: SqliteDietRepository | null;
 
@@ -115,12 +127,12 @@ export class SupabaseDietRepository implements IDietRepository {
         date: entry.date,
         meal_type: entry.mealType,
         food_id: entry.foodId ?? null,
-        food_name: entry.foodName,
-        serving_grams: entry.servingGrams,
-        calories: entry.calories,
-        protein: entry.protein,
-        carbs: entry.carbs,
-        fat: entry.fat,
+        food_name: entry.foodName.trim().slice(0, 200),
+        serving_grams: toFiniteNonNegative(entry.servingGrams, 100),
+        calories: toFiniteNonNegative(entry.calories, 0),
+        protein: toFiniteNonNegative(entry.protein, 0),
+        carbs: toFiniteNonNegative(entry.carbs, 0),
+        fat: toFiniteNonNegative(entry.fat, 0),
       })
       .select('id, date, meal_type, food_id, food_name, serving_grams, calories, protein, carbs, fat, created_at')
       .single<DietLogRow>();
@@ -131,12 +143,24 @@ export class SupabaseDietRepository implements IDietRepository {
 
   async updateDietLog(id: string, entry: Partial<DietLogEntry>): Promise<void> {
     const payload: Record<string, unknown> = {};
-    if (entry.servingGrams !== undefined) payload.serving_grams = entry.servingGrams;
-    if (entry.calories !== undefined) payload.calories = entry.calories;
-    if (entry.protein !== undefined) payload.protein = entry.protein;
-    if (entry.carbs !== undefined) payload.carbs = entry.carbs;
-    if (entry.fat !== undefined) payload.fat = entry.fat;
-    if (entry.mealType !== undefined) payload.meal_type = entry.mealType;
+    if (entry.servingGrams !== undefined && Number.isFinite(entry.servingGrams)) {
+      payload.serving_grams = entry.servingGrams;
+    }
+    if (entry.calories !== undefined && Number.isFinite(entry.calories)) {
+      payload.calories = entry.calories;
+    }
+    if (entry.protein !== undefined && Number.isFinite(entry.protein)) {
+      payload.protein = entry.protein;
+    }
+    if (entry.carbs !== undefined && Number.isFinite(entry.carbs)) {
+      payload.carbs = entry.carbs;
+    }
+    if (entry.fat !== undefined && Number.isFinite(entry.fat)) {
+      payload.fat = entry.fat;
+    }
+    if (entry.mealType !== undefined) {
+      payload.meal_type = entry.mealType;
+    }
 
     if (Object.keys(payload).length === 0) return;
 
@@ -158,22 +182,27 @@ export class SupabaseDietRepository implements IDietRepository {
   }
 
   async searchFoods(query: string, limit = 50): Promise<FoodItem[]> {
-    const sanitized = query.trim();
+    const safeLimit = Math.max(1, Math.min(100, Math.floor(Number(limit) || 50)));
+    const rawTrimmed = typeof query === 'string' ? query.trim() : '';
+    const sanitized = sanitizePostgrestFilterTerm(rawTrimmed);
 
     let remoteQuery = this.client
       .from('foods')
       .select('id, name, name_normalized, category, serving_grams, calories, protein, carbs, fat, fiber, barcode, source, serving_unit_name, serving_unit_grams, created_at')
       .order('name', { ascending: true })
-      .limit(limit);
+      .limit(safeLimit);
 
     if (sanitized) {
-      const normalized = normalizeFoodText(sanitized);
+      const normalized = sanitizePostgrestFilterTerm(normalizeFoodText(sanitized));
       remoteQuery = remoteQuery.or(
-        `name.ilike.%${sanitized}%,name_normalized.ilike.%${normalized}%`
+        `name.ilike.%${sanitized}%,name_normalized.ilike.%${normalized || sanitized}%`
       );
     }
 
     const remotePromise = (async () => {
+      if (rawTrimmed && !sanitized) {
+        return [] as FoodItem[];
+      }
       try {
         const remoteRes = await remoteQuery.returns<FoodRow[]>();
         if (!remoteRes.error && remoteRes.data) {
@@ -186,7 +215,7 @@ export class SupabaseDietRepository implements IDietRepository {
     })();
 
     const localPromise = this.localFoodRepo
-      ? this.localFoodRepo.searchFoods(query, limit).catch(() => [] as FoodItem[])
+      ? this.localFoodRepo.searchFoods(rawTrimmed, safeLimit).catch(() => [] as FoodItem[])
       : Promise.resolve([] as FoodItem[]);
 
     const [remoteItems, localItems] = await Promise.all([remotePromise, localPromise]);
@@ -199,14 +228,16 @@ export class SupabaseDietRepository implements IDietRepository {
         seen.add(item.id);
         merged.push(item);
       }
-      if (merged.length >= limit) break;
+      if (merged.length >= safeLimit) break;
     }
 
     return merged;
   }
 
   async getFoodByBarcode(barcode: string): Promise<FoodItem | null> {
-    const cleanBarcode = barcode.trim();
+    const cleanBarcode = typeof barcode === 'string' ? barcode.trim() : '';
+    if (!cleanBarcode) return null;
+
     const { data, error } = await this.client
       .from('foods')
       .select('id, name, name_normalized, category, serving_grams, calories, protein, carbs, fat, fiber, barcode, source, serving_unit_name, serving_unit_grams, created_at')
@@ -227,24 +258,25 @@ export class SupabaseDietRepository implements IDietRepository {
   }
 
   async createFood(food: Omit<FoodItem, 'id' | 'createdAt'>): Promise<FoodItem> {
-    const nameNormalized = food.nameNormalized ?? normalizeFoodText(food.name);
+    const cleanName = food.name.trim().slice(0, 200);
+    const nameNormalized = food.nameNormalized ?? normalizeFoodText(cleanName);
 
     const { data, error } = await this.client
       .from('foods')
       .insert({
-        name: food.name,
+        name: cleanName,
         name_normalized: nameNormalized,
         category: food.category ?? '',
-        serving_grams: food.servingGrams,
-        calories: food.calories,
-        protein: food.protein,
-        carbs: food.carbs,
-        fat: food.fat,
-        fiber: food.fiber ?? 0,
+        serving_grams: toFiniteNonNegative(food.servingGrams, 100),
+        calories: toFiniteNonNegative(food.calories, 0),
+        protein: toFiniteNonNegative(food.protein, 0),
+        carbs: toFiniteNonNegative(food.carbs, 0),
+        fat: toFiniteNonNegative(food.fat, 0),
+        fiber: toFiniteNonNegative(food.fiber ?? 0, 0),
         barcode: food.barcode ?? null,
         source: food.source,
         serving_unit_name: food.servingUnitName ?? 'g',
-        serving_unit_grams: food.servingUnitGrams ?? 1,
+        serving_unit_grams: toFiniteNonNegative(food.servingUnitGrams ?? 1, 1),
       })
       .select('id, name, name_normalized, category, serving_grams, calories, protein, carbs, fat, fiber, barcode, source, serving_unit_name, serving_unit_grams, created_at')
       .single<FoodRow>();
@@ -271,9 +303,14 @@ export class SupabaseDietRepository implements IDietRepository {
   }
 
   async addWaterLog(date: string, amountMl: number): Promise<WaterLogEntry> {
+    if (!Number.isFinite(amountMl) || Math.round(amountMl) === 0) {
+      throw new Error('Quantidade de água inválida.');
+    }
+    const roundedMl = Math.max(-10000, Math.min(10000, Math.round(amountMl)));
+
     const { data, error } = await this.client
       .from('water_logs')
-      .insert({ date, amount_ml: amountMl })
+      .insert({ date, amount_ml: roundedMl })
       .select('id, date, amount_ml, created_at')
       .single<WaterLogRow>();
 
@@ -303,9 +340,11 @@ export class SupabaseDietRepository implements IDietRepository {
   }
 
   async decrementWaterLog(date: string, amountMl: number): Promise<WaterLogEntry | null> {
+    if (!Number.isFinite(amountMl) || Math.abs(amountMl) <= 0) return null;
     const currentTotal = await this.getDailyWaterTotal(date);
     if (currentTotal <= 0) return null;
-    const delta = Math.min(Math.abs(amountMl), currentTotal);
+    const delta = Math.min(Math.round(Math.abs(amountMl)), currentTotal);
+    if (delta <= 0) return null;
     return this.addWaterLog(date, -delta);
   }
 

@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
 import { spacing, borderRadius, ThemeColors } from '../../constants/theme';
 import { useTheme } from '../../hooks/useTheme';
@@ -8,9 +8,9 @@ import { ProgressBar } from '../ui/ProgressBar';
 export interface WaterTrackerCardProps {
   consumedMl: number;
   targetMl: number;
-  onIncrement: (amountMl: number) => void;
-  onDecrement: (amountMl: number) => void;
-  onReset: () => void;
+  onIncrement: (amountMl: number) => void | Promise<void>;
+  onDecrement: (amountMl: number) => void | Promise<void>;
+  onReset: () => void | Promise<void>;
 }
 
 export const WaterTrackerCard: React.FC<WaterTrackerCardProps> = ({
@@ -22,10 +22,23 @@ export const WaterTrackerCard: React.FC<WaterTrackerCardProps> = ({
 }) => {
   const { colors } = useTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
+  const isProcessingRef = useRef(false);
 
   const safeTarget = targetMl > 0 ? targetMl : 2500;
   const progress = Math.max(0, Math.min(1, consumedMl / safeTarget));
   const percentText = `${Math.round(progress * 100)}%`;
+
+  const handleAction = async (action: () => void | Promise<void>) => {
+    if (isProcessingRef.current) return;
+    isProcessingRef.current = true;
+    try {
+      await Promise.resolve(action());
+    } catch (err: any) {
+      Alert.alert('Erro', err?.message || 'Não foi possível atualizar o consumo de água.');
+    } finally {
+      isProcessingRef.current = false;
+    }
+  };
 
   const handleReset = () => {
     Alert.alert(
@@ -33,7 +46,13 @@ export const WaterTrackerCard: React.FC<WaterTrackerCardProps> = ({
       'Deseja realmente zerar todos os registros de água deste dia?',
       [
         { text: 'Cancelar', style: 'cancel' },
-        { text: 'Zerar', style: 'destructive', onPress: onReset },
+        {
+          text: 'Zerar',
+          style: 'destructive',
+          onPress: () => {
+            void handleAction(() => onReset());
+          },
+        },
       ]
     );
   };
@@ -68,7 +87,9 @@ export const WaterTrackerCard: React.FC<WaterTrackerCardProps> = ({
       <View style={styles.buttonsRow}>
         <TouchableOpacity
           style={styles.quickButton}
-          onPress={() => onIncrement(250)}
+          onPress={() => {
+            void handleAction(() => onIncrement(250));
+          }}
           activeOpacity={0.7}
         >
           <Text style={styles.quickButtonText}>+250ml</Text>
@@ -76,7 +97,9 @@ export const WaterTrackerCard: React.FC<WaterTrackerCardProps> = ({
 
         <TouchableOpacity
           style={styles.quickButton}
-          onPress={() => onIncrement(500)}
+          onPress={() => {
+            void handleAction(() => onIncrement(500));
+          }}
           activeOpacity={0.7}
         >
           <Text style={styles.quickButtonText}>+500ml</Text>
@@ -84,7 +107,9 @@ export const WaterTrackerCard: React.FC<WaterTrackerCardProps> = ({
 
         <TouchableOpacity
           style={[styles.quickButton, styles.undoButton]}
-          onPress={() => onDecrement(250)}
+          onPress={() => {
+            void handleAction(() => onDecrement(250));
+          }}
           disabled={consumedMl <= 0}
           activeOpacity={0.7}
         >

@@ -145,7 +145,11 @@ describe('Tier 3: Cross-Feature Pairwise Integrations', () => {
     expect(historyPoints.length).toBe(1);
     expect(historyPoints[0].maxWeightKg).toBe(100);
 
-    const expected1RM = calculateBrzycki1RM(100, 4);
+    const expected1RM = Math.max(
+      calculateBrzycki1RM(90, 8),
+      calculateBrzycki1RM(95, 6),
+      calculateBrzycki1RM(100, 4)
+    );
     expect(historyPoints[0].estimated1RM).toBe(expected1RM);
 
     // History log assertion

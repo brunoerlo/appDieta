@@ -1,6 +1,12 @@
 import React, { useMemo, useEffect } from 'react';
-import { View, ActivityIndicator } from 'react-native';
-import { Stack, useRouter, useSegments, useRootNavigationState } from 'expo-router';
+import { View, Text, TouchableOpacity, ActivityIndicator } from 'react-native';
+import {
+  Stack,
+  useRouter,
+  useSegments,
+  useRootNavigationState,
+  useGlobalSearchParams,
+} from 'expo-router';
 import { SQLiteProvider, useSQLiteContext } from 'expo-sqlite';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -17,30 +23,115 @@ import { BodyProvider } from '../context/BodyContext';
 import { useProfile } from '../hooks/useProfile';
 import { useTheme } from '../hooks/useTheme';
 
+interface ErrorBoundaryState {
+  hasError: boolean;
+  errorMessage: string | null;
+}
+
+export class RootErrorBoundary extends React.Component<
+  { children: React.ReactNode },
+  ErrorBoundaryState
+> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props);
+    this.state = { hasError: false, errorMessage: null };
+  }
+
+  static getDerivedStateFromError(error: Error): ErrorBoundaryState {
+    return {
+      hasError: true,
+      errorMessage: error?.message || 'Ocorreu uma falha inesperada na aplicação.',
+    };
+  }
+
+  componentDidCatch(error: Error) {
+    console.warn('[RootErrorBoundary] Uncaught error:', error?.message || error);
+  }
+
+  handleRetry = () => {
+    this.setState({ hasError: false, errorMessage: null });
+  };
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <View
+          style={{
+            flex: 1,
+            backgroundColor: '#0A0A0C',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 24,
+          }}
+        >
+          <Text
+            style={{
+              color: '#FFFFFF',
+              fontSize: 20,
+              fontWeight: '800',
+              marginBottom: 8,
+              textAlign: 'center',
+            }}
+          >
+            Algo deu errado
+          </Text>
+          <Text
+            style={{
+              color: '#94A3B8',
+              fontSize: 14,
+              marginBottom: 20,
+              textAlign: 'center',
+            }}
+          >
+            {this.state.errorMessage || 'Ocorreu uma falha inesperada.'}
+          </Text>
+          <TouchableOpacity
+            onPress={this.handleRetry}
+            style={{
+              backgroundColor: '#10B981',
+              paddingHorizontal: 20,
+              paddingVertical: 12,
+              borderRadius: 10,
+            }}
+          >
+            <Text style={{ color: '#FFFFFF', fontWeight: '700', fontSize: 14 }}>
+              Tentar Novamente
+            </Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
+
+    return this.props.children;
+  }
+}
+
 export function useAuthProtection() {
-  const { isLoggedIn, onboardingCompleted, isLoading } = useProfile();
+  const { isLoggedIn, onboardingCompleted, isBootstrapping } = useProfile();
   const segments = useSegments();
+  const params = useGlobalSearchParams<{ step?: string }>();
   const router = useRouter();
   const rootNavigationState = useRootNavigationState();
 
   useEffect(() => {
-    // 1. Wait for SQLite profile fetch to complete
-    if (isLoading) return;
+    // 1. Wait only for initial profile bootstrap to complete
+    if (isBootstrapping) return;
 
     // 2. Wait for root navigation to be mounted and ready
     if (!rootNavigationState?.key) return;
 
     const inAuthGroup = (segments as string[])[0] === 'auth';
+    const isOnboardingStep = params?.step === 'onboarding';
 
-    // Rule A: Not logged in -> Route to /auth
+    // Rule A: Not logged in -> Route to /auth (and disallow ?step=onboarding when unauthenticated)
     if (!isLoggedIn) {
-      if (!inAuthGroup) {
+      if (!inAuthGroup || isOnboardingStep) {
         router.replace('/auth');
       }
     }
     // Rule B: Logged in but onboarding not completed -> Route to /auth?step=onboarding
     else if (!onboardingCompleted) {
-      if (!inAuthGroup) {
+      if (!inAuthGroup || !isOnboardingStep) {
         router.replace('/auth?step=onboarding');
       }
     }
@@ -50,15 +141,23 @@ export function useAuthProtection() {
         router.replace('/(tabs)');
       }
     }
-  }, [isLoggedIn, onboardingCompleted, isLoading, segments, rootNavigationState?.key, router]);
+  }, [
+    isLoggedIn,
+    onboardingCompleted,
+    isBootstrapping,
+    segments,
+    params?.step,
+    rootNavigationState?.key,
+    router,
+  ]);
 }
 
 function NavContainer() {
   const { colors, isDark } = useTheme();
-  const { isLoading } = useProfile();
+  const { isBootstrapping } = useProfile();
   useAuthProtection();
 
-  if (isLoading) {
+  if (isBootstrapping) {
     return (
       <View
         style={{
@@ -166,16 +265,32 @@ function DataProviders({
   bodyRepo: SupabaseBodyRepository;
 }) {
   const { profile } = useProfile();
-  const userKey = profile?.isLoggedIn && profile?.id ? profile.id : 'guest';
+  const isAuthenticated = Boolean(profile?.isLoggedIn && profile?.id);
+  const userKey = isAuthenticated && profile?.id ? profile.id : 'guest';
 
   return (
-    <DietProvider key={`diet-${userKey}`} dietRepo={dietRepo} authRepo={authRepo}>
-      <WorkoutProvider key={`workout-${userKey}`} workoutRepo={workoutRepo}>
-        <BodyProvider key={`body-${userKey}`} bodyRepo={bodyRepo}>
-          <NavContainer />
-        </BodyProvider>
-      </WorkoutProvider>
-    </DietProvider>
+    <ThemeProvider authRepo={authRepo} userKey={userKey}>
+      <DietProvider
+        userKey={userKey}
+        enabled={isAuthenticated}
+        dietRepo={dietRepo}
+        authRepo={authRepo}
+      >
+        <WorkoutProvider
+          userKey={userKey}
+          enabled={isAuthenticated}
+          workoutRepo={workoutRepo}
+        >
+          <BodyProvider
+            userKey={userKey}
+            enabled={isAuthenticated}
+            bodyRepo={bodyRepo}
+          >
+            <NavContainer />
+          </BodyProvider>
+        </WorkoutProvider>
+      </DietProvider>
+    </ThemeProvider>
   );
 }
 
@@ -187,25 +302,25 @@ function AppContent() {
   const bodyRepo = useMemo(() => new SupabaseBodyRepository(), []);
 
   return (
-    <ThemeProvider authRepo={authRepo}>
-      <ProfileProvider authRepo={authRepo}>
-        <DataProviders
-          authRepo={authRepo}
-          dietRepo={dietRepo}
-          workoutRepo={workoutRepo}
-          bodyRepo={bodyRepo}
-        />
-      </ProfileProvider>
-    </ThemeProvider>
+    <ProfileProvider authRepo={authRepo}>
+      <DataProviders
+        authRepo={authRepo}
+        dietRepo={dietRepo}
+        workoutRepo={workoutRepo}
+        bodyRepo={bodyRepo}
+      />
+    </ProfileProvider>
   );
 }
 
 export default function RootLayout() {
   return (
     <SafeAreaProvider>
-      <SQLiteProvider databaseName="fitness.db" onInit={migrateDbIfNeeded}>
-        <AppContent />
-      </SQLiteProvider>
+      <RootErrorBoundary>
+        <SQLiteProvider databaseName="fitness.db" onInit={migrateDbIfNeeded}>
+          <AppContent />
+        </SQLiteProvider>
+      </RootErrorBoundary>
     </SafeAreaProvider>
   );
 }

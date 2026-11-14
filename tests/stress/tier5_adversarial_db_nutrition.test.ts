@@ -637,7 +637,7 @@ describe('Tier 5 Adversarial Stress & Vulnerability Hardening: DB & Nutrition', 
       });
     });
 
-    it('6.2 uncovers contract disparity: DietStateManager.addFoodLog allows negative portion scaling', async () => {
+    it('6.2 enforces contract parity: DietStateManager.addFoodLog rejects negative or zero portion scaling', async () => {
       const food: FoodItem = {
         id: 'food-test',
         name: 'Frango Teste',
@@ -649,24 +649,16 @@ describe('Tier 5 Adversarial Stress & Vulnerability Hardening: DB & Nutrition', 
         source: 'custom',
       };
 
-      // Call addFoodLog with negative serving grams: -100g
-      // In DietStateManager: const factor = food.servingGrams > 0 ? servingGrams / food.servingGrams : 1
-      // factor = -100 / 100 = -1
-      const log = await stateManager.addFoodLog({
-        mealType: 'lunch',
-        food,
-        servingGrams: -100,
-      });
+      await expect(
+        stateManager.addFoodLog({
+          mealType: 'lunch',
+          food,
+          servingGrams: -100,
+        })
+      ).rejects.toThrow('A porção em gramas/ml deve ser maior que zero.');
 
-      // Unlike scaleMacros which guards against negative grams, addFoodLog logs negative values:
-      expect(log.servingGrams).toBe(-100);
-      expect(log.calories).toBe(-160);
-      expect(log.protein).toBe(-30);
-      expect(log.fat).toBe(-4);
-
-      // Verify reflected in stateManager.dailySummary
-      expect(stateManager.dailySummary.totalCalories).toBe(-160);
-      expect(stateManager.dailySummary.totalProtein).toBe(-30);
+      expect(stateManager.dailySummary.totalCalories).toBe(0);
+      expect(stateManager.dailySummary.totalProtein).toBe(0);
     });
 
     it('6.3 scales micro-portions (0.5g) without floating-point distortion or NaN', () => {

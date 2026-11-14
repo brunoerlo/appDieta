@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Modal,
   View,
@@ -30,6 +30,7 @@ export const WeighInModal: React.FC<WeighInModalProps> = ({
   const [weightStr, setWeightStr] = useState<string>('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const isSubmittingRef = useRef(false);
 
   useEffect(() => {
     let active = true;
@@ -51,17 +52,22 @@ export const WeighInModal: React.FC<WeighInModalProps> = ({
 
 
   const handleAdjust = (delta: number) => {
-    const current = parseFloat(weightStr.replace(',', '.')) || 0;
-    const next = Math.max(20, Math.min(300, current + delta));
+    const parsed = Number(weightStr.trim().replace(',', '.'));
+    const current = Number.isFinite(parsed) && parsed > 0 ? parsed : 80;
+    const next = Math.max(20, Math.min(400, current + delta));
     setWeightStr(next.toFixed(1));
+    setError(null);
   };
 
   const handleSave = async () => {
-    const val = parseFloat(weightStr.replace(',', '.'));
-    if (isNaN(val) || val <= 0 || val > 400) {
+    if (isSubmittingRef.current) return;
+    const trimmed = weightStr.trim().replace(',', '.');
+    const val = trimmed === '' ? NaN : Number(trimmed);
+    if (!Number.isFinite(val) || val < 20 || val > 400) {
       setError('Informe um peso válido entre 20 e 400 kg');
       return;
     }
+    isSubmittingRef.current = true;
     setSaving(true);
     try {
       await onSave(Number(val.toFixed(2)));
@@ -69,6 +75,7 @@ export const WeighInModal: React.FC<WeighInModalProps> = ({
     } catch (err: any) {
       setError(err?.message || 'Falha ao salvar peso');
     } finally {
+      isSubmittingRef.current = false;
       setSaving(false);
     }
   };
@@ -77,7 +84,7 @@ export const WeighInModal: React.FC<WeighInModalProps> = ({
   const dateFormatted = parts.length === 3 ? `${parts[2]}/${parts[1]}/${parts[0]}` : date;
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={() => { if (!saving) onClose(); }}>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={styles.overlay}
@@ -89,7 +96,7 @@ export const WeighInModal: React.FC<WeighInModalProps> = ({
               <Text style={[styles.title, { color: colors.textPrimary }]}>Registrar Pesagem</Text>
               <Text style={[styles.dateText, { color: colors.textSecondary }]}>{dateFormatted}</Text>
             </View>
-            <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
+            <TouchableOpacity onPress={onClose} disabled={saving} style={styles.closeBtn}>
               <Text style={[styles.closeBtnText, { color: colors.textDimmed }]}>✕</Text>
             </TouchableOpacity>
           </View>
@@ -110,6 +117,7 @@ export const WeighInModal: React.FC<WeighInModalProps> = ({
                 placeholder="0.0"
                 placeholderTextColor={colors.textDimmed}
                 autoFocus
+                maxLength={10}
               />
               <Text style={[styles.unit, { color: colors.textSecondary }]}>kg</Text>
             </View>
@@ -149,6 +157,7 @@ export const WeighInModal: React.FC<WeighInModalProps> = ({
           <View style={styles.buttonRow}>
             <TouchableOpacity
               onPress={onClose}
+              disabled={saving}
               style={[styles.cancelBtn, { borderColor: colors.cardBorder }]}
             >
               <Text style={[styles.cancelText, { color: colors.textSecondary }]}>Cancelar</Text>

@@ -11,13 +11,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
  * @param extraOffset Additional spacing below the status bar (default: 0)
  */
 export function useSafeTopPadding(extraOffset: number = 0): number {
-  let insetsTop = 0;
-  try {
-    const insets = useSafeAreaInsets();
-    insetsTop = insets?.top ?? 0;
-  } catch {
-    insetsTop = 0;
-  }
+  const insets = useSafeAreaInsets();
+  const insetsTop = insets?.top ?? 0;
 
   const androidBar = Platform.OS === 'android' ? (StatusBar.currentHeight ?? 24) : 0;
   const baseTop = Math.max(insetsTop, androidBar);

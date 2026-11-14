@@ -1,4 +1,4 @@
-import React, { createContext, useState, useEffect, useCallback, useMemo } from 'react';
+import React, { createContext, useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   DietLogEntry,
   FoodItem,
@@ -33,6 +33,7 @@ export interface DietContextValue {
     mealType: MealType;
     food: FoodItem;
     servingGrams: number;
+    date?: string;
   }) => Promise<DietLogEntry>;
   updateFoodLog: (id: string, updates: Partial<DietLogEntry>) => Promise<void>;
   deleteFoodLog: (id: string) => Promise<void>;
@@ -47,6 +48,18 @@ export interface DietContextValue {
 
 export const DietContext = createContext<DietContextValue | null>(null);
 
+function createEmptyDailySummary(date: string): DailyNutritionSummary {
+  return {
+    date,
+    totalCalories: 0,
+    totalProtein: 0,
+    totalCarbs: 0,
+    totalFat: 0,
+    totalWaterMl: 0,
+    meals: { breakfast: [], lunch: [], snack: [], dinner: [], supper: [] },
+  };
+}
+
 /**
  * Headless Diet State Manager for zero-dependency testing and decoupled state coordination.
  */
@@ -60,6 +73,7 @@ export class DietStateManager {
   public isRefreshing = false;
   public error: string | null = null;
   private listeners: (() => void)[] = [];
+  private loadRequestId = 0;
 
   constructor(
     private dietRepo: IDietRepository,
@@ -67,15 +81,7 @@ export class DietStateManager {
     initialDate?: string
   ) {
     this.selectedDate = initialDate || getTodayDateString();
-    this.dailySummary = {
-      date: this.selectedDate,
-      totalCalories: 0,
-      totalProtein: 0,
-      totalCarbs: 0,
-      totalFat: 0,
-      totalWaterMl: 0,
-      meals: { breakfast: [], lunch: [], snack: [], dinner: [], supper: [] },
-    };
+    this.dailySummary = createEmptyDailySummary(this.selectedDate);
     this.waterTotalMl = 0;
     this.waterLogs = [];
   }
@@ -94,6 +100,9 @@ export class DietStateManager {
   }
 
   public async loadData(options?: { silent?: boolean }): Promise<void> {
+    const reqId = ++this.loadRequestId;
+    const targetDate = this.selectedDate;
+
     if (!options?.silent) {
       this.isLoading = true;
       this.error = null;
@@ -102,23 +111,30 @@ export class DietStateManager {
 
     try {
       const [summary, waterTotal, wLogs, profile] = await Promise.all([
-        this.dietRepo.getDailyNutritionSummary(this.selectedDate),
-        this.dietRepo.getDailyWaterTotal(this.selectedDate),
-        this.dietRepo.getWaterLogs(this.selectedDate),
+        this.dietRepo.getDailyNutritionSummary(targetDate),
+        this.dietRepo.getDailyWaterTotal(targetDate),
+        this.dietRepo.getWaterLogs(targetDate),
         this.authRepo.getProfile(),
       ]);
+
+      if (reqId !== this.loadRequestId || targetDate !== this.selectedDate) {
+        return;
+      }
 
       this.dailySummary = summary;
       this.waterTotalMl = waterTotal;
       this.waterLogs = wLogs;
       this.userProfile = profile;
     } catch (err: any) {
+      if (reqId !== this.loadRequestId) {
+        return;
+      }
       this.error = err?.message || 'Falha ao carregar dados de nutrição';
     } finally {
-      if (!options?.silent) {
-        this.isLoading = false;
-        this.notify();
-      } else {
+      if (reqId === this.loadRequestId) {
+        if (!options?.silent) {
+          this.isLoading = false;
+        }
         this.notify();
       }
     }
@@ -145,22 +161,35 @@ export class DietStateManager {
     mealType,
     food,
     servingGrams,
+    date,
   }: {
     mealType: MealType;
     food: FoodItem;
     servingGrams: number;
+    date?: string;
   }): Promise<DietLogEntry> {
-    const factor = food.servingGrams > 0 ? servingGrams / food.servingGrams : 1;
+    if (!Number.isFinite(servingGrams) || servingGrams <= 0) {
+      throw new Error('A porção em gramas/ml deve ser maior que zero.');
+    }
+    const baseServing =
+      Number.isFinite(food.servingGrams) && food.servingGrams > 0 ? food.servingGrams : 100;
+    const factor = servingGrams / baseServing;
+    const targetDate = date || this.selectedDate;
+    const safeCal = Number.isFinite(food.calories) ? food.calories : 0;
+    const safeProt = Number.isFinite(food.protein) ? food.protein : 0;
+    const safeCarbs = Number.isFinite(food.carbs) ? food.carbs : 0;
+    const safeFat = Number.isFinite(food.fat) ? food.fat : 0;
+
     const log = await this.dietRepo.addDietLog({
-      date: this.selectedDate,
+      date: targetDate,
       mealType,
       foodId: food.id,
       foodName: food.name,
       servingGrams,
-      calories: Number((food.calories * factor).toFixed(1)),
-      protein: Number((food.protein * factor).toFixed(1)),
-      carbs: Number((food.carbs * factor).toFixed(1)),
-      fat: Number((food.fat * factor).toFixed(1)),
+      calories: Number((safeCal * factor).toFixed(1)),
+      protein: Number((safeProt * factor).toFixed(1)),
+      carbs: Number((safeCarbs * factor).toFixed(1)),
+      fat: Number((safeFat * factor).toFixed(1)),
     });
     await this.loadData({ silent: true });
     return log;
@@ -177,19 +206,27 @@ export class DietStateManager {
   }
 
   public async addWater(amountMl: number): Promise<void> {
+    if (!Number.isFinite(amountMl) || amountMl <= 0) return;
+    const prevWater = this.waterTotalMl;
+
     // 1. Optimistic synchronous update to eliminate any UI jitter
-    this.waterTotalMl += amountMl;
+    this.waterTotalMl = prevWater + amountMl;
     this.dailySummary = {
       ...this.dailySummary,
       totalWaterMl: this.waterTotalMl,
     };
     this.notify();
 
-    // 2. Persist to SQLite & reconcile silently in background
+    // 2. Persist to DB & reconcile silently in background
     try {
       await this.dietRepo.addWaterLog(this.selectedDate, amountMl);
       await this.loadData({ silent: true });
     } catch (err: any) {
+      this.waterTotalMl = prevWater;
+      this.dailySummary = {
+        ...this.dailySummary,
+        totalWaterMl: prevWater,
+      };
       await this.loadData({ silent: true });
       this.error = err?.message || 'Falha ao registrar consumo de água';
       this.notify();
@@ -197,8 +234,11 @@ export class DietStateManager {
   }
 
   public async decrementWater(amountMl: number): Promise<void> {
+    if (!Number.isFinite(amountMl) || amountMl <= 0) return;
+    const prevWater = this.waterTotalMl;
+
     // 1. Optimistic synchronous update with lower clamp at 0
-    this.waterTotalMl = Math.max(0, this.waterTotalMl - amountMl);
+    this.waterTotalMl = Math.max(0, prevWater - amountMl);
     this.dailySummary = {
       ...this.dailySummary,
       totalWaterMl: this.waterTotalMl,
@@ -210,6 +250,11 @@ export class DietStateManager {
       await this.dietRepo.decrementWaterLog(this.selectedDate, amountMl);
       await this.loadData({ silent: true });
     } catch (err: any) {
+      this.waterTotalMl = prevWater;
+      this.dailySummary = {
+        ...this.dailySummary,
+        totalWaterMl: prevWater,
+      };
       await this.loadData({ silent: true });
       this.error = err?.message || 'Falha ao reduzir consumo de água';
       this.notify();
@@ -217,6 +262,9 @@ export class DietStateManager {
   }
 
   public async resetWater(): Promise<void> {
+    const prevWater = this.waterTotalMl;
+    const prevLogs = this.waterLogs;
+
     // 1. Optimistic synchronous reset
     this.waterTotalMl = 0;
     this.dailySummary = {
@@ -231,6 +279,12 @@ export class DietStateManager {
       await this.dietRepo.resetWaterLogs(this.selectedDate);
       await this.loadData({ silent: true });
     } catch (err: any) {
+      this.waterTotalMl = prevWater;
+      this.dailySummary = {
+        ...this.dailySummary,
+        totalWaterMl: prevWater,
+      };
+      this.waterLogs = prevLogs;
       await this.loadData({ silent: true });
       this.error = err?.message || 'Falha ao zerar consumo de água';
       this.notify();
@@ -271,6 +325,8 @@ export interface DietProviderProps {
   dietRepo: IDietRepository;
   authRepo: IAuthRepository;
   initialDate?: string;
+  userKey?: string;
+  enabled?: boolean;
 }
 
 export const DietProvider: React.FC<DietProviderProps> = ({
@@ -278,26 +334,35 @@ export const DietProvider: React.FC<DietProviderProps> = ({
   dietRepo,
   authRepo,
   initialDate,
+  userKey,
+  enabled = true,
 }) => {
   const [selectedDate, setSelectedDateState] = useState<string>(initialDate || getTodayDateString());
-  const [dailySummary, setDailySummary] = useState<DailyNutritionSummary>({
-    date: selectedDate,
-    totalCalories: 0,
-    totalProtein: 0,
-    totalCarbs: 0,
-    totalFat: 0,
-    totalWaterMl: 0,
-    meals: { breakfast: [], lunch: [], snack: [], dinner: [], supper: [] },
-  });
+  const [dailySummary, setDailySummary] = useState<DailyNutritionSummary>(() =>
+    createEmptyDailySummary(selectedDate)
+  );
   const [waterTotalMl, setWaterTotalMl] = useState<number>(0);
   const [waterLogs, setWaterLogs] = useState<WaterLogEntry[]>([]);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isLoading, setIsLoading] = useState<boolean>(enabled);
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
+  const loadRequestIdRef = useRef(0);
+  const selectedDateRef = useRef(selectedDate);
+
   const loadData = useCallback(
     async (targetDate: string, options?: { silent?: boolean }) => {
+      if (!enabled) {
+        setDailySummary(createEmptyDailySummary(targetDate));
+        setWaterTotalMl(0);
+        setWaterLogs([]);
+        setUserProfile(null);
+        setIsLoading(false);
+        return;
+      }
+
+      const reqId = ++loadRequestIdRef.current;
       if (!options?.silent) {
         setIsLoading(true);
       }
@@ -309,49 +374,44 @@ export const DietProvider: React.FC<DietProviderProps> = ({
           dietRepo.getWaterLogs(targetDate),
           authRepo.getProfile(),
         ]);
+
+        if (reqId !== loadRequestIdRef.current || targetDate !== selectedDateRef.current) {
+          return;
+        }
+
         setDailySummary(summary);
         setWaterTotalMl(waterTotal);
         setWaterLogs(wLogs);
         setUserProfile(profile);
       } catch (err: any) {
+        if (reqId !== loadRequestIdRef.current) {
+          return;
+        }
         setError(err?.message || 'Falha ao carregar dados de nutrição');
       } finally {
-        if (!options?.silent) {
+        if (reqId === loadRequestIdRef.current && !options?.silent) {
           setIsLoading(false);
         }
       }
     },
-    [dietRepo, authRepo]
+    [dietRepo, authRepo, enabled]
   );
 
   useEffect(() => {
+    selectedDateRef.current = selectedDate;
+    void userKey;
     let active = true;
     (async () => {
-      try {
-        const [summary, waterTotal, wLogs, profile] = await Promise.all([
-          dietRepo.getDailyNutritionSummary(selectedDate),
-          dietRepo.getDailyWaterTotal(selectedDate),
-          dietRepo.getWaterLogs(selectedDate),
-          authRepo.getProfile(),
-        ]);
-        if (active) {
-          setDailySummary(summary);
-          setWaterTotalMl(waterTotal);
-          setWaterLogs(wLogs);
-          setUserProfile(profile);
-          setIsLoading(false);
-        }
-      } catch (err: any) {
-        if (active) {
-          setError(err?.message || 'Falha ao carregar dados de nutrição');
-          setIsLoading(false);
-        }
+      await Promise.resolve();
+      if (active) {
+        await loadData(selectedDate);
       }
     })();
     return () => {
       active = false;
+      loadRequestIdRef.current += 1;
     };
-  }, [dietRepo, authRepo, selectedDate]);
+  }, [loadData, selectedDate, userKey]);
 
   const setSelectedDate = useCallback((date: string) => {
     setSelectedDateState(date);
@@ -374,22 +434,35 @@ export const DietProvider: React.FC<DietProviderProps> = ({
       mealType,
       food,
       servingGrams,
+      date,
     }: {
       mealType: MealType;
       food: FoodItem;
       servingGrams: number;
+      date?: string;
     }) => {
-      const factor = food.servingGrams > 0 ? servingGrams / food.servingGrams : 1;
+      if (!Number.isFinite(servingGrams) || servingGrams <= 0) {
+        throw new Error('A porção em gramas/ml deve ser maior que zero.');
+      }
+      const baseServing =
+        Number.isFinite(food.servingGrams) && food.servingGrams > 0 ? food.servingGrams : 100;
+      const factor = servingGrams / baseServing;
+      const targetDate = date || selectedDate;
+      const safeCal = Number.isFinite(food.calories) ? food.calories : 0;
+      const safeProt = Number.isFinite(food.protein) ? food.protein : 0;
+      const safeCarbs = Number.isFinite(food.carbs) ? food.carbs : 0;
+      const safeFat = Number.isFinite(food.fat) ? food.fat : 0;
+
       const log = await dietRepo.addDietLog({
-        date: selectedDate,
+        date: targetDate,
         mealType,
         foodId: food.id,
         foodName: food.name,
         servingGrams,
-        calories: Number((food.calories * factor).toFixed(1)),
-        protein: Number((food.protein * factor).toFixed(1)),
-        carbs: Number((food.carbs * factor).toFixed(1)),
-        fat: Number((food.fat * factor).toFixed(1)),
+        calories: Number((safeCal * factor).toFixed(1)),
+        protein: Number((safeProt * factor).toFixed(1)),
+        carbs: Number((safeCarbs * factor).toFixed(1)),
+        fat: Number((safeFat * factor).toFixed(1)),
       });
       await loadData(selectedDate, { silent: true });
       return log;
@@ -415,6 +488,9 @@ export const DietProvider: React.FC<DietProviderProps> = ({
 
   const addWater = useCallback(
     async (amountMl: number) => {
+      if (!Number.isFinite(amountMl) || amountMl <= 0) return;
+      const prevWater = waterTotalMl;
+
       // 1. Optimistic synchronous update
       setWaterTotalMl((prev) => prev + amountMl);
       setDailySummary((prev) => ({
@@ -427,15 +503,23 @@ export const DietProvider: React.FC<DietProviderProps> = ({
         await dietRepo.addWaterLog(selectedDate, amountMl);
         await loadData(selectedDate, { silent: true });
       } catch (err: any) {
+        setWaterTotalMl(prevWater);
+        setDailySummary((prev) => ({
+          ...prev,
+          totalWaterMl: prevWater,
+        }));
         await loadData(selectedDate, { silent: true });
         setError(err?.message || 'Falha ao registrar consumo de água');
       }
     },
-    [dietRepo, selectedDate, loadData]
+    [dietRepo, selectedDate, loadData, waterTotalMl]
   );
 
   const decrementWater = useCallback(
     async (amountMl: number) => {
+      if (!Number.isFinite(amountMl) || amountMl <= 0) return;
+      const prevWater = waterTotalMl;
+
       // 1. Optimistic synchronous update
       setWaterTotalMl((prev) => Math.max(0, prev - amountMl));
       setDailySummary((prev) => ({
@@ -448,14 +532,22 @@ export const DietProvider: React.FC<DietProviderProps> = ({
         await dietRepo.decrementWaterLog(selectedDate, amountMl);
         await loadData(selectedDate, { silent: true });
       } catch (err: any) {
+        setWaterTotalMl(prevWater);
+        setDailySummary((prev) => ({
+          ...prev,
+          totalWaterMl: prevWater,
+        }));
         await loadData(selectedDate, { silent: true });
         setError(err?.message || 'Falha ao reduzir consumo de água');
       }
     },
-    [dietRepo, selectedDate, loadData]
+    [dietRepo, selectedDate, loadData, waterTotalMl]
   );
 
   const resetWater = useCallback(async () => {
+    const prevWater = waterTotalMl;
+    const prevLogs = waterLogs;
+
     // 1. Optimistic synchronous update
     setWaterTotalMl(0);
     setDailySummary((prev) => ({ ...prev, totalWaterMl: 0 }));
@@ -466,10 +558,13 @@ export const DietProvider: React.FC<DietProviderProps> = ({
       await dietRepo.resetWaterLogs(selectedDate);
       await loadData(selectedDate, { silent: true });
     } catch (err: any) {
+      setWaterTotalMl(prevWater);
+      setDailySummary((prev) => ({ ...prev, totalWaterMl: prevWater }));
+      setWaterLogs(prevLogs);
       await loadData(selectedDate, { silent: true });
       setError(err?.message || 'Falha ao zerar consumo de água');
     }
-  }, [dietRepo, selectedDate, loadData]);
+  }, [dietRepo, selectedDate, loadData, waterTotalMl, waterLogs]);
 
   const refresh = useCallback(async () => {
     setIsRefreshing(true);

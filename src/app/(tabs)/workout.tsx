@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -41,11 +41,17 @@ export default function WorkoutTabScreen() {
 
   const [selectedFilter, setSelectedFilter] = useState('Todas');
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const isSubmittingRef = useRef(false);
 
   const onRefresh = useCallback(async () => {
     setIsRefreshing(true);
-    await refreshRoutines();
-    setIsRefreshing(false);
+    try {
+      await refreshRoutines();
+    } catch (err: any) {
+      Alert.alert('Erro', err?.message || 'Não foi possível atualizar as rotinas.');
+    } finally {
+      setIsRefreshing(false);
+    }
   }, [refreshRoutines]);
 
   const filteredRoutines = useMemo(() => {
@@ -80,7 +86,8 @@ export default function WorkoutTabScreen() {
     });
   }, [routines, selectedFilter]);
 
-  const handleStartRoutine = (routine: WorkoutRoutine) => {
+  const handleStartRoutine = async (routine: WorkoutRoutine) => {
+    if (isSubmittingRef.current) return;
     if (activeSession && activeSession.routineId !== routine.id) {
       Alert.alert(
         'Rascunho em Aberto',
@@ -94,12 +101,20 @@ export default function WorkoutTabScreen() {
           {
             text: 'Substituir Rascunho',
             style: 'destructive',
-            onPress: () => {
-              startWorkout(routine);
-              router.push({
-                pathname: '/workout/live',
-                params: { routineId: routine.id },
-              });
+            onPress: async () => {
+              if (isSubmittingRef.current) return;
+              isSubmittingRef.current = true;
+              try {
+                await startWorkout(routine);
+                router.push({
+                  pathname: '/workout/live',
+                  params: { routineId: routine.id },
+                });
+              } catch (err: any) {
+                Alert.alert('Erro', err?.message || 'Não foi possível iniciar o treino.');
+              } finally {
+                isSubmittingRef.current = false;
+              }
             },
           },
         ]
@@ -107,13 +122,20 @@ export default function WorkoutTabScreen() {
       return;
     }
 
-    if (!activeSession) {
-      startWorkout(routine);
+    isSubmittingRef.current = true;
+    try {
+      if (!activeSession) {
+        await startWorkout(routine);
+      }
+      router.push({
+        pathname: '/workout/live',
+        params: { routineId: routine.id },
+      });
+    } catch (err: any) {
+      Alert.alert('Erro', err?.message || 'Não foi possível iniciar o treino.');
+    } finally {
+      isSubmittingRef.current = false;
     }
-    router.push({
-      pathname: '/workout/live',
-      params: { routineId: routine.id },
-    });
   };
 
   const handleEditRoutine = (routine: WorkoutRoutine) => {
@@ -124,11 +146,32 @@ export default function WorkoutTabScreen() {
   };
 
   const handleDeleteRoutine = async (routine: WorkoutRoutine) => {
-    await deleteRoutine(routine.id);
+    try {
+      await deleteRoutine(routine.id);
+    } catch (err: any) {
+      Alert.alert('Erro', err?.message || 'Não foi possível excluir a rotina.');
+    }
   };
 
   const handleResumeWorkout = () => {
     router.push('/workout/live');
+  };
+
+  const handleConfirmDiscard = () => {
+    Alert.alert(
+      'Descartar Rascunho',
+      'Deseja descartar este rascunho de treino? As alterações não salvas serão perdidas.',
+      [
+        { text: 'Manter Rascunho', style: 'cancel' },
+        {
+          text: 'Descartar',
+          style: 'destructive',
+          onPress: () => {
+            discardWorkout();
+          },
+        },
+      ]
+    );
   };
 
   return (
@@ -208,7 +251,7 @@ export default function WorkoutTabScreen() {
               />
               <Button
                 title="Descartar"
-                onPress={discardWorkout}
+                onPress={handleConfirmDiscard}
                 variant="secondary"
                 size="md"
               />

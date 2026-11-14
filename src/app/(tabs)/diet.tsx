@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ScrollView, StyleSheet, RefreshControl } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, RefreshControl, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useDiet } from '../../hooks/useDiet';
@@ -10,6 +10,7 @@ import { WaterTrackerCard } from '../../components/nutrition/WaterTrackerCard';
 import { MealCard } from '../../components/nutrition/MealCard';
 import { PortionEditModal } from '../../components/nutrition/PortionEditModal';
 import { DietLogEntry, MealType } from '../../types/domain';
+import { spacing, borderRadius } from '../../constants/theme';
 
 export default function DietTabScreen() {
   const router = useRouter();
@@ -21,6 +22,7 @@ export default function DietTabScreen() {
     userProfile,
     waterTotalMl,
     isRefreshing,
+    error,
     addWater,
     decrementWater,
     resetWater,
@@ -79,6 +81,14 @@ export default function DietTabScreen() {
     await deleteFoodLog(id);
   };
 
+  const handleDeleteLogFromCard = async (id: string) => {
+    try {
+      await deleteFoodLog(id);
+    } catch (err: any) {
+      Alert.alert('Erro', err?.message || 'Não foi possível remover o alimento.');
+    }
+  };
+
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'left', 'right']}>
       {/* Date Stepper Header */}
@@ -99,6 +109,12 @@ export default function DietTabScreen() {
           />
         }
       >
+        {error ? (
+          <View style={[styles.errorBanner, { backgroundColor: colors.dangerMuted, borderColor: colors.danger }]}>
+            <Text style={[styles.errorText, { color: colors.danger }]}>⚠️ {error}</Text>
+          </View>
+        ) : null}
+
         {/* Daily Macros & Calorie Hero Card */}
         <MacroSummaryCard consumed={consumed} targets={targets} />
 
@@ -119,7 +135,7 @@ export default function DietTabScreen() {
           logs={dailySummary.meals.breakfast}
           onAddFood={handleAddFood}
           onEditLog={handleEditLog}
-          onDeleteLog={handleDeleteLog}
+          onDeleteLog={handleDeleteLogFromCard}
         />
 
         <MealCard
@@ -129,7 +145,7 @@ export default function DietTabScreen() {
           logs={dailySummary.meals.lunch}
           onAddFood={handleAddFood}
           onEditLog={handleEditLog}
-          onDeleteLog={handleDeleteLog}
+          onDeleteLog={handleDeleteLogFromCard}
         />
 
         <MealCard
@@ -139,7 +155,7 @@ export default function DietTabScreen() {
           logs={dailySummary.meals.snack}
           onAddFood={handleAddFood}
           onEditLog={handleEditLog}
-          onDeleteLog={handleDeleteLog}
+          onDeleteLog={handleDeleteLogFromCard}
         />
 
         <MealCard
@@ -149,7 +165,7 @@ export default function DietTabScreen() {
           logs={dailySummary.meals.dinner}
           onAddFood={handleAddFood}
           onEditLog={handleEditLog}
-          onDeleteLog={handleDeleteLog}
+          onDeleteLog={handleDeleteLogFromCard}
         />
 
         <MealCard
@@ -159,7 +175,7 @@ export default function DietTabScreen() {
           logs={dailySummary.meals.supper}
           onAddFood={handleAddFood}
           onEditLog={handleEditLog}
-          onDeleteLog={handleDeleteLog}
+          onDeleteLog={handleDeleteLogFromCard}
         />
       </ScrollView>
 
@@ -184,5 +200,16 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingBottom: 24,
+  },
+  errorBanner: {
+    marginHorizontal: spacing.md,
+    marginTop: spacing.sm,
+    padding: spacing.sm,
+    borderRadius: borderRadius.sm,
+    borderWidth: 1,
+  },
+  errorText: {
+    fontSize: 13,
+    fontWeight: '600',
   },
 });

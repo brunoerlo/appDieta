@@ -599,12 +599,12 @@ describe('Tier 5 Adversarial & White-Box Hardening: Workout, Body, Storage & The
       deleteSpy.mockRestore();
     });
 
-    it('4.7 resolveUri handles various schemes and relative paths correctly', () => {
+    it('4.7 resolveUri handles various schemes and relative paths securely', () => {
       expect(PhotoStorageService.resolveUri('')).toBe('');
       expect(PhotoStorageService.resolveUri('file:///data/photo.jpg')).toBe('file:///data/photo.jpg');
       expect(PhotoStorageService.resolveUri('https://example.com/p.jpg')).toBe('https://example.com/p.jpg');
-      expect(PhotoStorageService.resolveUri('http://example.com/p.jpg')).toBe('http://example.com/p.jpg');
-      expect(PhotoStorageService.resolveUri('data:image/jpeg;base64,ABC')).toBe('data:image/jpeg;base64,ABC');
+      expect(PhotoStorageService.resolveUri('http://example.com/p.jpg')).toBe('');
+      expect(PhotoStorageService.resolveUri('data:image/jpeg;base64,ABC')).toBe('');
 
       const relative = 'body_photos/2026-11-06_front.jpg';
       const resolved = PhotoStorageService.resolveUri(relative);
@@ -750,12 +750,9 @@ describe('Tier 5 Adversarial & White-Box Hardening: Workout, Body, Storage & The
       expect(calculateBodyComposition(80.0, null)).toBeNull();
     });
 
-    it('6.6 evaluates unrealistic > 100% body fat percentage consistently', () => {
-      // 80kg at 120% body fat: Fat Mass = 96.0kg, Lean Mass = -16.0kg
+    it('6.6 rejects unrealistic > 100% body fat percentage by returning null', () => {
       const result = calculateBodyComposition(80.0, 120);
-      expect(result).not.toBeNull();
-      expect(result?.fatMassKg).toBe(96.0);
-      expect(result?.leanMassKg).toBe(-16.0);
+      expect(result).toBeNull();
     });
 
     it('6.7 photo comparison delta metrics handles identical dates and inverted dates safely', () => {

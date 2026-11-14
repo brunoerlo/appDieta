@@ -56,6 +56,7 @@ export default function LiveWorkoutScreen() {
   const [isPickerVisible, setIsPickerVisible] = useState(false);
   const [isFinishing, setIsFinishing] = useState(false);
   const hasInitializedRef = useRef(false);
+  const isSubmittingRef = useRef(false);
 
   // Initialize active workout draft once on screen entry if not already open
   useEffect(() => {
@@ -185,7 +186,8 @@ export default function LiveWorkoutScreen() {
   }, [activeSession, completedSets, allSets, currentVolumeKg]);
 
   const handleSaveWorkout = async () => {
-    if (!activeSession) return;
+    if (!activeSession || isSubmittingRef.current) return;
+    isSubmittingRef.current = true;
     setIsFinishing(true);
     try {
       await finishWorkout(activeSession.notes, {
@@ -197,17 +199,39 @@ export default function LiveWorkoutScreen() {
     } catch (err: any) {
       Alert.alert('Erro ao salvar', err?.message || 'Falha ao salvar o treino.');
     } finally {
+      isSubmittingRef.current = false;
       setIsFinishing(false);
     }
   };
 
-  const handleAddExerciseFromPicker = (picked: ExercisePickerResult) => {
-    addExerciseToActiveWorkout({
-      name: picked.name,
-      muscleGroup: picked.muscleGroup,
-      targetSets: picked.targetSets,
-      defaultRestSeconds: picked.defaultRestSeconds,
-    });
+  const handleAddExerciseFromPicker = async (picked: ExercisePickerResult) => {
+    try {
+      await Promise.resolve(
+        addExerciseToActiveWorkout({
+          name: picked.name,
+          muscleGroup: picked.muscleGroup,
+          targetSets: picked.targetSets,
+          defaultRestSeconds: picked.defaultRestSeconds,
+        })
+      );
+    } catch (err: any) {
+      Alert.alert('Erro', err?.message || 'Não foi possível adicionar o exercício ao treino.');
+    }
+  };
+
+  const handleConfirmRemoveExercise = (exIdx: number, exName: string) => {
+    Alert.alert(
+      'Remover Exercício',
+      `Deseja remover "${exName}" deste treino?`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Remover',
+          style: 'destructive',
+          onPress: () => removeExerciseFromActiveWorkout(exIdx),
+        },
+      ]
+    );
   };
 
   if (!activeSession) {
@@ -343,7 +367,7 @@ export default function LiveWorkoutScreen() {
               </View>
 
               <TouchableOpacity
-                onPress={() => removeExerciseFromActiveWorkout(exIdx)}
+                onPress={() => handleConfirmRemoveExercise(exIdx, exercise.name)}
                 hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                 style={styles.removeExBtn}
                 accessibilityRole="button"

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useContext } from 'react';
 import {
   View,
   Text,
@@ -14,8 +14,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useProfile } from '../hooks/useProfile';
 import { useTheme } from '../hooks/useTheme';
-import { useBody } from '../hooks/useBody';
-import { calculateSuggestedTargets } from '../utils/nutrition';
+import { BodyContext } from '../context/BodyContext';
+import { calculateSuggestedTargets, parseDecimalInput } from '../utils/nutrition';
 import { TrainingGoal, ActivityLevel } from '../database/repositories/interfaces';
 
 export default function AuthScreen() {
@@ -23,19 +23,14 @@ export default function AuthScreen() {
   const params = useLocalSearchParams<{ step?: string }>();
   const { colors } = useTheme();
   const { login, register, completeOnboarding, isLoggedIn, onboardingCompleted } = useProfile();
+  const bodyContext = useContext(BodyContext);
 
-  let bodyContext: { saveWeighIn?: (weightKg: number) => Promise<any> } = {};
-  try {
-    // eslint-disable-next-line react-hooks/rules-of-hooks
-    bodyContext = useBody();
-  } catch {
-    // Graceful fallback if BodyContext is unmounted
-  }
+  const isSubmittingRef = useRef(false);
 
-  // Determine active step
+  // Determine active step: never allow onboarding step when unauthenticated
   const [internalStep, setInternalStep] = useState<'auth' | 'onboarding'>('auth');
-  const isAlreadyOnboarding = params.step === 'onboarding' || (isLoggedIn && !onboardingCompleted);
-  const step = isAlreadyOnboarding ? 'onboarding' : internalStep;
+  const isAlreadyOnboarding = isLoggedIn && (params.step === 'onboarding' || !onboardingCompleted);
+  const step = isLoggedIn && (isAlreadyOnboarding || internalStep === 'onboarding') ? 'onboarding' : 'auth';
 
   // Step 1: Credentials State
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
@@ -67,10 +62,11 @@ export default function AuthScreen() {
 
   // Reactive calculation of suggested targets
   const suggested = useMemo(() => {
-    const w = parseFloat(weightKg.replace(',', '.'));
-    const h = parseFloat(heightCm);
-    const a = parseInt(age, 10) || 25;
-    if (!w || isNaN(w) || !h || isNaN(h)) return null;
+    const w = parseDecimalInput(weightKg);
+    const h = parseDecimalInput(heightCm);
+    const parsedAge = parseDecimalInput(age);
+    const a = Number.isFinite(parsedAge) && parsedAge >= 10 && parsedAge <= 120 ? Math.round(parsedAge) : 25;
+    if (!Number.isFinite(w) || w <= 0 || !Number.isFinite(h) || h <= 0) return null;
 
     return calculateSuggestedTargets({
       weightKg: w,
@@ -130,6 +126,8 @@ export default function AuthScreen() {
 
   // Step 1: Submit Login / Register
   const handleAuthSubmit = async () => {
+    if (isSubmittingRef.current) return;
+    isSubmittingRef.current = true;
     setErrorMsg(null);
     setIsSubmitting(true);
     try {
@@ -174,37 +172,65 @@ export default function AuthScreen() {
     } catch (err: any) {
       setErrorMsg(err?.message || 'Falha ao autenticar.');
     } finally {
+      isSubmittingRef.current = false;
       setIsSubmitting(false);
     }
   };
 
   // Step 2: Submit Onboarding
   const handleOnboardingSubmit = async () => {
+    if (isSubmittingRef.current) return;
     setOnboardingError(null);
-    const parsedWeight = parseFloat(weightKg.replace(',', '.'));
-    const parsedHeight = parseFloat(heightCm);
-    const parsedTargetWeight = targetWeightKg
-      ? parseFloat(targetWeightKg.replace(',', '.'))
+
+    const parsedWeight = parseDecimalInput(weightKg);
+    const parsedHeight = parseDecimalInput(heightCm);
+    const parsedTargetWeight = targetWeightKg.trim()
+      ? parseDecimalInput(targetWeightKg)
       : parsedWeight;
-    const parsedCalories = parseFloat(targetCalories);
-    const parsedProtein = parseFloat(targetProtein);
-    const parsedCarbs = parseFloat(targetCarbs);
-    const parsedFat = parseFloat(targetFat);
-    const parsedWater = parseInt(targetWaterMl, 10);
+    const parsedCalories = parseDecimalInput(targetCalories);
+    const parsedProtein = parseDecimalInput(targetProtein);
+    const parsedCarbs = parseDecimalInput(targetCarbs);
+    const parsedFat = parseDecimalInput(targetFat);
+    const parsedWater = Math.round(parseDecimalInput(targetWaterMl));
 
-    if (!parsedWeight || isNaN(parsedWeight) || parsedWeight < 30 || parsedWeight > 300) {
-      setOnboardingError('Informe um peso atual válido entre 30kg e 300kg.');
+    if (!Number.isFinite(parsedWeight) || parsedWeight < 20 || parsedWeight > 400) {
+      setOnboardingError('Informe um peso atual válido entre 20kg e 400kg.');
       return;
     }
-    if (!parsedHeight || isNaN(parsedHeight) || parsedHeight < 100 || parsedHeight > 250) {
-      setOnboardingError('Informe uma altura válida entre 100cm e 250cm.');
+    if (!Number.isFinite(parsedHeight) || parsedHeight < 50 || parsedHeight > 300) {
+      setOnboardingError('Informe uma altura válida entre 50cm e 300cm.');
       return;
     }
-    if (!parsedCalories || isNaN(parsedCalories) || parsedCalories < 800) {
-      setOnboardingError('Informe uma meta calórica válida (mínimo 800 kcal).');
+    if (
+      !Number.isFinite(parsedTargetWeight) ||
+      parsedTargetWeight < 20 ||
+      parsedTargetWeight > 400
+    ) {
+      setOnboardingError('Informe uma meta de peso válida entre 20kg e 400kg.');
+      return;
+    }
+    if (!Number.isFinite(parsedCalories) || parsedCalories < 500 || parsedCalories > 20000) {
+      setOnboardingError('Informe uma meta calórica válida entre 500 e 20000 kcal.');
+      return;
+    }
+    if (!Number.isFinite(parsedProtein) || parsedProtein < 0 || parsedProtein > 2000) {
+      setOnboardingError('Informe uma meta de proteína válida entre 0g e 2000g.');
+      return;
+    }
+    if (!Number.isFinite(parsedCarbs) || parsedCarbs < 0 || parsedCarbs > 3000) {
+      setOnboardingError('Informe uma meta de carboidratos válida entre 0g e 3000g.');
+      return;
+    }
+    if (!Number.isFinite(parsedFat) || parsedFat < 0 || parsedFat > 1000) {
+      setOnboardingError('Informe uma meta de gordura válida entre 0g e 1000g.');
+      return;
+    }
+    if (!Number.isFinite(parsedWater) || parsedWater < 500 || parsedWater > 20000) {
+      setOnboardingError('Informe uma meta de água válida entre 500ml e 20000ml.');
       return;
     }
 
+    isSubmittingRef.current = true;
     setIsOnboardingSubmitting(true);
     try {
       await completeOnboarding({
@@ -220,11 +246,11 @@ export default function AuthScreen() {
         targetWaterMl: parsedWater,
       });
 
-      if (bodyContext.saveWeighIn) {
+      if (bodyContext?.saveWeighIn) {
         try {
           await bodyContext.saveWeighIn(parsedWeight);
-        } catch {
-          // Non-blocking weigh-in persistence
+        } catch (weighInErr) {
+          console.warn('[AuthScreen] Non-critical failure saving initial weigh-in:', weighInErr);
         }
       }
 
@@ -232,19 +258,20 @@ export default function AuthScreen() {
     } catch (err: any) {
       setOnboardingError(err?.message || 'Falha ao salvar metas iniciais.');
     } finally {
+      isSubmittingRef.current = false;
       setIsOnboardingSubmitting(false);
     }
   };
 
   // Real-time Atwater calculation
   const atwaterCalculatedKcal = useMemo(() => {
-    const p = parseFloat(targetProtein) || 0;
-    const c = parseFloat(targetCarbs) || 0;
-    const f = parseFloat(targetFat) || 0;
-    return Math.round(p * 4 + c * 4 + f * 9);
+    const p = parseDecimalInput(targetProtein) || 0;
+    const c = parseDecimalInput(targetCarbs) || 0;
+    const f = parseDecimalInput(targetFat) || 0;
+    return Math.round(Math.max(0, p) * 4 + Math.max(0, c) * 4 + Math.max(0, f) * 9);
   }, [targetProtein, targetCarbs, targetFat]);
 
-  const targetCalorieNum = parseFloat(targetCalories) || 0;
+  const targetCalorieNum = Math.max(0, parseDecimalInput(targetCalories) || 0);
   const atwaterDifference = atwaterCalculatedKcal - targetCalorieNum;
   const isAtwaterBalanced = Math.abs(atwaterDifference) <= 50;
 
@@ -358,6 +385,7 @@ export default function AuthScreen() {
                     onChangeText={setName}
                     autoCapitalize="words"
                     autoCorrect={false}
+                    maxLength={120}
                     editable={!isSubmitting}
                   />
                 </View>
@@ -382,6 +410,7 @@ export default function AuthScreen() {
                   keyboardType="email-address"
                   autoCapitalize="none"
                   autoCorrect={false}
+                  maxLength={254}
                   editable={!isSubmitting}
                 />
               </View>
@@ -407,6 +436,7 @@ export default function AuthScreen() {
                     secureTextEntry={!showPassword}
                     autoCapitalize="none"
                     autoCorrect={false}
+                    maxLength={128}
                     editable={!isSubmitting}
                   />
                   <TouchableOpacity
@@ -489,6 +519,7 @@ export default function AuthScreen() {
                       value={weightKg}
                       onChangeText={setWeightKg}
                       keyboardType="decimal-pad"
+                      maxLength={10}
                       placeholder="75.0"
                       placeholderTextColor={colors.textDimmed}
                     />
@@ -510,6 +541,7 @@ export default function AuthScreen() {
                       value={heightCm}
                       onChangeText={setHeightCm}
                       keyboardType="numeric"
+                      maxLength={10}
                       placeholder="175"
                       placeholderTextColor={colors.textDimmed}
                     />
@@ -533,6 +565,7 @@ export default function AuthScreen() {
                       value={targetWeightKg}
                       onChangeText={setTargetWeightKg}
                       keyboardType="decimal-pad"
+                      maxLength={10}
                       placeholder="75.0"
                       placeholderTextColor={colors.textDimmed}
                     />
@@ -552,6 +585,7 @@ export default function AuthScreen() {
                       value={age}
                       onChangeText={setAge}
                       keyboardType="numeric"
+                      maxLength={10}
                       placeholder="25"
                       placeholderTextColor={colors.textDimmed}
                     />
@@ -768,6 +802,7 @@ export default function AuthScreen() {
                     value={targetCalories}
                     onChangeText={setManualCalories}
                     keyboardType="numeric"
+                    maxLength={10}
                   />
                 </View>
 
@@ -787,6 +822,7 @@ export default function AuthScreen() {
                         value={targetProtein}
                         onChangeText={setManualProtein}
                         keyboardType="numeric"
+                        maxLength={10}
                       />
                       <Text style={[styles.macroUnit, { color: colors.textDimmed }]}>g</Text>
                     </View>
@@ -806,6 +842,7 @@ export default function AuthScreen() {
                         value={targetCarbs}
                         onChangeText={setManualCarbs}
                         keyboardType="numeric"
+                        maxLength={10}
                       />
                       <Text style={[styles.macroUnit, { color: colors.textDimmed }]}>g</Text>
                     </View>
@@ -825,6 +862,7 @@ export default function AuthScreen() {
                         value={targetFat}
                         onChangeText={setManualFat}
                         keyboardType="numeric"
+                        maxLength={10}
                       />
                       <Text style={[styles.macroUnit, { color: colors.textDimmed }]}>g</Text>
                     </View>
@@ -873,6 +911,7 @@ export default function AuthScreen() {
                       value={targetWaterMl}
                       onChangeText={setManualWaterMl}
                       keyboardType="numeric"
+                      maxLength={10}
                     />
                     <Text style={[styles.macroUnit, { color: colors.textDimmed }]}>ml</Text>
                   </View>

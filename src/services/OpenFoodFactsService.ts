@@ -15,6 +15,22 @@ export class OpenFoodFactsService implements IOpenFoodFactsService {
     private fetchFn: typeof fetch = (...args: Parameters<typeof fetch>) => fetch(...args)
   ) {}
 
+  private parseSafeNutrient(value: unknown, max = 10000): number | undefined {
+    if (value === undefined || value === null || value === '') {
+      return undefined;
+    }
+    const normalized =
+      typeof value === 'string' ? value.trim().replace(',', '.') : value;
+    if (normalized === '') {
+      return undefined;
+    }
+    const num = Number(normalized);
+    if (!Number.isFinite(num)) {
+      return undefined;
+    }
+    return Math.min(max, Math.max(0, num));
+  }
+
   private async fetchWithTimeout(url: string): Promise<Response> {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), this.timeoutMs);
@@ -37,45 +53,73 @@ export class OpenFoodFactsService implements IOpenFoodFactsService {
   mapProductToFoodItem(product: any): FoodItem | null {
     if (!product || typeof product !== 'object') return null;
 
-    const name = product.product_name_pt || product.product_name;
-    if (!name || typeof name !== 'string' || name.trim().length === 0) {
+    const rawName =
+      typeof product.product_name_pt === 'string' && product.product_name_pt.trim().length > 0
+        ? product.product_name_pt
+        : typeof product.product_name === 'string'
+        ? product.product_name
+        : '';
+
+    if (!rawName || rawName.trim().length === 0) {
       return null;
     }
 
-    const brand = product.brands ? product.brands.split(',')[0].trim() : '';
-    const fullName = brand && !name.toLowerCase().includes(brand.toLowerCase())
-      ? `${name.trim()} (${brand})`
-      : name.trim();
+    const brand =
+      typeof product.brands === 'string' && product.brands.trim().length > 0
+        ? product.brands.split(',')[0].trim()
+        : '';
 
-    const nutriments = product.nutriments || {};
+    const trimmedName = rawName.trim().slice(0, 200);
+    const fullName = (
+      brand && !trimmedName.toLowerCase().includes(brand.toLowerCase())
+        ? `${trimmedName} (${brand})`
+        : trimmedName
+    ).slice(0, 200);
+
+    const nutriments =
+      product.nutriments && typeof product.nutriments === 'object' ? product.nutriments : {};
+
+    const kcal100g = this.parseSafeNutrient(nutriments['energy-kcal_100g'], 20000);
+    const kcal = this.parseSafeNutrient(nutriments['energy-kcal'], 20000);
+    const kj100g = this.parseSafeNutrient(nutriments['energy_100g'], 84000);
+    const kj = this.parseSafeNutrient(nutriments['energy'], 84000);
 
     let calories = 0;
-    if (typeof nutriments['energy-kcal_100g'] === 'number') {
-      calories = nutriments['energy-kcal_100g'];
-    } else if (typeof nutriments['energy-kcal'] === 'number') {
-      calories = nutriments['energy-kcal'];
-    } else if (typeof nutriments['energy_100g'] === 'number') {
-      calories = nutriments['energy_100g'] / 4.184;
-    } else if (typeof nutriments['energy'] === 'number') {
-      calories = nutriments['energy'] / 4.184;
+    if (kcal100g !== undefined) {
+      calories = kcal100g;
+    } else if (kcal !== undefined) {
+      calories = kcal;
+    } else if (kj100g !== undefined) {
+      calories = Math.min(20000, kj100g / 4.184);
+    } else if (kj !== undefined) {
+      calories = Math.min(20000, kj / 4.184);
     }
 
-    const protein = Number(nutriments.proteins_100g ?? nutriments.proteins ?? 0);
-    const carbs = Number(nutriments.carbohydrates_100g ?? nutriments.carbohydrates ?? 0);
-    const fat = Number(nutriments.fat_100g ?? nutriments.fat ?? 0);
-    const fiber = nutriments.fiber_100g !== undefined
-      ? Number(nutriments.fiber_100g)
-      : nutriments.fiber !== undefined
-      ? Number(nutriments.fiber)
-      : undefined;
+    const protein =
+      this.parseSafeNutrient(nutriments.proteins_100g ?? nutriments.proteins, 1000) ?? 0;
+    const carbs =
+      this.parseSafeNutrient(
+        nutriments.carbohydrates_100g ?? nutriments.carbohydrates,
+        1000
+      ) ?? 0;
+    const fat = this.parseSafeNutrient(nutriments.fat_100g ?? nutriments.fat, 1000) ?? 0;
+    const fiber = this.parseSafeNutrient(nutriments.fiber_100g ?? nutriments.fiber, 1000);
 
-    const servingUnitGrams = typeof product.serving_quantity === 'number' && product.serving_quantity > 0
-      ? product.serving_quantity
-      : 100;
-    const servingUnitName = product.serving_size ? product.serving_size.trim() : 'porção';
+    const parsedServingQty = this.parseSafeNutrient(product.serving_quantity, 10000);
+    const servingUnitGrams =
+      parsedServingQty !== undefined && parsedServingQty > 0 ? parsedServingQty : 100;
+    const servingUnitName =
+      typeof product.serving_size === 'string' && product.serving_size.trim().length > 0
+        ? product.serving_size.trim().slice(0, 50)
+        : 'porção';
+
+    const codeStr =
+      product.code !== undefined && product.code !== null && String(product.code).trim().length > 0
+        ? String(product.code).trim()
+        : undefined;
 
     return {
-      id: `off-${product.code || Math.random().toString(36).substring(2, 9)}`,
+      id: `off-${codeStr || Math.random().toString(36).substring(2, 9)}`,
       name: fullName,
       category: brand || 'Industrializados',
       servingGrams: 100, // Standardized 100g reference
@@ -84,15 +128,15 @@ export class OpenFoodFactsService implements IOpenFoodFactsService {
       carbs: Number(carbs.toFixed(1)),
       fat: Number(fat.toFixed(1)),
       fiber: fiber !== undefined ? Number(fiber.toFixed(1)) : undefined,
-      barcode: product.code || undefined,
+      barcode: codeStr,
       source: 'openfoodfacts',
       servingUnitName,
-      servingUnitGrams,
+      servingUnitGrams: Number(servingUnitGrams.toFixed(1)),
     };
   }
 
   async getFoodByBarcode(barcode: string): Promise<FoodItem | null> {
-    const cleanBarcode = barcode ? barcode.trim() : '';
+    const cleanBarcode = typeof barcode === 'string' ? barcode.trim() : '';
     if (!cleanBarcode) return null;
 
     const url = `https://world.openfoodfacts.org/api/v2/product/${encodeURIComponent(
@@ -104,7 +148,7 @@ export class OpenFoodFactsService implements IOpenFoodFactsService {
       if (!res.ok) return null;
 
       const data = await res.json();
-      if (data.status !== 1 || !data.product) {
+      if (!data || data.status !== 1 || !data.product) {
         return null;
       }
 
@@ -120,7 +164,7 @@ export class OpenFoodFactsService implements IOpenFoodFactsService {
   }
 
   async searchFoods(query: string, pageSize = 20): Promise<FoodItem[]> {
-    const cleanQuery = query ? query.trim().slice(0, 120) : '';
+    const cleanQuery = typeof query === 'string' ? query.trim().slice(0, 120) : '';
     if (!cleanQuery) return [];
     const safePageSize = Math.max(1, Math.min(50, Math.floor(Number(pageSize) || 20)));
 
@@ -133,7 +177,7 @@ export class OpenFoodFactsService implements IOpenFoodFactsService {
       if (!res.ok) return [];
 
       const data = await res.json();
-      if (!data.products || !Array.isArray(data.products)) {
+      if (!data || !data.products || !Array.isArray(data.products)) {
         return [];
       }
 

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import {
   View,
   Text,
@@ -154,6 +154,7 @@ export const ExercisePickerModal: React.FC<ExercisePickerModalProps> = ({
   const newRestSeconds = 60;
   const [isSaving, setIsSaving] = useState(false);
   const [nameError, setNameError] = useState(false);
+  const isSubmittingRef = useRef(false);
   const { colors } = useTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
 
@@ -205,12 +206,14 @@ export const ExercisePickerModal: React.FC<ExercisePickerModalProps> = ({
   };
 
   const handleSaveCustomExercise = async () => {
+    if (isSubmittingRef.current) return;
     const trimmed = newName.trim();
     if (!trimmed) {
       setNameError(true);
       return;
     }
 
+    isSubmittingRef.current = true;
     setIsSaving(true);
     try {
       const created = await createCustomExercise({
@@ -235,11 +238,13 @@ export const ExercisePickerModal: React.FC<ExercisePickerModalProps> = ({
     } catch (err: any) {
       Alert.alert('Erro ao criar', err?.message || 'Falha ao salvar exercício personalizado.');
     } finally {
+      isSubmittingRef.current = false;
       setIsSaving(false);
     }
   };
 
   const handleModalClose = () => {
+    if (isSaving) return;
     setViewMode('picker');
     setSearchQuery('');
     onClose();
@@ -280,6 +285,7 @@ export const ExercisePickerModal: React.FC<ExercisePickerModalProps> = ({
                 onChangeText={setSearchQuery}
                 autoCorrect={false}
                 clearButtonMode="while-editing"
+                maxLength={100}
               />
             </View>
 
@@ -407,6 +413,7 @@ export const ExercisePickerModal: React.FC<ExercisePickerModalProps> = ({
             <View style={styles.header}>
               <TouchableOpacity
                 onPress={() => setViewMode('picker')}
+                disabled={isSaving}
                 style={styles.cancelBtn}
                 accessibilityRole="button"
                 accessibilityLabel="Cancelar criação"
@@ -447,6 +454,7 @@ export const ExercisePickerModal: React.FC<ExercisePickerModalProps> = ({
                     if (nameError) setNameError(false);
                   }}
                   autoFocus={true}
+                  maxLength={100}
                 />
                 {nameError && (
                   <Text style={styles.errorText}>Por favor, digite o nome do exercício.</Text>

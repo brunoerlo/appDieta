@@ -464,12 +464,14 @@ describe('Milestone M2 Adversarial Stress & Challenger Test Suite', () => {
 
       const testFood = TACO_FOODS_SEED[0]; // Peito de frango (159 cal, 32g P)
 
-      // Log 0g
-      await stateManager.addFoodLog({
-        mealType: 'breakfast',
-        food: testFood as any,
-        servingGrams: 0,
-      });
+      // Log 0g is rejected by hardened validation
+      await expect(
+        stateManager.addFoodLog({
+          mealType: 'breakfast',
+          food: testFood as any,
+          servingGrams: 0,
+        })
+      ).rejects.toThrow('A porção em gramas/ml deve ser maior que zero.');
 
       // Log 0.1g
       await stateManager.addFoodLog({

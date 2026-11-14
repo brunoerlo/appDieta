@@ -429,7 +429,7 @@ export default function AuthScreen() {
                 >
                   <TextInput
                     style={[styles.passwordInput, { color: colors.textPrimary }]}
-                    placeholder="Mínimo de 4 caracteres"
+                    placeholder="Mínimo de 6 caracteres"
                     placeholderTextColor={colors.textDimmed}
                     value={password}
                     onChangeText={setPassword}

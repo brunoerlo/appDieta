@@ -341,7 +341,9 @@ describe('Empirical Challenger M8: Hydration Jitter Elimination & Concurrency', 
 
       expect(sawLoading).toBe(false);
       expect(failManager.isLoading).toBe(false);
-      expect(failManager.error).toBe('SQLite lock busy');
+      expect(failManager.error).toBe(
+        'O banco de dados local está ocupado no momento. Tente novamente em instantes.'
+      );
     });
   });
 });

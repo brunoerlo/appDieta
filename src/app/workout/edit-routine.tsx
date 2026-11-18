@@ -16,6 +16,7 @@ import { useWorkout } from '../../hooks/useWorkout';
 import { Button } from '../../components/ui/Button';
 import { ExerciseConfigRow, DraftExercise } from '../../components/workout/ExerciseConfigRow';
 import { ExercisePickerModal, ExercisePickerResult } from '../../components/workout/ExercisePickerModal';
+import { translateErrorToPtBr } from '../../utils/errorMessages';
 
 const SPLIT_PRESETS = [
   { label: 'ABC', prefix: 'Treino - ' },
@@ -81,7 +82,10 @@ export default function EditRoutineScreen() {
         })
         .catch((err: any) => {
           if (active) {
-            Alert.alert('Erro', err?.message || 'Não foi possível carregar a rotina.');
+            Alert.alert(
+              'Erro ao carregar',
+              translateErrorToPtBr(err, 'Não foi possível carregar a rotina.')
+            );
           }
         });
     }
@@ -187,7 +191,10 @@ export default function EditRoutineScreen() {
       }
       router.back();
     } catch (err: any) {
-      Alert.alert('Erro ao salvar', err?.message || 'Falha ao salvar a rotina.');
+      Alert.alert(
+        'Erro ao salvar',
+        translateErrorToPtBr(err, 'Não foi possível salvar a rotina.')
+      );
     } finally {
       isSubmittingRef.current = false;
       setIsSaving(false);

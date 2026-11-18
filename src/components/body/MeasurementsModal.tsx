@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { BodyLog } from '../../types/domain';
 import { useTheme } from '../../hooks/useTheme';
+import { translateErrorToPtBr } from '../../utils/errorMessages';
 
 export interface MeasurementsModalProps {
   visible: boolean;
@@ -112,7 +113,7 @@ export const MeasurementsModal: React.FC<MeasurementsModalProps> = ({
       });
       onClose();
     } catch (err: any) {
-      setError(err?.message || 'Falha ao salvar medidas');
+      setError(translateErrorToPtBr(err, 'Não foi possível salvar as medidas corporais.'));
     } finally {
       isSubmittingRef.current = false;
       setSaving(false);

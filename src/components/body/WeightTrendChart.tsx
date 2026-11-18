@@ -4,11 +4,10 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  ScrollView,
 } from 'react-native';
 import { WeightHistoryPoint } from '../../types/domain';
 import { ChartRange } from '../../context/BodyContext';
-import { mapWeightHistoryToChart } from '../../utils/body';
+import { mapWeightHistoryToChart, summarizeWeightHistory } from '../../utils/body';
 import { useTheme } from '../../hooks/useTheme';
 
 export interface WeightTrendChartProps {
@@ -25,16 +24,22 @@ const RANGES: { key: ChartRange; label: string }[] = [
   { key: 'ALL', label: 'TUDO' },
 ];
 
+const MAX_CHART_BARS = 7;
+
 export const WeightTrendChart: React.FC<WeightTrendChartProps> = ({
   history,
   selectedRange,
   onSelectRange,
 }) => {
   const { colors } = useTheme();
-  const chartData = mapWeightHistoryToChart(history, 30);
-  const { points, currentWeight, currentMA, weightDeltaVsMA, trendDirection, yTicks } =
-    chartData;
+  const validCount = history.filter((p) => p.weightKg > 0).length;
+  const isSummarized = validCount > MAX_CHART_BARS;
+  const fullData = mapWeightHistoryToChart(history, Math.max(30, history.length));
+  const summarizedHistory = summarizeWeightHistory(history, MAX_CHART_BARS);
+  const chartData = mapWeightHistoryToChart(summarizedHistory, MAX_CHART_BARS);
 
+  const { currentWeight, currentMA, weightDeltaVsMA, trendDirection } = fullData;
+  const { points, yTicks } = chartData;
 
   const hasData = points.length > 0;
 
@@ -44,7 +49,9 @@ export const WeightTrendChart: React.FC<WeightTrendChartProps> = ({
       <View style={styles.header}>
         <Text style={[styles.title, { color: colors.textPrimary }]}>Tendência de Peso</Text>
         <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-          Pesagem diária vs Média móvel 7D
+          {isSummarized
+            ? 'Média por subperíodo vs Média móvel 7D'
+            : 'Pesagem diária vs Média móvel 7D'}
         </Text>
       </View>
 
@@ -152,71 +159,93 @@ export const WeightTrendChart: React.FC<WeightTrendChartProps> = ({
             ))}
           </View>
 
-          {/* Plot Area */}
-          <View style={[styles.plotArea, { borderColor: colors.cardBorder }]}>
-            {/* Grid horizontal guidelines */}
-            <View style={[styles.guideline, { top: '0%', borderColor: colors.cardBorder }]} />
-            <View style={[styles.guideline, { top: '33%', borderColor: colors.cardBorder }]} />
-            <View style={[styles.guideline, { top: '66%', borderColor: colors.cardBorder }]} />
-            <View style={[styles.guideline, { top: '100%', borderColor: colors.cardBorder }]} />
+          {/* Plot Area + Synchronized X Axis Labels */}
+          <View style={styles.plotAndAxis}>
+            <View
+              pointerEvents="none"
+              style={[styles.plotBackdrop, { borderColor: colors.cardBorder }]}
+            >
+              <View style={[styles.guideline, { top: '0%', borderColor: colors.cardBorder }]} />
+              <View style={[styles.guideline, { top: '33%', borderColor: colors.cardBorder }]} />
+              <View style={[styles.guideline, { top: '66%', borderColor: colors.cardBorder }]} />
+              <View style={[styles.guideline, { top: '100%', borderColor: colors.cardBorder }]} />
+            </View>
 
-            {/* Render Bars / Points */}
-            <View style={styles.barsRow}>
+            <View style={styles.columnsRow}>
               {points.map((pt, idx) => {
+                const isLatest = idx === points.length - 1;
                 const heightPct = Math.max(8, Math.min(100, pt.yWeightPct));
-                const maBottomPct = pt.yMAPct !== null ? Math.max(4, Math.min(96, pt.yMAPct)) : null;
+                const maBottomPct =
+                  pt.yMAPct !== null ? Math.max(4, Math.min(96, pt.yMAPct)) : null;
 
                 return (
-                  <View key={idx} style={styles.barCol}>
-                    {/* MA Dot indicator */}
-                    {maBottomPct !== null && (
+                  <View key={`${pt.date}-${idx}`} style={styles.barCol}>
+                    <View style={styles.barSlot}>
+                      {/* Weight Value above bar */}
+                      <Text
+                        numberOfLines={1}
+                        adjustsFontSizeToFit
+                        minimumFontScale={0.75}
+                        style={[
+                          styles.barValueText,
+                          {
+                            bottom: `${heightPct}%`,
+                            color: isLatest ? colors.primary : colors.textSecondary,
+                            fontWeight: isLatest ? '700' : '600',
+                          },
+                        ]}
+                      >
+                        {pt.weightKg.toFixed(1)}
+                      </Text>
+
+                      {/* MA Dot indicator */}
+                      {maBottomPct !== null && (
+                        <View
+                          style={[
+                            styles.maIndicator,
+                            {
+                              bottom: `${maBottomPct}%`,
+                              backgroundColor: colors.primary,
+                            },
+                          ]}
+                        />
+                      )}
+
+                      {/* Weight Bar */}
                       <View
                         style={[
-                          styles.maIndicator,
+                          styles.barFill,
                           {
-                            bottom: `${maBottomPct}%`,
-                            backgroundColor: colors.primary,
+                            height: `${heightPct}%`,
+                            backgroundColor: isLatest ? colors.primary : colors.surfaceMuted,
                           },
                         ]}
                       />
-                    )}
+                    </View>
 
-                    {/* Weight Bar */}
-                    <View
-                      style={[
-                        styles.barFill,
-                        {
-                          height: `${heightPct}%`,
-                          backgroundColor:
-                            idx === points.length - 1
-                              ? colors.primary
-                              : colors.surfaceMuted,
-                        },
-                      ]}
-                    />
+                    {/* Date Label directly beneath the registered weight bar */}
+                    <View style={styles.xLabelSlot}>
+                      <Text
+                        numberOfLines={1}
+                        adjustsFontSizeToFit
+                        minimumFontScale={0.75}
+                        style={[
+                          styles.xLabelText,
+                          {
+                            color: isLatest ? colors.textPrimary : colors.textDimmed,
+                            fontWeight: isLatest ? '700' : '500',
+                          },
+                        ]}
+                      >
+                        {pt.label}
+                      </Text>
+                    </View>
                   </View>
                 );
               })}
             </View>
           </View>
         </View>
-      )}
-
-      {/* X Axis Date Labels */}
-      {hasData && (
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.xAxisContainer}
-        >
-          {points.map((pt, idx) => (
-            <View key={idx} style={styles.xLabelWrapper}>
-              <Text style={[styles.xLabelText, { color: colors.textDimmed }]}>
-                {pt.label}
-              </Text>
-            </View>
-          ))}
-        </ScrollView>
       )}
 
       {/* Legend */}
@@ -313,12 +342,14 @@ const styles = StyleSheet.create({
   },
   canvasContainer: {
     flexDirection: 'row',
-    height: 160,
+    height: 200,
     marginTop: 4,
   },
   yAxis: {
-    width: 36,
+    width: 38,
     height: '100%',
+    paddingTop: 18,
+    paddingBottom: 22,
     justifyContent: 'space-between',
     alignItems: 'flex-start',
     paddingRight: 4,
@@ -327,12 +358,19 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '500',
   },
-  plotArea: {
+  plotAndAxis: {
     flex: 1,
     height: '100%',
+    position: 'relative',
+  },
+  plotBackdrop: {
+    position: 'absolute',
+    top: 18,
+    left: 0,
+    right: 0,
+    height: 160,
     borderLeftWidth: 1,
     borderBottomWidth: 1,
-    position: 'relative',
   },
   guideline: {
     position: 'absolute',
@@ -341,48 +379,56 @@ const styles = StyleSheet.create({
     borderTopWidth: StyleSheet.hairlineWidth,
     opacity: 0.25,
   },
-  barsRow: {
+  columnsRow: {
     flex: 1,
     flexDirection: 'row',
-    alignItems: 'flex-end',
-    justifyContent: 'space-between',
+    paddingTop: 18,
     paddingHorizontal: 4,
-    height: '100%',
   },
   barCol: {
     flex: 1,
     height: '100%',
     alignItems: 'center',
+    marginHorizontal: 2,
+  },
+  barSlot: {
+    width: '100%',
+    height: 160,
+    alignItems: 'center',
     justifyContent: 'flex-end',
-    marginHorizontal: 1,
     position: 'relative',
   },
+  barValueText: {
+    position: 'absolute',
+    left: -2,
+    right: -2,
+    textAlign: 'center',
+    fontSize: 10,
+    marginBottom: 3,
+    zIndex: 12,
+  },
   barFill: {
-    width: '70%',
-    maxWidth: 16,
-    borderTopLeftRadius: 3,
-    borderTopRightRadius: 3,
+    width: '65%',
+    maxWidth: 20,
+    borderTopLeftRadius: 4,
+    borderTopRightRadius: 4,
   },
   maIndicator: {
     position: 'absolute',
-    width: 6,
-    height: 6,
-    borderRadius: 3,
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
     zIndex: 10,
   },
-  xAxisContainer: {
-    flexDirection: 'row',
-    paddingLeft: 40,
-    paddingTop: 6,
-    paddingBottom: 4,
-  },
-  xLabelWrapper: {
-    minWidth: 32,
+  xLabelSlot: {
+    width: '100%',
+    height: 22,
     alignItems: 'center',
+    justifyContent: 'center',
   },
   xLabelText: {
-    fontSize: 9,
-    fontWeight: '500',
+    fontSize: 10,
+    textAlign: 'center',
   },
   legendRow: {
     flexDirection: 'row',

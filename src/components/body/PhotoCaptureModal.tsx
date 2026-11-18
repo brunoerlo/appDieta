@@ -16,6 +16,7 @@ import { PhotoPose } from '../../types/domain';
 import { useTheme } from '../../hooks/useTheme';
 import { PhotoStorageService } from '../../services/PhotoStorageService';
 import { useSafeTopPadding } from '../../hooks/useSafeTopPadding';
+import { translateErrorToPtBr } from '../../utils/errorMessages';
 
 export interface PhotoCaptureModalProps {
   visible: boolean;
@@ -75,8 +76,11 @@ export const PhotoCaptureModal: React.FC<PhotoCaptureModalProps> = ({
 
       await onPhotoSaved(persistedUri);
       onClose();
-    } catch {
-      Alert.alert('Erro', 'Não foi possível salvar a foto.');
+    } catch (err: any) {
+      Alert.alert(
+        'Erro na foto',
+        translateErrorToPtBr(err, 'Não foi possível capturar ou salvar a foto.')
+      );
     } finally {
       isSubmittingRef.current = false;
       setIsCapturing(false);
@@ -92,8 +96,11 @@ export const PhotoCaptureModal: React.FC<PhotoCaptureModalProps> = ({
       const mockUri = `file:///data/photos/${date}_${selectedPose}_${Date.now()}.jpg`;
       await onPhotoSaved(mockUri);
       onClose();
-    } catch {
-      Alert.alert('Erro', 'Não foi possível salvar a foto.');
+    } catch (err: any) {
+      Alert.alert(
+        'Erro na foto',
+        translateErrorToPtBr(err, 'Não foi possível capturar ou salvar a foto.')
+      );
     } finally {
       isSubmittingRef.current = false;
       setIsCapturing(false);

@@ -21,6 +21,7 @@ import { useBody } from '../../hooks/useBody';
 import { useTheme } from '../../hooks/useTheme';
 import { formatDatePortuguese } from '../../utils/date';
 import { getTodayDateString } from '../../utils/nutrition';
+import { translateErrorToPtBr } from '../../utils/errorMessages';
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -63,7 +64,10 @@ export default function HomeScreen() {
     try {
       await addWater(amountMl);
     } catch (err: any) {
-      Alert.alert('Erro', err?.message || 'Não foi possível registrar água.');
+      Alert.alert(
+        'Erro ao registrar água',
+        translateErrorToPtBr(err, 'Não foi possível registrar o consumo de água.')
+      );
     } finally {
       isAddingWaterRef.current = false;
     }
@@ -85,7 +89,10 @@ export default function HomeScreen() {
         router.push('/workout/live');
       }
     } catch (err: any) {
-      Alert.alert('Erro', err?.message || 'Não foi possível iniciar o treino.');
+      Alert.alert(
+        'Erro ao iniciar treino',
+        translateErrorToPtBr(err, 'Não foi possível iniciar o treino.')
+      );
     } finally {
       isSubmittingRef.current = false;
     }

@@ -18,6 +18,7 @@ import { RoutineCard } from '../../components/workout/RoutineCard';
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
 import { formatDatePortuguese } from '../../utils/date';
+import { translateErrorToPtBr } from '../../utils/errorMessages';
 
 const FILTER_CATEGORIES = [
   'Todas',
@@ -48,7 +49,10 @@ export default function WorkoutTabScreen() {
     try {
       await refreshRoutines();
     } catch (err: any) {
-      Alert.alert('Erro', err?.message || 'Não foi possível atualizar as rotinas.');
+      Alert.alert(
+        'Erro ao atualizar',
+        translateErrorToPtBr(err, 'Não foi possível atualizar as rotinas.')
+      );
     } finally {
       setIsRefreshing(false);
     }
@@ -111,7 +115,10 @@ export default function WorkoutTabScreen() {
                   params: { routineId: routine.id },
                 });
               } catch (err: any) {
-                Alert.alert('Erro', err?.message || 'Não foi possível iniciar o treino.');
+                Alert.alert(
+                  'Erro ao iniciar treino',
+                  translateErrorToPtBr(err, 'Não foi possível iniciar o treino.')
+                );
               } finally {
                 isSubmittingRef.current = false;
               }
@@ -132,7 +139,10 @@ export default function WorkoutTabScreen() {
         params: { routineId: routine.id },
       });
     } catch (err: any) {
-      Alert.alert('Erro', err?.message || 'Não foi possível iniciar o treino.');
+      Alert.alert(
+        'Erro ao iniciar treino',
+        translateErrorToPtBr(err, 'Não foi possível iniciar o treino.')
+      );
     } finally {
       isSubmittingRef.current = false;
     }
@@ -149,7 +159,10 @@ export default function WorkoutTabScreen() {
     try {
       await deleteRoutine(routine.id);
     } catch (err: any) {
-      Alert.alert('Erro', err?.message || 'Não foi possível excluir a rotina.');
+      Alert.alert(
+        'Erro ao excluir rotina',
+        translateErrorToPtBr(err, 'Não foi possível excluir a rotina.')
+      );
     }
   };
 

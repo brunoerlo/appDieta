@@ -7,6 +7,7 @@ import {
   OnboardingData,
 } from '../database/repositories/interfaces';
 import { supabase } from '../services/supabaseClient';
+import { translateErrorToPtBr, toPortugueseError } from '../utils/errorMessages';
 
 export interface ProfileContextValue {
   profile: UserProfile | null;
@@ -86,7 +87,7 @@ export class ProfileStateManager {
     try {
       this.profile = await this.authRepo.getProfile();
     } catch (err: any) {
-      this.error = err?.message || 'Falha ao carregar perfil';
+      this.error = translateErrorToPtBr(err, 'Falha ao carregar o perfil do usuário.');
     } finally {
       this.isLoading = false;
       this.isBootstrapping = false;
@@ -103,8 +104,9 @@ export class ProfileStateManager {
       this.profile = updated;
       return updated;
     } catch (err: any) {
-      this.error = err?.message || 'Falha ao atualizar perfil';
-      throw err;
+      const msg = translateErrorToPtBr(err, 'Não foi possível atualizar o perfil.');
+      this.error = msg;
+      throw toPortugueseError(err, msg);
     } finally {
       this.isLoading = false;
       this.notify();
@@ -120,8 +122,9 @@ export class ProfileStateManager {
       this.profile = user;
       return user;
     } catch (err: any) {
-      this.error = err?.message || 'Falha ao cadastrar usuário';
-      throw err;
+      const msg = translateErrorToPtBr(err, 'Não foi possível concluir o cadastro.');
+      this.error = msg;
+      throw toPortugueseError(err, msg);
     } finally {
       this.isLoading = false;
       this.notify();
@@ -137,8 +140,9 @@ export class ProfileStateManager {
       this.profile = user;
       return user;
     } catch (err: any) {
-      this.error = err?.message || 'Falha ao realizar login';
-      throw err;
+      const msg = translateErrorToPtBr(err, 'Não foi possível entrar na sua conta.');
+      this.error = msg;
+      throw toPortugueseError(err, msg);
     } finally {
       this.isLoading = false;
       this.notify();
@@ -152,8 +156,9 @@ export class ProfileStateManager {
     try {
       await this.authRepo.logoutUser();
     } catch (err: any) {
-      this.error = err?.message || 'Falha ao sair da conta';
-      throw err;
+      const msg = translateErrorToPtBr(err, 'Não foi possível sair da conta.');
+      this.error = msg;
+      throw toPortugueseError(err, msg);
     } finally {
       this.profile = createClearedProfile(this.profile);
       this.isLoading = false;
@@ -170,8 +175,9 @@ export class ProfileStateManager {
       this.profile = updated;
       return updated;
     } catch (err: any) {
-      this.error = err?.message || 'Falha ao concluir onboarding';
-      throw err;
+      const msg = translateErrorToPtBr(err, 'Não foi possível concluir a configuração inicial.');
+      this.error = msg;
+      throw toPortugueseError(err, msg);
     } finally {
       this.isLoading = false;
       this.notify();
@@ -195,7 +201,7 @@ export const ProfileProvider: React.FC<{
       const p = await authRepo.getProfile();
       setProfile(p);
     } catch (err: any) {
-      setError(err?.message || 'Falha ao carregar perfil');
+      setError(translateErrorToPtBr(err, 'Falha ao carregar o perfil do usuário.'));
     } finally {
       setIsLoading(false);
     }
@@ -211,7 +217,7 @@ export const ProfileProvider: React.FC<{
         }
       } catch (err: any) {
         if (active) {
-          setError(err?.message || 'Falha ao carregar perfil');
+          setError(translateErrorToPtBr(err, 'Falha ao carregar o perfil do usuário.'));
         }
       } finally {
         if (active) {
@@ -263,8 +269,9 @@ export const ProfileProvider: React.FC<{
         setProfile(updated);
         return updated;
       } catch (err: any) {
-        setError(err?.message || 'Falha ao atualizar perfil');
-        throw err;
+        const msg = translateErrorToPtBr(err, 'Não foi possível atualizar o perfil.');
+        setError(msg);
+        throw toPortugueseError(err, msg);
       } finally {
         setIsLoading(false);
       }
@@ -281,8 +288,9 @@ export const ProfileProvider: React.FC<{
         setProfile(created);
         return created;
       } catch (err: any) {
-        setError(err?.message || 'Falha ao cadastrar usuário');
-        throw err;
+        const msg = translateErrorToPtBr(err, 'Não foi possível concluir o cadastro.');
+        setError(msg);
+        throw toPortugueseError(err, msg);
       } finally {
         setIsLoading(false);
       }
@@ -299,8 +307,9 @@ export const ProfileProvider: React.FC<{
         setProfile(user);
         return user;
       } catch (err: any) {
-        setError(err?.message || 'Falha ao realizar login');
-        throw err;
+        const msg = translateErrorToPtBr(err, 'Não foi possível entrar na sua conta.');
+        setError(msg);
+        throw toPortugueseError(err, msg);
       } finally {
         setIsLoading(false);
       }
@@ -314,8 +323,9 @@ export const ProfileProvider: React.FC<{
     try {
       await authRepo.logoutUser();
     } catch (err: any) {
-      setError(err?.message || 'Falha ao sair da conta');
-      throw err;
+      const msg = translateErrorToPtBr(err, 'Não foi possível sair da conta.');
+      setError(msg);
+      throw toPortugueseError(err, msg);
     } finally {
       setProfile((prev) => createClearedProfile(prev));
       setIsLoading(false);
@@ -331,8 +341,9 @@ export const ProfileProvider: React.FC<{
         setProfile(updated);
         return updated;
       } catch (err: any) {
-        setError(err?.message || 'Falha ao concluir onboarding');
-        throw err;
+        const msg = translateErrorToPtBr(err, 'Não foi possível concluir a configuração inicial.');
+        setError(msg);
+        throw toPortugueseError(err, msg);
       } finally {
         setIsLoading(false);
       }

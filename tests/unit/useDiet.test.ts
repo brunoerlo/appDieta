@@ -170,7 +170,7 @@ describe('Unit: DietStateManager & Nutrition State Logic', () => {
     const failManager = new DietStateManager(failingDietRepo, authRepo, TEST_DATE);
     await failManager.loadData();
 
-    expect(failManager.error).toBe('DB failure');
+    expect(failManager.error).toBe('Não foi possível carregar os dados de nutrição.');
     expect(failManager.isLoading).toBe(false);
   });
 });

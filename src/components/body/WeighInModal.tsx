@@ -10,6 +10,7 @@ import {
   Platform,
 } from 'react-native';
 import { useTheme } from '../../hooks/useTheme';
+import { translateErrorToPtBr } from '../../utils/errorMessages';
 
 export interface WeighInModalProps {
   visible: boolean;
@@ -73,7 +74,7 @@ export const WeighInModal: React.FC<WeighInModalProps> = ({
       await onSave(Number(val.toFixed(2)));
       onClose();
     } catch (err: any) {
-      setError(err?.message || 'Falha ao salvar peso');
+      setError(translateErrorToPtBr(err, 'Não foi possível salvar o registro de peso.'));
     } finally {
       isSubmittingRef.current = false;
       setSaving(false);

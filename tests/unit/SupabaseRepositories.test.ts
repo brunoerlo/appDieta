@@ -271,7 +271,9 @@ describe('Supabase Repositories', () => {
       };
 
       const repo = new SupabaseAuthRepository(mockClient);
-      await expect(repo.getProfile()).rejects.toThrow('Database connection failed');
+      await expect(repo.getProfile()).rejects.toThrow(
+        'Falha de conexão com o banco de dados. Tente novamente em instantes.'
+      );
     });
 
     it('loginUser throws error when email or password is missing or blank', async () => {
@@ -299,7 +301,7 @@ describe('Supabase Repositories', () => {
       ).rejects.toThrow('E-mail ou senha incorretos.');
     });
 
-    it('loginUser propagates raw error message for other Supabase auth errors', async () => {
+    it('loginUser translates other Supabase auth errors to Portuguese', async () => {
       const mockClient: any = {
         auth: {
           signInWithPassword: jest.fn(async () => ({
@@ -312,7 +314,9 @@ describe('Supabase Repositories', () => {
       const repo = new SupabaseAuthRepository(mockClient);
       await expect(
         repo.loginUser({ email: 'atleta@test.com', password: 'password123' })
-      ).rejects.toThrow('Rate limit exceeded');
+      ).rejects.toThrow(
+        'Muitas tentativas em sequência. Aguarde alguns minutos antes de tentar novamente.'
+      );
     });
 
     it('loginUser throws error when signIn succeeds but user is null', async () => {
@@ -379,7 +383,9 @@ describe('Supabase Repositories', () => {
       };
 
       const repo = new SupabaseAuthRepository(mockClient);
-      await expect(repo.logoutUser()).rejects.toThrow('Network error during sign out');
+      await expect(repo.logoutUser()).rejects.toThrow(
+        'Sem conexão com a internet ou servidor inacessível. Verifique sua rede e tente novamente.'
+      );
     });
 
     it('completeOnboarding throws error when user is not authenticated', async () => {

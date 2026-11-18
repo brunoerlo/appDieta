@@ -15,6 +15,7 @@ import { useRouter } from 'expo-router';
 import { useProfile } from '../../hooks/useProfile';
 import { useTheme } from '../../hooks/useTheme';
 import { parseDecimalInput } from '../../utils/nutrition';
+import { translateErrorToPtBr } from '../../utils/errorMessages';
 
 export default function ProfileScreen() {
   const router = useRouter();
@@ -166,8 +167,11 @@ export default function ProfileScreen() {
         setFeedbackMsg(null);
         feedbackTimerRef.current = null;
       }, 3000);
-    } catch {
-      Alert.alert('Erro', 'Não foi possível salvar as configurações.');
+    } catch (err: any) {
+      Alert.alert(
+        'Erro ao salvar',
+        translateErrorToPtBr(err, 'Não foi possível salvar as configurações do perfil.')
+      );
     } finally {
       setSaving(false);
     }
@@ -190,8 +194,11 @@ export default function ProfileScreen() {
             try {
               await logout();
               router.replace('/auth');
-            } catch {
-              Alert.alert('Erro', 'Não foi possível encerrar a sessão. Tente novamente.');
+            } catch (err: any) {
+              Alert.alert(
+                'Erro ao sair',
+                translateErrorToPtBr(err, 'Não foi possível encerrar a sessão. Tente novamente.')
+              );
               setLoggingOut(false);
             }
           },

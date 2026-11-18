@@ -17,6 +17,7 @@ import { useTheme } from '../hooks/useTheme';
 import { BodyContext } from '../context/BodyContext';
 import { calculateSuggestedTargets, parseDecimalInput } from '../utils/nutrition';
 import { TrainingGoal, ActivityLevel } from '../database/repositories/interfaces';
+import { translateErrorToPtBr } from '../utils/errorMessages';
 
 export default function AuthScreen() {
   const router = useRouter();
@@ -138,8 +139,8 @@ export default function AuthScreen() {
         if (!trimmedEmail || !/\S+@\S+\.\S+/.test(trimmedEmail)) {
           throw new Error('Informe um e-mail válido.');
         }
-        if (password.length < 4) {
-          throw new Error('A senha deve ter pelo menos 4 caracteres.');
+        if (password.length < 6) {
+          throw new Error('A senha deve ter pelo menos 6 caracteres.');
         }
 
         const user = await register({
@@ -170,7 +171,14 @@ export default function AuthScreen() {
         }
       }
     } catch (err: any) {
-      setErrorMsg(err?.message || 'Falha ao autenticar.');
+      setErrorMsg(
+        translateErrorToPtBr(
+          err,
+          authMode === 'register'
+            ? 'Não foi possível criar sua conta. Verifique os dados e tente novamente.'
+            : 'Não foi possível entrar na sua conta. Verifique seus dados e tente novamente.'
+        )
+      );
     } finally {
       isSubmittingRef.current = false;
       setIsSubmitting(false);
@@ -256,7 +264,12 @@ export default function AuthScreen() {
 
       router.replace('/(tabs)');
     } catch (err: any) {
-      setOnboardingError(err?.message || 'Falha ao salvar metas iniciais.');
+      setOnboardingError(
+        translateErrorToPtBr(
+          err,
+          'Não foi possível salvar suas metas iniciais. Tente novamente.'
+        )
+      );
     } finally {
       isSubmittingRef.current = false;
       setIsOnboardingSubmitting(false);

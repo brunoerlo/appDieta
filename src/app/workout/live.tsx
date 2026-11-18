@@ -13,6 +13,7 @@ import { ThemeColors, spacing, borderRadius } from '../../constants/theme';
 import { useTheme } from '../../hooks/useTheme';
 import { useWorkout } from '../../hooks/useWorkout';
 import { calculate1RM } from '../../utils/workout';
+import { translateErrorToPtBr } from '../../utils/errorMessages';
 import {
   formatDatePortuguese,
   getTodayDateString,
@@ -197,7 +198,10 @@ export default function LiveWorkoutScreen() {
       setIsSummaryVisible(false);
       router.replace('/workout/history');
     } catch (err: any) {
-      Alert.alert('Erro ao salvar', err?.message || 'Falha ao salvar o treino.');
+      Alert.alert(
+        'Erro ao salvar',
+        translateErrorToPtBr(err, 'Não foi possível salvar o treino.')
+      );
     } finally {
       isSubmittingRef.current = false;
       setIsFinishing(false);
@@ -215,7 +219,10 @@ export default function LiveWorkoutScreen() {
         })
       );
     } catch (err: any) {
-      Alert.alert('Erro', err?.message || 'Não foi possível adicionar o exercício ao treino.');
+      Alert.alert(
+        'Erro ao adicionar',
+        translateErrorToPtBr(err, 'Não foi possível adicionar o exercício ao treino.')
+      );
     }
   };
 

@@ -20,6 +20,7 @@ import { WeighInModal } from '../../components/body/WeighInModal';
 import { MeasurementsModal } from '../../components/body/MeasurementsModal';
 import { PhotoCaptureModal } from '../../components/body/PhotoCaptureModal';
 import { BeforeAfterViewerModal } from '../../components/body/BeforeAfterViewerModal';
+import { translateErrorToPtBr } from '../../utils/errorMessages';
 
 export default function BodyScreen() {
   const { colors } = useTheme();
@@ -145,7 +146,10 @@ export default function BodyScreen() {
             try {
               await deletePhoto(uri, date);
             } catch (err: any) {
-              Alert.alert('Erro', err?.message || 'Não foi possível excluir a foto.');
+              Alert.alert(
+                'Erro ao excluir foto',
+                translateErrorToPtBr(err, 'Não foi possível excluir a foto.')
+              );
             }
           }}
         />

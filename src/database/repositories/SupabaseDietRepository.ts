@@ -1,8 +1,13 @@
 import { SupabaseClient } from '@supabase/supabase-js';
-import { IDietRepository, ISqliteDatabase } from './interfaces';
+import { IDietRepository, ISqliteDatabase, FoodSearchOptions } from './interfaces';
 import { SqliteDietRepository } from './SqliteDietRepository';
 import { supabase as defaultSupabase } from '../../services/supabaseClient';
-import { normalizeFoodText } from '../../utils/text';
+import {
+  normalizeFoodText,
+  tokenizeFoodQuery,
+  matchesFoodTokens,
+  dedupeFoods,
+} from '../../utils/text';
 import {
   DietLogEntry,
   FoodItem,
@@ -181,10 +186,28 @@ export class SupabaseDietRepository implements IDietRepository {
     if (error) throw new Error(error.message);
   }
 
-  async searchFoods(query: string, limit = 50): Promise<FoodItem[]> {
-    const safeLimit = Math.max(1, Math.min(100, Math.floor(Number(limit) || 50)));
+  async searchFoods(
+    query: string,
+    limit = 50,
+    options?: FoodSearchOptions
+  ): Promise<FoodItem[]> {
+    const safeLimit = Math.max(1, Math.min(200, Math.floor(Number(limit) || 50)));
     const rawTrimmed = typeof query === 'string' ? query.trim() : '';
+    if (rawTrimmed.length > 200) {
+      return [];
+    }
+
+    if (options?.localOnly) {
+      if (!this.localFoodRepo) return [];
+      const localOnlyItems = await this.localFoodRepo
+        .searchFoods(rawTrimmed, safeLimit)
+        .catch(() => [] as FoodItem[]);
+      return dedupeFoods(localOnlyItems).slice(0, safeLimit);
+    }
+
     const sanitized = sanitizePostgrestFilterTerm(rawTrimmed);
+    const hasPostgrestMeta = /[,().*"'\\%_]/.test(rawTrimmed);
+    const tokens = tokenizeFoodQuery(sanitized);
 
     let remoteQuery = this.client
       .from('foods')
@@ -194,8 +217,11 @@ export class SupabaseDietRepository implements IDietRepository {
 
     if (sanitized) {
       const normalized = sanitizePostgrestFilterTerm(normalizeFoodText(sanitized));
+      const useTokenWildcard = !hasPostgrestMeta && tokens.length > 1;
+      const filterTerm = useTokenWildcard ? tokens.join('%') : sanitized;
+      const filterNorm = useTokenWildcard ? tokens.join('%') : normalized || sanitized;
       remoteQuery = remoteQuery.or(
-        `name.ilike.%${sanitized}%,name_normalized.ilike.%${normalized || sanitized}%`
+        `name.ilike.%${filterTerm}%,name_normalized.ilike.%${filterNorm}%`
       );
     }
 
@@ -206,7 +232,10 @@ export class SupabaseDietRepository implements IDietRepository {
       try {
         const remoteRes = await remoteQuery.returns<FoodRow[]>();
         if (!remoteRes.error && remoteRes.data) {
-          return remoteRes.data.map((r) => this.mapFoodRow(r));
+          const mapped = remoteRes.data.map((r) => this.mapFoodRow(r));
+          return !hasPostgrestMeta && tokens.length > 1
+            ? mapped.filter((item) => matchesFoodTokens(item, tokens))
+            : mapped;
         }
         return [];
       } catch {
@@ -220,18 +249,7 @@ export class SupabaseDietRepository implements IDietRepository {
 
     const [remoteItems, localItems] = await Promise.all([remotePromise, localPromise]);
 
-    const seen = new Set<string>();
-    const merged: FoodItem[] = [];
-
-    for (const item of [...remoteItems, ...localItems]) {
-      if (!seen.has(item.id)) {
-        seen.add(item.id);
-        merged.push(item);
-      }
-      if (merged.length >= safeLimit) break;
-    }
-
-    return merged;
+    return dedupeFoods([...remoteItems, ...localItems]).slice(0, safeLimit);
   }
 
   async getFoodByBarcode(barcode: string): Promise<FoodItem | null> {
@@ -257,9 +275,57 @@ export class SupabaseDietRepository implements IDietRepository {
     return null;
   }
 
+  private async findExistingRemoteFood(
+    cleanBarcode: string | null,
+    nameNormalized: string,
+    source: FoodItem['source']
+  ): Promise<FoodItem | null> {
+    if (cleanBarcode) {
+      const { data, error } = await this.client
+        .from('foods')
+        .select('id, name, name_normalized, category, serving_grams, calories, protein, carbs, fat, fiber, barcode, source, serving_unit_name, serving_unit_grams, created_at')
+        .eq('barcode', cleanBarcode)
+        .limit(1)
+        .maybeSingle<FoodRow>();
+      if (!error && data) {
+        return this.mapFoodRow(data);
+      }
+    }
+
+    if (source === 'openfoodfacts' && nameNormalized) {
+      const { data, error } = await this.client
+        .from('foods')
+        .select('id, name, name_normalized, category, serving_grams, calories, protein, carbs, fat, fiber, barcode, source, serving_unit_name, serving_unit_grams, created_at')
+        .eq('name_normalized', nameNormalized)
+        .eq('source', source)
+        .limit(1)
+        .maybeSingle<FoodRow>();
+      if (!error && data) {
+        return this.mapFoodRow(data);
+      }
+    }
+
+    return null;
+  }
+
   async createFood(food: Omit<FoodItem, 'id' | 'createdAt'>): Promise<FoodItem> {
     const cleanName = food.name.trim().slice(0, 200);
     const nameNormalized = food.nameNormalized ?? normalizeFoodText(cleanName);
+    const cleanBarcode =
+      typeof food.barcode === 'string' && food.barcode.trim().length > 0
+        ? food.barcode.trim()
+        : null;
+
+    if (food.source === 'openfoodfacts') {
+      const existing = await this.findExistingRemoteFood(
+        cleanBarcode,
+        nameNormalized,
+        food.source
+      );
+      if (existing) {
+        return existing;
+      }
+    }
 
     const { data, error } = await this.client
       .from('foods')
@@ -273,13 +339,24 @@ export class SupabaseDietRepository implements IDietRepository {
         carbs: toFiniteNonNegative(food.carbs, 0),
         fat: toFiniteNonNegative(food.fat, 0),
         fiber: toFiniteNonNegative(food.fiber ?? 0, 0),
-        barcode: food.barcode ?? null,
+        barcode: cleanBarcode,
         source: food.source,
         serving_unit_name: food.servingUnitName ?? 'g',
         serving_unit_grams: toFiniteNonNegative(food.servingUnitGrams ?? 1, 1),
       })
       .select('id, name, name_normalized, category, serving_grams, calories, protein, carbs, fat, fiber, barcode, source, serving_unit_name, serving_unit_grams, created_at')
       .single<FoodRow>();
+
+    if (error?.code === '23505') {
+      const existing = await this.findExistingRemoteFood(
+        cleanBarcode,
+        nameNormalized,
+        food.source
+      );
+      if (existing) {
+        return existing;
+      }
+    }
 
     if (error || !data) throw new Error(error?.message ?? 'Erro ao criar alimento.');
     return this.mapFoodRow(data);

@@ -22,6 +22,7 @@ import { ProfileProvider } from '../context/ProfileContext';
 import { BodyProvider } from '../context/BodyContext';
 import { useProfile } from '../hooks/useProfile';
 import { useTheme } from '../hooks/useTheme';
+import { translateErrorToPtBr } from '../utils/errorMessages';
 
 interface ErrorBoundaryState {
   hasError: boolean;
@@ -40,7 +41,10 @@ export class RootErrorBoundary extends React.Component<
   static getDerivedStateFromError(error: Error): ErrorBoundaryState {
     return {
       hasError: true,
-      errorMessage: error?.message || 'Ocorreu uma falha inesperada na aplicação.',
+      errorMessage: translateErrorToPtBr(
+        error,
+        'Ocorreu uma falha inesperada na aplicação.'
+      ),
     };
   }
 

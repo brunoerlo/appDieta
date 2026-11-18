@@ -3,6 +3,7 @@ import {
   calculateMovingAverageForDate,
   calculateBodyComposition,
   mapWeightHistoryToChart,
+  summarizeWeightHistory,
 } from '../../src/utils/body';
 import {
   extractPoseFromUri,
@@ -180,6 +181,44 @@ describe('BodyCalculations & PhotoComparison Unit Tests (Milestone M4)', () => {
       ];
       const data = mapWeightHistoryToChart(history);
       expect(data.trendDirection).toBe('up');
+    });
+  });
+
+  describe('summarizeWeightHistory', () => {
+    it('keeps all valid entries untouched when count <= 7', () => {
+      const history: WeightHistoryPoint[] = [
+        { date: '2026-11-01', weightKg: 0, movingAverage: null },
+        { date: '2026-11-02', weightKg: 82.0, movingAverage: 82.0 },
+        { date: '2026-11-03', weightKg: 81.5, movingAverage: 81.8 },
+        { date: '2026-11-04', weightKg: 81.0, movingAverage: 81.5 },
+      ];
+      const summarized = summarizeWeightHistory(history, 7);
+      expect(summarized).toHaveLength(3);
+      expect(summarized[2]).toEqual({ date: '2026-11-04', weightKg: 81.0, movingAverage: 81.5 });
+    });
+
+    it('summarizes > 7 entries into 7 bars using subperiod averages while preserving latest weigh-in exact', () => {
+      const history: WeightHistoryPoint[] = Array.from({ length: 19 }, (_, idx) => {
+        const day = String(idx + 1).padStart(2, '0');
+        return {
+          date: `2026-11-${day}`,
+          weightKg: Number((85 - idx * 0.2).toFixed(1)),
+          movingAverage: Number((85 - idx * 0.15).toFixed(2)),
+        };
+      });
+
+      const summarized = summarizeWeightHistory(history, 7);
+      expect(summarized).toHaveLength(7);
+
+      // Latest weigh-in (19th entry: 2026-11-19, 81.4 kg) must remain exact at the end
+      const latest = summarized[summarized.length - 1];
+      expect(latest.date).toBe('2026-11-19');
+      expect(latest.weightKg).toBe(81.4);
+      expect(latest.movingAverage).toBe(82.3);
+
+      // First subperiod averages first 3 entries: (85.0 + 84.8 + 84.6) / 3 = 84.8
+      expect(summarized[0].weightKg).toBe(84.8);
+      expect(summarized[0].date).toBe('2026-11-03');
     });
   });
 

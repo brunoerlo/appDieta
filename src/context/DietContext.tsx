@@ -7,13 +7,14 @@ import {
   DailyNutritionSummary,
   UserProfile,
 } from '../types/domain';
-import { IDietRepository, IAuthRepository } from '../database/repositories/interfaces';
+import { IDietRepository, IAuthRepository, FoodSearchOptions } from '../database/repositories/interfaces';
 import {
   getTodayDateString,
   shiftDateString,
   summarizeDietLogs,
   MealGroupSummary,
 } from '../utils/nutrition';
+import { translateErrorToPtBr } from '../utils/errorMessages';
 
 export interface DietContextValue {
   selectedDate: string;
@@ -42,7 +43,7 @@ export interface DietContextValue {
   resetWater: () => Promise<void>;
   refresh: () => Promise<void>;
   createFood: (food: Omit<FoodItem, 'id' | 'createdAt'>) => Promise<FoodItem>;
-  searchFoods: (query: string, limit?: number) => Promise<FoodItem[]>;
+  searchFoods: (query: string, limit?: number, options?: FoodSearchOptions) => Promise<FoodItem[]>;
   getFoodByBarcode: (barcode: string) => Promise<FoodItem | null>;
 }
 
@@ -129,7 +130,7 @@ export class DietStateManager {
       if (reqId !== this.loadRequestId) {
         return;
       }
-      this.error = err?.message || 'Falha ao carregar dados de nutrição';
+      this.error = translateErrorToPtBr(err, 'Não foi possível carregar os dados de nutrição.');
     } finally {
       if (reqId === this.loadRequestId) {
         if (!options?.silent) {
@@ -228,7 +229,7 @@ export class DietStateManager {
         totalWaterMl: prevWater,
       };
       await this.loadData({ silent: true });
-      this.error = err?.message || 'Falha ao registrar consumo de água';
+      this.error = translateErrorToPtBr(err, 'Não foi possível registrar o consumo de água.');
       this.notify();
     }
   }
@@ -256,7 +257,7 @@ export class DietStateManager {
         totalWaterMl: prevWater,
       };
       await this.loadData({ silent: true });
-      this.error = err?.message || 'Falha ao reduzir consumo de água';
+      this.error = translateErrorToPtBr(err, 'Não foi possível reduzir o consumo de água.');
       this.notify();
     }
   }
@@ -286,7 +287,7 @@ export class DietStateManager {
       };
       this.waterLogs = prevLogs;
       await this.loadData({ silent: true });
-      this.error = err?.message || 'Falha ao zerar consumo de água';
+      this.error = translateErrorToPtBr(err, 'Não foi possível zerar o consumo de água.');
       this.notify();
     }
   }
@@ -306,8 +307,12 @@ export class DietStateManager {
     return this.dietRepo.createFood(food);
   }
 
-  public async searchFoods(query: string, limit = 50): Promise<FoodItem[]> {
-    return this.dietRepo.searchFoods(query, limit);
+  public async searchFoods(
+    query: string,
+    limit = 50,
+    options?: FoodSearchOptions
+  ): Promise<FoodItem[]> {
+    return this.dietRepo.searchFoods(query, limit, options);
   }
 
   public async getFoodByBarcode(barcode: string): Promise<FoodItem | null> {
@@ -387,7 +392,7 @@ export const DietProvider: React.FC<DietProviderProps> = ({
         if (reqId !== loadRequestIdRef.current) {
           return;
         }
-        setError(err?.message || 'Falha ao carregar dados de nutrição');
+        setError(translateErrorToPtBr(err, 'Não foi possível carregar os dados de nutrição.'));
       } finally {
         if (reqId === loadRequestIdRef.current && !options?.silent) {
           setIsLoading(false);
@@ -509,7 +514,7 @@ export const DietProvider: React.FC<DietProviderProps> = ({
           totalWaterMl: prevWater,
         }));
         await loadData(selectedDate, { silent: true });
-        setError(err?.message || 'Falha ao registrar consumo de água');
+        setError(translateErrorToPtBr(err, 'Não foi possível registrar o consumo de água.'));
       }
     },
     [dietRepo, selectedDate, loadData, waterTotalMl]
@@ -538,7 +543,7 @@ export const DietProvider: React.FC<DietProviderProps> = ({
           totalWaterMl: prevWater,
         }));
         await loadData(selectedDate, { silent: true });
-        setError(err?.message || 'Falha ao reduzir consumo de água');
+        setError(translateErrorToPtBr(err, 'Não foi possível reduzir o consumo de água.'));
       }
     },
     [dietRepo, selectedDate, loadData, waterTotalMl]
@@ -562,7 +567,7 @@ export const DietProvider: React.FC<DietProviderProps> = ({
       setDailySummary((prev) => ({ ...prev, totalWaterMl: prevWater }));
       setWaterLogs(prevLogs);
       await loadData(selectedDate, { silent: true });
-      setError(err?.message || 'Falha ao zerar consumo de água');
+      setError(translateErrorToPtBr(err, 'Não foi possível zerar o consumo de água.'));
     }
   }, [dietRepo, selectedDate, loadData, waterTotalMl, waterLogs]);
 
@@ -583,8 +588,8 @@ export const DietProvider: React.FC<DietProviderProps> = ({
   );
 
   const searchFoods = useCallback(
-    async (query: string, limit = 50) => {
-      return dietRepo.searchFoods(query, limit);
+    async (query: string, limit = 50, options?: FoodSearchOptions) => {
+      return dietRepo.searchFoods(query, limit, options);
     },
     [dietRepo]
   );

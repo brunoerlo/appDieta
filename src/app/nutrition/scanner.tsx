@@ -21,6 +21,7 @@ import { ServingSizeModal } from '../../components/nutrition/ServingSizeModal';
 import { FoodItem, MealType } from '../../types/domain';
 import { useDiet } from '../../hooks/useDiet';
 import { useSafeTopPadding } from '../../hooks/useSafeTopPadding';
+import { translateErrorToPtBr } from '../../utils/errorMessages';
 
 const VALID_MEAL_TYPES: MealType[] = ['breakfast', 'lunch', 'snack', 'dinner', 'supper'];
 
@@ -76,13 +77,14 @@ export default function BarcodeScannerScreen() {
       // 2. Search Remote Open Food Facts
       const remoteFood = await openFoodFactsService.getProductByBarcode(clean);
       if (remoteFood) {
-        // Cache to local SQLite so subsequent scans are offline and instantaneous
+        // Cache so subsequent scans are offline and instantaneous
+        let foodToSelect = remoteFood;
         try {
-          await createFood(remoteFood);
+          foodToSelect = await createFood(remoteFood);
         } catch {
           // Ignore unique collision
         }
-        setSelectedFood(remoteFood);
+        setSelectedFood(foodToSelect);
         setModalVisible(true);
         return;
       }
@@ -104,8 +106,14 @@ export default function BarcodeScannerScreen() {
           },
         ]
       );
-    } catch {
-      Alert.alert('Erro', 'Não foi possível consultar o código de barras.');
+    } catch (err: any) {
+      Alert.alert(
+        'Erro na leitura',
+        translateErrorToPtBr(
+          err,
+          'Não foi possível consultar o código de barras. Verifique sua conexão e tente novamente.'
+        )
+      );
       setScanned(false);
     } finally {
       isProcessingRef.current = false;
@@ -131,7 +139,10 @@ export default function BarcodeScannerScreen() {
       setModalVisible(false);
       router.back();
     } catch (err: any) {
-      Alert.alert('Erro', err?.message || 'Não foi possível registrar o alimento.');
+      Alert.alert(
+        'Erro ao registrar',
+        translateErrorToPtBr(err, 'Não foi possível registrar o alimento.')
+      );
       throw err;
     }
   };

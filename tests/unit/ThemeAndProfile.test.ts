@@ -210,7 +210,9 @@ describe('ThemeStateManager & ProfileStateManager Unit Tests (Milestone M4)', ()
     it('handles repository failure and exposes error', async () => {
       mockAuthRepo.shouldFail = true;
       await profileManager.loadProfile();
-      expect(profileManager.error).toContain('DB Connection Failed');
+      expect(profileManager.error).toBe(
+        'Falha de conexão com o banco de dados. Tente novamente em instantes.'
+      );
       expect(profileManager.isLoading).toBe(false);
     });
 

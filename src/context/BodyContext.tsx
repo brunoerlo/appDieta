@@ -8,6 +8,7 @@ import {
 } from '../utils/body';
 import { getTodayDateString } from '../utils/nutrition';
 import { PhotoStorageService } from '../services/PhotoStorageService';
+import { translateErrorToPtBr } from '../utils/errorMessages';
 
 export type ChartRange = '1M' | '3M' | '6M' | '1Y' | 'ALL';
 
@@ -181,7 +182,7 @@ export class BodyStateManager {
       if (reqId !== this.loadRequestId) {
         return;
       }
-      this.error = err?.message || 'Falha ao carregar dados corporais';
+      this.error = translateErrorToPtBr(err, 'Não foi possível carregar os dados corporais.');
     } finally {
       if (reqId === this.loadRequestId) {
         if (!options?.silent) {
@@ -371,7 +372,7 @@ export const BodyProvider: React.FC<BodyProviderProps> = ({
         if (reqId !== loadRequestIdRef.current) {
           return;
         }
-        setError(err?.message || 'Falha ao carregar dados corporais');
+        setError(translateErrorToPtBr(err, 'Não foi possível carregar os dados corporais.'));
       } finally {
         if (reqId === loadRequestIdRef.current && !options?.silent) {
           setIsLoading(false);

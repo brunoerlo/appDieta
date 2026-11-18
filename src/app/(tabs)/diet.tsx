@@ -11,6 +11,7 @@ import { MealCard } from '../../components/nutrition/MealCard';
 import { PortionEditModal } from '../../components/nutrition/PortionEditModal';
 import { DietLogEntry, MealType } from '../../types/domain';
 import { spacing, borderRadius } from '../../constants/theme';
+import { translateErrorToPtBr } from '../../utils/errorMessages';
 
 export default function DietTabScreen() {
   const router = useRouter();
@@ -85,7 +86,10 @@ export default function DietTabScreen() {
     try {
       await deleteFoodLog(id);
     } catch (err: any) {
-      Alert.alert('Erro', err?.message || 'Não foi possível remover o alimento.');
+      Alert.alert(
+        'Erro ao remover',
+        translateErrorToPtBr(err, 'Não foi possível remover o alimento.')
+      );
     }
   };
 

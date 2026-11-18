@@ -4,6 +4,7 @@ import { spacing, borderRadius, ThemeColors } from '../../constants/theme';
 import { useTheme } from '../../hooks/useTheme';
 import { Card } from '../ui/Card';
 import { ProgressBar } from '../ui/ProgressBar';
+import { translateErrorToPtBr } from '../../utils/errorMessages';
 
 export interface WaterTrackerCardProps {
   consumedMl: number;
@@ -34,7 +35,10 @@ export const WaterTrackerCard: React.FC<WaterTrackerCardProps> = ({
     try {
       await Promise.resolve(action());
     } catch (err: any) {
-      Alert.alert('Erro', err?.message || 'Não foi possível atualizar o consumo de água.');
+      Alert.alert(
+        'Erro na hidratação',
+        translateErrorToPtBr(err, 'Não foi possível atualizar o consumo de água.')
+      );
     } finally {
       isProcessingRef.current = false;
     }

@@ -20,10 +20,33 @@ import { ServingSizeModal } from '../../components/nutrition/ServingSizeModal';
 import { FoodItem, MealType } from '../../types/domain';
 import { MEAL_TYPE_NAMES } from '../../utils/nutrition';
 import { useDiet } from '../../hooks/useDiet';
+import { translateErrorToPtBr } from '../../utils/errorMessages';
+import {
+  TACO_FOODS_SEED,
+  READY_DISHES_SEED,
+  BEVERAGES_SEED,
+} from '../../database/seed/tacoFoods';
+import {
+  dedupeFoods,
+  matchesFoodTokens,
+  normalizeFoodText,
+  tokenizeFoodQuery,
+} from '../../utils/text';
 
 type FilterTab = 'all' | 'meals' | 'drinks' | 'taco' | 'custom' | 'off';
 
 const VALID_MEAL_TYPES: MealType[] = ['breakfast', 'lunch', 'snack', 'dinner', 'supper'];
+const SEED_FOODS_FALLBACK: FoodItem[] = [
+  ...READY_DISHES_SEED,
+  ...BEVERAGES_SEED,
+  ...TACO_FOODS_SEED,
+].map((item) => ({ ...item, createdAt: '' }));
+
+function searchSeedFallback(query: string): FoodItem[] {
+  const tokens = tokenizeFoodQuery(query);
+  if (tokens.length === 0) return SEED_FOODS_FALLBACK;
+  return SEED_FOODS_FALLBACK.filter((item) => matchesFoodTokens(item, tokens));
+}
 
 export default function FoodSearchScreen() {
   const router = useRouter();
@@ -48,17 +71,36 @@ export default function FoodSearchScreen() {
 
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
   const requestIdRef = useRef<number>(0);
+  const remoteRequestIdRef = useRef<number>(0);
 
-  // Initial load of common TACO foods and ready meals
+  // Initial load: instant local TACO/seed foods + background Supabase catalog merge
   useEffect(() => {
     let active = true;
-    searchFoods('', 100)
+    const reqId = ++requestIdRef.current;
+    const remoteReqId = ++remoteRequestIdRef.current;
+
+    searchFoods('', 200, { localOnly: true })
       .then((foods) => {
-        if (active) setLocalResults(foods);
+        if (active && requestIdRef.current === reqId) {
+          setLocalResults(dedupeFoods([...foods, ...SEED_FOODS_FALLBACK]));
+        }
       })
       .catch(() => {
-        if (active) setLocalResults([]);
+        if (active && requestIdRef.current === reqId) {
+          setLocalResults(SEED_FOODS_FALLBACK);
+        }
       });
+
+    searchFoods('', 200)
+      .then((foods) => {
+        if (active && remoteRequestIdRef.current === remoteReqId) {
+          setLocalResults(dedupeFoods([...foods, ...SEED_FOODS_FALLBACK]));
+        }
+      })
+      .catch(() => {
+        // Keep local/seed results on offline/remote failure
+      });
+
     return () => {
       active = false;
       if (debounceTimerRef.current) {
@@ -67,21 +109,23 @@ export default function FoodSearchScreen() {
     };
   }, [searchFoods]);
 
-  // Handle Query Changes with immediate local search & debounced remote search
+  // Handle Query Changes with instant non-blocking local/TACO search & debounced remote search
   const handleQueryChange = (text: string) => {
     setQuery(text);
     const currentReqId = ++requestIdRef.current;
+    const currentRemoteReqId = ++remoteRequestIdRef.current;
+    const seedHits = searchSeedFallback(text);
 
-    // Immediate local search guarded against race condition
-    searchFoods(text, 50)
+    // 1. Instant local SQLite + TACO seed search (never blocked by network)
+    searchFoods(text, 200, { localOnly: true })
       .then((foods) => {
         if (requestIdRef.current === currentReqId) {
-          setLocalResults(foods);
+          setLocalResults(dedupeFoods([...foods, ...seedHits]));
         }
       })
       .catch(() => {
         if (requestIdRef.current === currentReqId) {
-          setLocalResults([]);
+          setLocalResults(seedHits);
         }
       });
 
@@ -90,44 +134,50 @@ export default function FoodSearchScreen() {
       clearTimeout(debounceTimerRef.current);
     }
 
-    if (!text.trim() || text.trim().length < 2) {
+    const trimmed = text.trim();
+    if (!trimmed) {
       setRemoteResults([]);
       setIsSearchingRemote(false);
+      debounceTimerRef.current = setTimeout(async () => {
+        try {
+          const dbMerged = await searchFoods('', 200);
+          if (remoteRequestIdRef.current === currentRemoteReqId) {
+            setLocalResults(dedupeFoods([...dbMerged, ...SEED_FOODS_FALLBACK]));
+          }
+        } catch {
+          // Keep instant local results
+        }
+      }, 250);
       return;
     }
 
-    setIsSearchingRemote(true);
+    setIsSearchingRemote(trimmed.length >= 2);
     debounceTimerRef.current = setTimeout(async () => {
       try {
-        const offResults = await openFoodFactsService.searchFoods(text.trim(), 20);
-        if (requestIdRef.current === currentReqId) {
+        const [dbMerged, offResults] = await Promise.all([
+          searchFoods(text, 200).catch(() => [] as FoodItem[]),
+          trimmed.length >= 2
+            ? openFoodFactsService.searchFoods(trimmed, 20).catch(() => [] as FoodItem[])
+            : Promise.resolve([] as FoodItem[]),
+        ]);
+
+        if (remoteRequestIdRef.current === currentRemoteReqId) {
+          if (dbMerged.length > 0) {
+            setLocalResults((prev) => dedupeFoods([...dbMerged, ...prev, ...seedHits]));
+          }
           setRemoteResults(offResults);
         }
-      } catch {
-        if (requestIdRef.current === currentReqId) {
-          setRemoteResults([]);
-        }
       } finally {
-        if (requestIdRef.current === currentReqId) {
+        if (remoteRequestIdRef.current === currentRemoteReqId) {
           setIsSearchingRemote(false);
         }
       }
-    }, 400);
+    }, 300);
   };
 
-  // Combine and filter results according to tab
+  // Combine and filter results according to tab (deduped by id, barcode, and normalized name+source)
   const displayedResults = useMemo(() => {
-    const combined: FoodItem[] = [...localResults];
-
-    // Append remote results if not already present by barcode/id/name
-    for (const rem of remoteResults) {
-      const alreadyInLocal = combined.some(
-        (loc) => (loc.barcode && loc.barcode === rem.barcode) || loc.id === rem.id
-      );
-      if (!alreadyInLocal) {
-        combined.push(rem);
-      }
-    }
+    const combined = dedupeFoods([...localResults, ...remoteResults]);
 
     if (activeTab === 'all') return combined;
     if (activeTab === 'meals') {
@@ -160,24 +210,43 @@ export default function FoodSearchScreen() {
     fat: number;
   }) => {
     try {
-      // If food is from Open Food Facts and not in local DB, cache it
-      if (entry.food.source === 'openfoodfacts') {
-        try {
-          await createFood(entry.food);
-        } catch {
-          // Already cached or ignored
+      let foodToLog = entry.food;
+
+      // Only cache transient Open Food Facts results (`off-*`) if not already stored in DB
+      if (entry.food.source === 'openfoodfacts' && entry.food.id.startsWith('off-')) {
+        const normName = normalizeFoodText(entry.food.name);
+        const existingLocal = localResults.find(
+          (loc) =>
+            !loc.id.startsWith('off-') &&
+            ((entry.food.barcode && loc.barcode === entry.food.barcode) ||
+              (normName &&
+                normalizeFoodText(loc.name) === normName &&
+                loc.source === 'openfoodfacts'))
+        );
+
+        if (existingLocal) {
+          foodToLog = existingLocal;
+        } else {
+          try {
+            foodToLog = await createFood(entry.food);
+          } catch {
+            // Already cached or offline; still proceed with logging
+          }
         }
       }
 
       await addFoodLog({
         mealType: entry.mealType,
-        food: entry.food,
+        food: foodToLog,
         servingGrams: entry.servingGrams,
       });
 
       router.back();
     } catch (err: any) {
-      Alert.alert('Erro', err?.message || 'Não foi possível registrar o alimento.');
+      Alert.alert(
+        'Erro ao registrar',
+        translateErrorToPtBr(err, 'Não foi possível registrar o alimento.')
+      );
       throw err;
     }
   };

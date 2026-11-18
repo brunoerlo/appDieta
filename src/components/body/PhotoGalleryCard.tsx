@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { useTheme } from '../../hooks/useTheme';
 import { extractPoseFromUri, resolvePhotoUri } from '../../utils/photoComparison';
+import { translateErrorToPtBr } from '../../utils/errorMessages';
 
 export interface PhotoGalleryCardProps {
   photos: { date: string; uri: string }[];
@@ -52,7 +53,10 @@ export const PhotoGalleryCard: React.FC<PhotoGalleryCardProps> = ({
           style: 'destructive',
           onPress: () => {
             void Promise.resolve(onDeletePhoto(uri, date)).catch((err: any) => {
-              Alert.alert('Erro', err?.message || 'Não foi possível excluir a foto.');
+              Alert.alert(
+                'Erro ao excluir foto',
+                translateErrorToPtBr(err, 'Não foi possível excluir a foto.')
+              );
             });
           },
         },

@@ -13,6 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useBody } from '../../hooks/useBody';
 import { useTheme } from '../../hooks/useTheme';
+import { translateErrorToPtBr } from '../../utils/errorMessages';
 
 export default function BodyLogModalScreen() {
   const router = useRouter();
@@ -115,7 +116,7 @@ export default function BodyLogModalScreen() {
       });
       router.back();
     } catch (err: any) {
-      setError(err?.message || 'Falha ao salvar dados');
+      setError(translateErrorToPtBr(err, 'Não foi possível salvar os dados corporais.'));
     } finally {
       isSubmittingRef.current = false;
       setSaving(false);

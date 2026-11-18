@@ -19,12 +19,49 @@ import { spacing, borderRadius, ThemeColors } from '../../constants/theme';
 import { useTheme } from '../../hooks/useTheme';
 import { Button } from '../../components/ui/Button';
 import { FoodItem, MealType } from '../../types/domain';
+import { translateErrorToPtBr } from '../../utils/errorMessages';
 import {
   calculateAtwaterCalories,
   isAtwaterConsistent,
   MEAL_TYPE_NAMES,
 } from '../../utils/nutrition';
 import { useDiet } from '../../hooks/useDiet';
+import {
+  TACO_FOODS_SEED,
+  READY_DISHES_SEED,
+  BEVERAGES_SEED,
+} from '../../database/seed/tacoFoods';
+import {
+  dedupeFoods,
+  matchesFoodTokens,
+  tokenizeFoodQuery,
+} from '../../utils/text';
+
+const SEED_INGREDIENTS_FALLBACK: FoodItem[] = [
+  ...TACO_FOODS_SEED,
+  ...BEVERAGES_SEED,
+  ...READY_DISHES_SEED,
+].map((item) => ({ ...item, createdAt: '' }));
+
+function sortIngredientsFirst(items: FoodItem[]): FoodItem[] {
+  return [...items].sort((a, b) => {
+    const rank = (f: FoodItem) => {
+      if (f.source === 'taco') return 0;
+      if (f.source === 'custom' || f.source === 'openfoodfacts') return 1;
+      if (f.category === 'Bebidas') return 2;
+      return 3;
+    };
+    const rDiff = rank(a) - rank(b);
+    if (rDiff !== 0) return rDiff;
+    return a.name.localeCompare(b.name, 'pt-BR');
+  });
+}
+
+function searchIngredientSeedFallback(query: string): FoodItem[] {
+  const tokens = tokenizeFoodQuery(query);
+  if (tokens.length === 0) return SEED_INGREDIENTS_FALLBACK;
+  return SEED_INGREDIENTS_FALLBACK.filter((item) => matchesFoodTokens(item, tokens));
+}
 
 type CreationType = 'food' | 'meal' | 'drink';
 type EntryMode = '100g' | 'portion';
@@ -176,25 +213,43 @@ export default function CustomFoodScreen() {
     setIsPickerLoading(true);
   };
 
-  // Search DB foods when ingredient picker is open
+  // Search DB foods when ingredient picker is open: instant local TACO/seed + debounced Supabase merge
   useEffect(() => {
     if (!isPickerVisible) return;
     let active = true;
-    searchFoods(pickerSearch, 30)
+    const seedHits = searchIngredientSeedFallback(pickerSearch);
+
+    searchFoods(pickerSearch, 200, { localOnly: true })
       .then((foods) => {
         if (active) {
-          setPickerFoods(foods);
+          setPickerFoods(sortIngredientsFirst(dedupeFoods([...foods, ...seedHits])));
           setIsPickerLoading(false);
         }
       })
       .catch(() => {
         if (active) {
-          setPickerFoods([]);
+          setPickerFoods(sortIngredientsFirst(seedHits));
           setIsPickerLoading(false);
         }
       });
+
+    const timer = setTimeout(() => {
+      searchFoods(pickerSearch, 200)
+        .then((foods) => {
+          if (active && foods.length > 0) {
+            setPickerFoods((prev) =>
+              sortIngredientsFirst(dedupeFoods([...foods, ...prev, ...seedHits]))
+            );
+          }
+        })
+        .catch(() => {
+          // Keep instant local/seed results
+        });
+    }, 250);
+
     return () => {
       active = false;
+      clearTimeout(timer);
     };
   }, [searchFoods, isPickerVisible, pickerSearch]);
 
@@ -481,8 +536,11 @@ export default function CustomFoodScreen() {
         `${typeLabel} salvo com sucesso no seu catálogo!`,
         [{ text: 'OK', onPress: () => router.back() }]
       );
-    } catch {
-      Alert.alert('Erro', 'Não foi possível salvar.');
+    } catch (err: any) {
+      Alert.alert(
+        'Erro ao salvar',
+        translateErrorToPtBr(err, 'Não foi possível salvar este item no catálogo.')
+      );
     } finally {
       isSubmittingRef.current = false;
       setSaving(false);
@@ -514,8 +572,11 @@ export default function CustomFoodScreen() {
       });
 
       router.back();
-    } catch {
-      Alert.alert('Erro', 'Não foi possível salvar e registrar.');
+    } catch (err: any) {
+      Alert.alert(
+        'Erro ao salvar',
+        translateErrorToPtBr(err, 'Não foi possível salvar e registrar este item.')
+      );
     } finally {
       isSubmittingRef.current = false;
       setSaving(false);

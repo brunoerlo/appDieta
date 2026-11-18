@@ -11,6 +11,7 @@ import {
 import { IWorkoutRepository } from '../database/repositories/interfaces';
 import { calculateWorkoutVolume, formatPreviousLoad } from '../utils/workout';
 import { getTodayDateString } from '../utils/nutrition';
+import { translateErrorToPtBr } from '../utils/errorMessages';
 
 export interface ActiveLiveSet {
   id: string;
@@ -137,7 +138,7 @@ export class WorkoutStateManager {
     try {
       this.routines = await this.workoutRepo.getRoutines();
     } catch (err: any) {
-      this.error = err?.message || 'Falha ao carregar rotinas';
+      this.error = translateErrorToPtBr(err, 'Não foi possível carregar as rotinas de treino.');
     } finally {
       this.isLoading = false;
       this.notify();
@@ -150,7 +151,10 @@ export class WorkoutStateManager {
       this.customExercises = await this.workoutRepo.getCustomExercises();
       this.notify();
     } catch (err: any) {
-      this.error = err?.message || 'Falha ao carregar exercícios personalizados';
+      this.error = translateErrorToPtBr(
+        err,
+        'Não foi possível carregar os exercícios personalizados.'
+      );
       this.notify();
     }
   }
@@ -642,7 +646,7 @@ export class WorkoutStateManager {
     try {
       this.historySessions = await this.workoutRepo.getWorkoutSessions(limit, offset);
     } catch (err: any) {
-      this.error = err?.message || 'Falha ao carregar histórico';
+      this.error = translateErrorToPtBr(err, 'Não foi possível carregar o histórico de treinos.');
     } finally {
       this.isLoading = false;
       this.notify();
@@ -656,7 +660,10 @@ export class WorkoutStateManager {
       this.notify();
       return history;
     } catch (err: any) {
-      this.error = err?.message || 'Falha ao carregar histórico do exercício';
+      this.error = translateErrorToPtBr(
+        err,
+        'Não foi possível carregar o histórico do exercício.'
+      );
       return [];
     }
   }

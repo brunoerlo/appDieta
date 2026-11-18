@@ -60,12 +60,16 @@ export interface IAuthRepository {
   completeOnboarding(data: OnboardingData): Promise<UserProfile>;
 }
 
+export interface FoodSearchOptions {
+  localOnly?: boolean;
+}
+
 export interface IDietRepository {
   getDailyLogs(date: string): Promise<DietLogEntry[]>;
   addDietLog(entry: Omit<DietLogEntry, 'id' | 'createdAt'>): Promise<DietLogEntry>;
   updateDietLog(id: string, entry: Partial<DietLogEntry>): Promise<void>;
   deleteDietLog(id: string): Promise<void>;
-  searchFoods(query: string, limit?: number): Promise<FoodItem[]>;
+  searchFoods(query: string, limit?: number, options?: FoodSearchOptions): Promise<FoodItem[]>;
   getFoodByBarcode(barcode: string): Promise<FoodItem | null>;
   createFood(food: Omit<FoodItem, 'id' | 'createdAt'>): Promise<FoodItem>;
   getWaterLogs(date: string): Promise<WaterLogEntry[]>;

@@ -1,5 +1,5 @@
-import { IDietRepository, ISqliteDatabase } from './interfaces';
-import { normalizeFoodText } from '../../utils/text';
+import { IDietRepository, ISqliteDatabase, FoodSearchOptions } from './interfaces';
+import { normalizeFoodText, tokenizeFoodQuery, dedupeFoods } from '../../utils/text';
 import {
   DietLogEntry,
   FoodItem,
@@ -177,11 +177,20 @@ export class SqliteDietRepository implements IDietRepository {
     await this.db.runAsync(`DELETE FROM diet_logs WHERE id = ? AND user_id = ?;`, id, userId);
   }
 
-  async searchFoods(query: string, limit = 50): Promise<FoodItem[]> {
+  async searchFoods(
+    query: string,
+    limit = 50,
+    _options?: FoodSearchOptions
+  ): Promise<FoodItem[]> {
     const sanitized = query.trim();
+    if (sanitized.length > 200) {
+      return [];
+    }
     const safeLimit = Math.max(1, Math.min(200, Math.floor(Number(limit) || 50)));
-    if (!sanitized) {
-      const topLimit = safeLimit === 50 ? 30 : Math.min(safeLimit, 100);
+    const tokens = tokenizeFoodQuery(sanitized);
+
+    if (!sanitized || tokens.length === 0) {
+      const topLimit = safeLimit === 50 ? 30 : Math.min(safeLimit, 200);
       const rows = await this.db.getAllAsync<FoodRow>(
         `SELECT id, name, name_normalized, category, serving_grams, calories, protein, carbs, fat, fiber, barcode, source, serving_unit_name, serving_unit_grams, created_at
          FROM foods
@@ -195,19 +204,33 @@ export class SqliteDietRepository implements IDietRepository {
          LIMIT ?;`,
         topLimit
       );
-      return rows.map((r) => this.mapFoodRow(r));
+      return dedupeFoods(rows.map((r) => this.mapFoodRow(r)));
     }
 
-    const normalized = normalizeFoodText(sanitized);
-    const wildcardRaw = `%${sanitized}%`;
-    const prefixRaw = `${sanitized}%`;
-    const wildcardNorm = `%${normalized}%`;
-    const prefixNorm = `${normalized}%`;
+    const rawTokens = sanitized
+      .replace(/[,;]+/g, ' ')
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 8);
+
+    const whereClauses: string[] = [];
+    const whereParams: string[] = [];
+    for (let i = 0; i < tokens.length; i++) {
+      const normTok = tokens[i];
+      const rawTok = rawTokens[i] ?? normTok;
+      whereClauses.push(
+        '(name LIKE ? OR (name_normalized IS NOT NULL AND name_normalized LIKE ?))'
+      );
+      whereParams.push(`%${rawTok}%`, `%${normTok}%`);
+    }
+
+    const prefixRaw = `${rawTokens[0] ?? tokens[0]}%`;
+    const prefixNorm = `${tokens[0]}%`;
 
     const rows = await this.db.getAllAsync<FoodRow>(
       `SELECT id, name, name_normalized, category, serving_grams, calories, protein, carbs, fat, fiber, barcode, source, serving_unit_name, serving_unit_grams, created_at
        FROM foods
-       WHERE name LIKE ? OR (name_normalized IS NOT NULL AND name_normalized LIKE ?)
+       WHERE ${whereClauses.join(' AND ')}
        ORDER BY
          CASE
            WHEN name LIKE ? OR (name_normalized IS NOT NULL AND name_normalized LIKE ?) THEN 1
@@ -215,14 +238,13 @@ export class SqliteDietRepository implements IDietRepository {
          END,
          name ASC
        LIMIT ?;`,
-      wildcardRaw,
-      wildcardNorm,
+      ...whereParams,
       prefixRaw,
       prefixNorm,
       safeLimit
     );
 
-    return rows.map((r) => this.mapFoodRow(r));
+    return dedupeFoods(rows.map((r) => this.mapFoodRow(r)));
   }
 
   async getFoodByBarcode(barcode: string): Promise<FoodItem | null> {
@@ -238,10 +260,41 @@ export class SqliteDietRepository implements IDietRepository {
   }
 
   async createFood(food: Omit<FoodItem, 'id' | 'createdAt'>): Promise<FoodItem> {
+    const nameNormalized = food.nameNormalized ?? normalizeFoodText(food.name);
+    const cleanBarcode =
+      typeof food.barcode === 'string' && food.barcode.trim().length > 0
+        ? food.barcode.trim()
+        : null;
+
+    if (cleanBarcode) {
+      const existingByBarcode = await this.db.getFirstAsync<FoodRow>(
+        `SELECT id, name, name_normalized, category, serving_grams, calories, protein, carbs, fat, fiber, barcode, source, serving_unit_name, serving_unit_grams, created_at
+         FROM foods
+         WHERE barcode = ?
+         LIMIT 1;`,
+        cleanBarcode
+      );
+      if (existingByBarcode) {
+        return this.mapFoodRow(existingByBarcode);
+      }
+    }
+
+    if (food.source === 'openfoodfacts' && nameNormalized) {
+      const existingOff = await this.db.getFirstAsync<FoodRow>(
+        `SELECT id, name, name_normalized, category, serving_grams, calories, protein, carbs, fat, fiber, barcode, source, serving_unit_name, serving_unit_grams, created_at
+         FROM foods
+         WHERE name_normalized = ? AND source = 'openfoodfacts'
+         LIMIT 1;`,
+        nameNormalized
+      );
+      if (existingOff) {
+        return this.mapFoodRow(existingOff);
+      }
+    }
+
     const prefix = food.category === 'Bebidas' ? 'drink' : 'food';
     const id = `${prefix}-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
     const createdAt = new Date().toISOString();
-    const nameNormalized = food.nameNormalized ?? normalizeFoodText(food.name);
 
     await this.db.runAsync(
       `INSERT INTO foods (id, name, name_normalized, category, serving_grams, calories, protein, carbs, fat, fiber, barcode, source, serving_unit_name, serving_unit_grams, created_at)
@@ -256,7 +309,7 @@ export class SqliteDietRepository implements IDietRepository {
       food.carbs,
       food.fat,
       food.fiber ?? 0,
-      food.barcode ?? null,
+      cleanBarcode,
       food.source,
       food.servingUnitName ?? 'g',
       food.servingUnitGrams ?? 1,
@@ -266,6 +319,7 @@ export class SqliteDietRepository implements IDietRepository {
     return {
       ...food,
       id,
+      barcode: cleanBarcode ?? undefined,
       nameNormalized,
       createdAt,
     };

@@ -203,19 +203,18 @@ describe('Tier 5 Adversarial Stress & Vulnerability Hardening: DB & Nutrition', 
       }
     });
 
-    it('2.2 demonstrates comma and punctuation search gap in TACO dataset', async () => {
+    it('2.2 resolves comma and punctuation search gap in TACO dataset via tokenized matching', async () => {
       // In TACO: "Peito de frango, grelhado"
-      // If user searches "frango grelhado", the comma in the food name prevents exact substring match
+      // Multi-word tokenized search ("frango grelhado") now matches despite ", " in TACO name
       const resultsWithoutComma = await dietRepo.searchFoods('frango grelhado');
-      // "Peito de frango, grelhado" does NOT match because of ", " between frango and grelhado!
       const matchedTaco = resultsWithoutComma.some((r) => r.id === 'taco-peito-frango-grelhado');
-      expect(matchedTaco).toBe(false);
+      expect(matchedTaco).toBe(true);
 
-      // But searching "frango" matches:
+      // Searching single word "frango" also matches:
       const resultsSingleWord = await dietRepo.searchFoods('frango');
       expect(resultsSingleWord.some((r) => r.id === 'taco-peito-frango-grelhado')).toBe(true);
 
-      // And searching "Peito de frango, grelhado" matches:
+      // And searching "frango, grelhado" matches:
       const resultsWithComma = await dietRepo.searchFoods('frango, grelhado');
       expect(resultsWithComma.some((r) => r.id === 'taco-peito-frango-grelhado')).toBe(true);
     });

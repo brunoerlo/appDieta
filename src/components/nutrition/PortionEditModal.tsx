@@ -15,6 +15,7 @@ import { useTheme } from '../../hooks/useTheme';
 import { DietLogEntry } from '../../types/domain';
 import { isBeverageEntry } from '../../utils/nutrition';
 import { Button } from '../ui/Button';
+import { translateErrorToPtBr } from '../../utils/errorMessages';
 
 export interface PortionEditModalProps {
   visible: boolean;
@@ -110,7 +111,10 @@ const PortionEditModalContent: React.FC<PortionEditModalContentProps> = ({
       });
       onClose();
     } catch (err: any) {
-      Alert.alert('Erro', err?.message || 'Não foi possível salvar as alterações.');
+      Alert.alert(
+        'Erro ao salvar',
+        translateErrorToPtBr(err, 'Não foi possível salvar as alterações.')
+      );
     } finally {
       isSubmittingRef.current = false;
       setSaving(false);
@@ -125,7 +129,10 @@ const PortionEditModalContent: React.FC<PortionEditModalContentProps> = ({
       await onDelete(entry.id);
       onClose();
     } catch (err: any) {
-      Alert.alert('Erro', err?.message || 'Não foi possível excluir o alimento.');
+      Alert.alert(
+        'Erro ao excluir',
+        translateErrorToPtBr(err, 'Não foi possível excluir o alimento.')
+      );
     } finally {
       isSubmittingRef.current = false;
       setSaving(false);

@@ -266,6 +266,53 @@ export async function runMigrationV4(db: ISqliteDatabase): Promise<void> {
 }
 
 /**
+ * Ensures all TACO, ready dishes, and beverage seed foods exist in SQLite
+ * (idempotent via INSERT OR IGNORE, repairing partial seeds on existing DBs).
+ */
+export async function ensureSeedFoodsPresent(db: ISqliteDatabase): Promise<void> {
+  const tacoRow = await db.getFirstAsync<{ count: number }>(
+    "SELECT COUNT(*) as count FROM foods WHERE source = 'taco';"
+  );
+  const readyRow = await db.getFirstAsync<{ count: number }>(
+    "SELECT COUNT(*) as count FROM foods WHERE category = 'Refeições' AND source = 'recipe';"
+  );
+  const drinkRow = await db.getFirstAsync<{ count: number }>(
+    "SELECT COUNT(*) as count FROM foods WHERE category = 'Bebidas' AND source = 'recipe';"
+  );
+
+  const needsSeed =
+    (tacoRow?.count ?? 0) < TACO_FOODS_SEED.length ||
+    (readyRow?.count ?? 0) < READY_DISHES_SEED.length ||
+    (drinkRow?.count ?? 0) < BEVERAGES_SEED.length;
+
+  if (!needsSeed) return;
+
+  const now = new Date().toISOString();
+  const allSeeds = [...TACO_FOODS_SEED, ...READY_DISHES_SEED, ...BEVERAGES_SEED];
+  for (const item of allSeeds) {
+    await db.runAsync(
+      `INSERT OR IGNORE INTO foods (id, name, name_normalized, category, serving_grams, calories, protein, carbs, fat, fiber, barcode, source, serving_unit_name, serving_unit_grams, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
+      item.id,
+      item.name,
+      item.nameNormalized ?? null,
+      item.category ?? '',
+      item.servingGrams,
+      item.calories,
+      item.protein,
+      item.carbs,
+      item.fat,
+      item.fiber ?? 0,
+      item.barcode ?? null,
+      item.source,
+      item.servingUnitName ?? 'g',
+      item.servingUnitGrams ?? 1,
+      now
+    );
+  }
+}
+
+/**
  * Migration runner based on PRAGMA user_version.
  */
 export async function runMigrations(db: ISqliteDatabase): Promise<void> {
@@ -299,6 +346,8 @@ export async function runMigrations(db: ISqliteDatabase): Promise<void> {
       await db.execAsync('PRAGMA user_version = 4;');
     });
   }
+
+  await ensureSeedFoodsPresent(db);
 }
 
 /**

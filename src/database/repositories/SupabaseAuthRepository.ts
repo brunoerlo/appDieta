@@ -7,6 +7,7 @@ import {
 } from './interfaces';
 import { UserProfile } from '../../types/domain';
 import { supabase as defaultSupabase } from '../../services/supabaseClient';
+import { translateErrorToPtBr } from '../../utils/errorMessages';
 
 interface ProfileRow {
   id: string;
@@ -90,7 +91,9 @@ export class SupabaseAuthRepository implements IAuthRepository {
       .maybeSingle<ProfileRow>();
 
     if (selectError) {
-      throw new Error(selectError.message);
+      throw new Error(
+        translateErrorToPtBr(selectError, 'Não foi possível carregar o perfil do usuário.')
+      );
     }
 
     if (existing) {
@@ -121,7 +124,9 @@ export class SupabaseAuthRepository implements IAuthRepository {
       .single<ProfileRow>();
 
     if (insertError || !inserted) {
-      throw new Error(insertError?.message ?? 'Erro ao criar perfil do usuário.');
+      throw new Error(
+        translateErrorToPtBr(insertError, 'Não foi possível criar o perfil do usuário.')
+      );
     }
 
     return inserted;
@@ -195,7 +200,9 @@ export class SupabaseAuthRepository implements IAuthRepository {
       .single<ProfileRow>();
 
     if (error || !data) {
-      throw new Error(error?.message ?? 'Erro ao atualizar perfil.');
+      throw new Error(
+        translateErrorToPtBr(error, 'Não foi possível atualizar o perfil do usuário.')
+      );
     }
 
     return this.mapRow(data, true);
@@ -221,11 +228,9 @@ export class SupabaseAuthRepository implements IAuthRepository {
     });
 
     if (error) {
-      const msg = error.message.toLowerCase();
-      if (msg.includes('already registered') || msg.includes('already exists')) {
-        throw new Error('E-mail já cadastrado no aplicativo.');
-      }
-      throw new Error(error.message);
+      throw new Error(
+        translateErrorToPtBr(error, 'Não foi possível criar sua conta. Tente novamente.')
+      );
     }
 
     if (!data.user) {
@@ -255,10 +260,9 @@ export class SupabaseAuthRepository implements IAuthRepository {
     });
 
     if (error) {
-      if (error.message.toLowerCase().includes('invalid login credentials')) {
-        throw new Error('E-mail ou senha incorretos.');
-      }
-      throw new Error(error.message);
+      throw new Error(
+        translateErrorToPtBr(error, 'Não foi possível realizar o login. Tente novamente.')
+      );
     }
 
     if (!data.user) {
@@ -278,7 +282,9 @@ export class SupabaseAuthRepository implements IAuthRepository {
     if (error) {
       const localRes = await this.client.auth.signOut({ scope: 'local' });
       if (localRes?.error) {
-        throw new Error(error.message);
+        throw new Error(
+          translateErrorToPtBr(error, 'Não foi possível encerrar a sessão. Tente novamente.')
+        );
       }
     }
   }
@@ -313,7 +319,9 @@ export class SupabaseAuthRepository implements IAuthRepository {
       .eq('id', sessionUser.userId);
 
     if (error) {
-      throw new Error(error.message);
+      throw new Error(
+        translateErrorToPtBr(error, 'Não foi possível salvar a preferência de tema.')
+      );
     }
   }
 

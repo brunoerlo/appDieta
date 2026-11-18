@@ -18,6 +18,7 @@ import { spacing, borderRadius, ThemeColors } from '../../constants/theme';
 import { useTheme } from '../../hooks/useTheme';
 import { Badge } from '../ui/Badge';
 import { useWorkout } from '../../hooks/useWorkout';
+import { translateErrorToPtBr } from '../../utils/errorMessages';
 
 export interface ExercisePickerResult {
   name: string;
@@ -236,7 +237,10 @@ export const ExercisePickerModal: React.FC<ExercisePickerModalProps> = ({
       setSearchQuery('');
       onClose();
     } catch (err: any) {
-      Alert.alert('Erro ao criar', err?.message || 'Falha ao salvar exercício personalizado.');
+      Alert.alert(
+        'Erro ao criar',
+        translateErrorToPtBr(err, 'Não foi possível salvar o exercício personalizado.')
+      );
     } finally {
       isSubmittingRef.current = false;
       setIsSaving(false);

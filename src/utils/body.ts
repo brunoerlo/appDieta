@@ -96,6 +96,54 @@ export function calculateBodyComposition(
 }
 
 /**
+ * Summarizes a weight history series to at most `maxBars` entries by averaging
+ * contiguous subperiods while keeping the most recent weigh-in exact at the end.
+ */
+export function summarizeWeightHistory(
+  history: WeightHistoryPoint[],
+  maxBars = 7
+): WeightHistoryPoint[] {
+  if (!history || history.length === 0 || maxBars < 1) return [];
+  const validEntries = history.filter((p) => p.weightKg > 0);
+  if (validEntries.length <= maxBars) return validEntries;
+  if (maxBars === 1) return [validEntries[validEntries.length - 1]];
+
+  const latest = validEntries[validEntries.length - 1];
+  const earlier = validEntries.slice(0, -1);
+  const bucketCount = maxBars - 1;
+  const summarized: WeightHistoryPoint[] = [];
+
+  for (let i = 0; i < bucketCount; i++) {
+    const startIdx = Math.floor((i * earlier.length) / bucketCount);
+    const endIdx = Math.floor(((i + 1) * earlier.length) / bucketCount);
+    const slice = earlier.slice(startIdx, endIdx);
+    if (slice.length === 0) continue;
+
+    const avgWeight =
+      Math.round(
+        (slice.reduce((sum, item) => sum + item.weightKg, 0) / slice.length) * 10
+      ) / 10;
+
+    const maValues = slice
+      .map((item) => item.movingAverage)
+      .filter((m): m is number => m !== null && m !== undefined);
+    const avgMA =
+      maValues.length > 0
+        ? Math.round((maValues.reduce((sum, m) => sum + m, 0) / maValues.length) * 100) / 100
+        : null;
+
+    summarized.push({
+      date: slice[slice.length - 1].date,
+      weightKg: avgWeight,
+      movingAverage: avgMA,
+    });
+  }
+
+  summarized.push(latest);
+  return summarized;
+}
+
+/**
  * Maps WeightHistoryPoint array into coordinates for trend charting.
  */
 export function mapWeightHistoryToChart(

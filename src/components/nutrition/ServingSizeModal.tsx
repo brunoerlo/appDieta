@@ -16,6 +16,7 @@ import { useTheme } from '../../hooks/useTheme';
 import { FoodItem, MealType } from '../../types/domain';
 import { MEAL_TYPE_NAMES } from '../../utils/nutrition';
 import { Button } from '../ui/Button';
+import { translateErrorToPtBr } from '../../utils/errorMessages';
 
 export interface ServingSizeModalProps {
   visible: boolean;
@@ -114,7 +115,10 @@ const ServingSizeModalContent: React.FC<ServingSizeModalContentProps> = ({
       });
       onClose();
     } catch (err: any) {
-      Alert.alert('Erro', err?.message || 'Não foi possível adicionar o alimento.');
+      Alert.alert(
+        'Erro ao adicionar',
+        translateErrorToPtBr(err, 'Não foi possível adicionar o alimento.')
+      );
     } finally {
       isSubmittingRef.current = false;
       setSaving(false);

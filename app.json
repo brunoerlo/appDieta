@@ -2,6 +2,7 @@
   "expo": {
     "name": "-Frango",
     "slug": "MenosFrango",
+    "owner": "brunoerlos-team",
     "version": "1.0.0",
     "platforms": [
       "ios",
